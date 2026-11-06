@@ -45,6 +45,18 @@ interface LobbyApi {
         @Query("tmdbId") tmdbId: Int,
     ): TitleDetailsResponse
 
+    @GET("Lobby/Settings")
+    suspend fun settings(): TvSettingsResponse
+
+    @POST("Lobby/Settings")
+    suspend fun saveSettings(@Body body: SaveTvSettingsBody): TvSettingsResponse
+
+    @POST("Lobby/Settings/Reset")
+    suspend fun resetSettings(): TvSettingsResponse
+
+    @GET("Lobby/Sports/Teams")
+    suspend fun sportsTeams(@Query("days") days: Int): GuideTeamsResponse
+
     @GET("Lobby/Requesters")
     suspend fun requesters(): RequestersResponse
 

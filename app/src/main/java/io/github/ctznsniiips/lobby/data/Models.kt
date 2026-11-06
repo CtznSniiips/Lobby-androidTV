@@ -179,6 +179,72 @@ data class TitleDetailsResponse(
     @SerialName("Cast") val cast: List<TitlePerson> = emptyList(),
 )
 
+// ---- Per-TV settings -------------------------------------------------------------------------
+
+@Serializable
+data class TvRowSetting(
+    @SerialName("Id") val id: String = "",
+    @SerialName("Title") val title: String = "",
+    /** library, livetv or seerr. */
+    @SerialName("Source") val source: String = "library",
+    @SerialName("Visible") val visible: Boolean = true,
+    /** False when the row can't show anything yet (Seerr not set up, or no teams chosen). */
+    @SerialName("Available") val available: Boolean = true,
+    @SerialName("Reason") val reason: String? = null,
+)
+
+@Serializable
+data class SettingRange(
+    @SerialName("Min") val min: Int = 0,
+    @SerialName("Max") val max: Int = Int.MAX_VALUE,
+    @SerialName("Default") val default: Int = 0,
+)
+
+@Serializable
+data class TvSettingsResponse(
+    /** Every row, in this TV's display order. */
+    @SerialName("Rows") val rows: List<TvRowSetting> = emptyList(),
+    @SerialName("RowLimit") val rowLimit: Int = 20,
+    @SerialName("SportsLookaheadHours") val sportsLookaheadHours: Int = 12,
+    @SerialName("PlayDelayMs") val playDelayMs: Int = 0,
+    @SerialName("PlayTimeoutSeconds") val playTimeoutSeconds: Int = 45,
+    @SerialName("SportsTeams") val sportsTeams: List<String> = emptyList(),
+    /** False while the TV is still on the server defaults. */
+    @SerialName("Customized") val customized: Boolean = false,
+    @SerialName("Ranges") val ranges: Map<String, SettingRange> = emptyMap(),
+)
+
+/** Only the fields that are set are sent; the server leaves the rest as they were (or following its defaults). */
+@Serializable
+data class SaveTvSettingsBody(
+    @SerialName("RowOrder") val rowOrder: List<String>? = null,
+    @SerialName("HiddenRows") val hiddenRows: List<String>? = null,
+    @SerialName("RowLimit") val rowLimit: Int? = null,
+    @SerialName("SportsLookaheadHours") val sportsLookaheadHours: Int? = null,
+    @SerialName("PlayDelayMs") val playDelayMs: Int? = null,
+    @SerialName("PlayTimeoutSeconds") val playTimeoutSeconds: Int? = null,
+    @SerialName("SportsTeams") val sportsTeams: List<String>? = null,
+)
+
+@Serializable
+data class GuideTeam(
+    @SerialName("Name") val name: String = "",
+    /** Best guess at the league, e.g. "NHL Hockey". May be missing. */
+    @SerialName("League") val league: String? = null,
+    /** Distinct games listed in the look-ahead window. */
+    @SerialName("Games") val games: Int = 0,
+    @SerialName("NextStartDate") val nextStartDate: String? = null,
+    @SerialName("Selected") val selected: Boolean = false,
+)
+
+@Serializable
+data class GuideTeamsResponse(
+    @SerialName("Days") val days: Int = 7,
+    @SerialName("Teams") val teams: List<GuideTeam> = emptyList(),
+    /** Set when the guide couldn't be read (e.g. Live TV isn't set up). */
+    @SerialName("Message") val message: String? = null,
+)
+
 // ---- Server probe ----------------------------------------------------------------------------
 
 @Serializable
