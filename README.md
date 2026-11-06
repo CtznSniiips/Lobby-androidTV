@@ -32,7 +32,7 @@ First cut, written without an Android SDK available, so treat the first CI build
 - [x] Pairing (probe `/System/Info/Public` bare then `/emby`, `POST /Lobby/Pair`, poll `/Lobby/Pair/Status`)
 - [x] Home: featured, rows with progress, app dock, refresh on return from the playback app
 - [x] Play / resume via `/Lobby/Play`, then launch the Jellyfin/Emby app
-- [x] Requests via `/Lobby/Requesters` + `/Lobby/Request` (uses last/first requester; picker still to do)
+- [x] Requests via `/Lobby/Requesters` + `/Lobby/Request`, with a "Who's requesting?" picker when the TV may request as several Seerr accounts (last requester focused first)
 - [x] Search (library + Seerr, debounced; Back returns to Home)
 - [ ] Details, per-TV Settings, Sports team picker
 - [ ] Ambient mode, HDMI input switching, make-default-home onboarding
