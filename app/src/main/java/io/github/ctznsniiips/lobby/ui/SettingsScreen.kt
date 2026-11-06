@@ -38,6 +38,7 @@ import io.github.ctznsniiips.lobby.data.TvSettingsResponse
 @Composable
 fun SettingsScreen(
     settings: SettingsState,
+    screenSaverMinutes: Int,
     message: String?,
     actions: SettingsActions,
     onMessageShown: () -> Unit,
@@ -46,14 +47,14 @@ fun SettingsScreen(
         if (settings.teamsOpen) {
             TeamsPicker(settings, actions)
         } else {
-            SettingsList(settings, actions)
+            SettingsList(settings, screenSaverMinutes, actions)
         }
         MessageToast(message, onMessageShown, Modifier.align(Alignment.BottomCenter))
     }
 }
 
 @Composable
-private fun SettingsList(settings: SettingsState, actions: SettingsActions) {
+private fun SettingsList(settings: SettingsState, screenSaverMinutes: Int, actions: SettingsActions) {
     val data = settings.data
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -87,6 +88,9 @@ private fun SettingsList(settings: SettingsState, actions: SettingsActions) {
             items(NumberSetting.entries.toList(), key = { it.name }) { setting ->
                 NumberLine(setting, data, actions)
             }
+
+            item { SectionTitle("Ambient mode") }
+            item { ScreenSaverLine(screenSaverMinutes, actions) }
 
             item { SectionTitle("Sports") }
             item {
@@ -138,6 +142,24 @@ private fun NumberLine(setting: NumberSetting, data: TvSettingsResponse, actions
         Button(onClick = { actions.adjust(setting, -1) }, enabled = range == null || value > range.min) { Text("-") }
         Text("$value${setting.unit}", fontSize = 18.sp, textAlign = TextAlign.Center, modifier = Modifier.width(96.dp))
         Button(onClick = { actions.adjust(setting, 1) }, enabled = range == null || value < range.max) { Text("+") }
+    }
+}
+
+/** Local to this device (not saved on the server): the idle delay before ambient mode starts by itself. */
+@Composable
+private fun ScreenSaverLine(minutes: Int, actions: SettingsActions) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(Modifier.weight(1f)) {
+            Text("Start automatically", fontSize = 18.sp)
+            Text(
+                "After Home sits idle with no remote activity. Any button exits. You can also start it from Home.",
+                fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Button(onClick = { actions.stepScreenSaver(-1) }, enabled = minutes > SCREEN_SAVER_OPTIONS.first()) { Text("-") }
+        Text(if (minutes <= 0) "Off" else "$minutes min", fontSize = 18.sp, textAlign = TextAlign.Center, modifier = Modifier.width(96.dp))
+        Button(onClick = { actions.stepScreenSaver(1) }, enabled = minutes < SCREEN_SAVER_OPTIONS.last()) { Text("+") }
     }
 }
 

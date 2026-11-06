@@ -88,14 +88,22 @@ data class LobbyState(
     val details: DetailsState? = null,
     /** Non-null while the Lobby settings screens are open. */
     val settings: SettingsState? = null,
+    /** Non-null while ambient mode is showing. */
+    val ambient: AmbientState? = null,
+    /** Idle minutes before ambient mode starts by itself; 0 is off. */
+    val screenSaverMinutes: Int = 0,
 )
 
 class LobbyViewModel(app: Application) : AndroidViewModel(app) {
     private val store = SessionStore(app)
     private val device = TvDevice(app)
 
-    private val _state = MutableStateFlow(LobbyState(lastAddress = store.lastOrigin().orEmpty()))
+    private val _state = MutableStateFlow(LobbyState(lastAddress = store.lastOrigin().orEmpty(), screenSaverMinutes = store.screenSaverMinutes()))
     val state: StateFlow<LobbyState> = _state.asStateFlow()
+
+    // Bumped on every remote key press; the idle watcher restarts its countdown when it changes.
+    private val _activity = MutableStateFlow(0)
+    val activity: StateFlow<Int> = _activity.asStateFlow()
 
     private var api: LobbyApi? = null
     private var pairingJob: Job? = null
@@ -175,7 +183,7 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
         dirty.clear()
         store.forget()
         api = null
-        _state.update { it.copy(paired = null, home = null, connect = ConnectState(), message = null, loading = false, homeError = null, search = null, requestPicker = null, details = null, settings = null) }
+        _state.update { it.copy(paired = null, home = null, connect = ConnectState(), message = null, loading = false, homeError = null, search = null, requestPicker = null, details = null, settings = null, ambient = null) }
     }
 
     private fun onPaired(server: PairedServer, save: Boolean) {
@@ -266,6 +274,33 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun dismissRequesterPicker() = _state.update { it.copy(requestPicker = null) }
+
+    // ---- Ambient mode -------------------------------------------------------------------------
+
+    fun userActivity() = _activity.update { it + 1 }
+
+    /** Starts the slideshow from the art already on Home. [automatic] (the idle timer) stays quiet if there is none. */
+    fun enterAmbient(automatic: Boolean = false) {
+        val s = _state.value
+        val home = s.home
+        val address = s.paired?.address
+        val slides = if (home != null && address != null) buildAmbientSlides(home, address) else emptyList()
+        if (slides.isEmpty()) {
+            if (!automatic) say("No artwork on Home to show yet. Let Home finish loading first.")
+            return
+        }
+        _state.update { it.copy(ambient = AmbientState(slides)) }
+    }
+
+    fun exitAmbient() = _state.update { it.copy(ambient = null) }
+
+    /** Steps the automatic-start delay through [SCREEN_SAVER_OPTIONS] (Off, 2, 5, 10, 15, 30 minutes). */
+    fun stepScreenSaver(direction: Int) {
+        val current = SCREEN_SAVER_OPTIONS.indexOf(_state.value.screenSaverMinutes).coerceAtLeast(0)
+        val next = SCREEN_SAVER_OPTIONS[(current + direction).coerceIn(0, SCREEN_SAVER_OPTIONS.lastIndex)]
+        store.setScreenSaverMinutes(next)
+        _state.update { it.copy(screenSaverMinutes = next) }
+    }
 
     // ---- Lobby settings (this TV's own rows, limits and teams) ---------------------------------
 

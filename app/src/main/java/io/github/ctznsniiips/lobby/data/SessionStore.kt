@@ -29,6 +29,13 @@ class SessionStore(context: Context) {
             .apply()
     }
 
+    /** Idle minutes before ambient mode starts by itself; 0 (the default) is off. This is a per-device choice, kept locally. */
+    fun screenSaverMinutes(): Int = prefs.getInt(KEY_SCREEN_SAVER, 0)
+
+    fun setScreenSaverMinutes(minutes: Int) {
+        prefs.edit().putInt(KEY_SCREEN_SAVER, minutes).apply()
+    }
+
     fun lastOrigin(): String? = prefs.getString(KEY_ORIGIN, null)
 
     fun forget() {
@@ -40,5 +47,6 @@ class SessionStore(context: Context) {
         const val KEY_PREFIX = "prefix"
         const val KEY_TOKEN = "token"
         const val KEY_NAME = "tvName"
+        const val KEY_SCREEN_SAVER = "screenSaverMinutes"
     }
 }
