@@ -15,11 +15,16 @@ import io.github.ctznsniiips.lobby.data.ServerProbe
 import io.github.ctznsniiips.lobby.data.SessionStore
 import io.github.ctznsniiips.lobby.data.StartPairingBody
 import io.github.ctznsniiips.lobby.data.TitleDetailsResponse
+import io.github.ctznsniiips.lobby.data.SaveTvSettingsBody
 import io.github.ctznsniiips.lobby.data.SubmitRequestBody
+import io.github.ctznsniiips.lobby.data.TvSettingsResponse
 import io.github.ctznsniiips.lobby.device.DockApp
 import io.github.ctznsniiips.lobby.device.TvDevice
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -81,6 +86,8 @@ data class LobbyState(
     val requestPicker: RequestPicker? = null,
     /** Non-null while a title's Details screen is open (above Home or Search). */
     val details: DetailsState? = null,
+    /** Non-null while the Lobby settings screens are open. */
+    val settings: SettingsState? = null,
 )
 
 class LobbyViewModel(app: Application) : AndroidViewModel(app) {
@@ -94,6 +101,12 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
     private var pairingJob: Job? = null
     private var searchJob: Job? = null
     private var detailsJob: Job? = null
+
+    // Per-TV settings: edits show at once, then are saved after a pause, sending only the fields that changed.
+    private val dirty = mutableSetOf<String>()
+    private val saveMutex = Mutex()
+    private var saveJob: Job? = null
+    private var settingsChanged = false
     private val detailsCache = HashMap<String, TitleDetailsResponse>()
 
     init {
@@ -158,9 +171,11 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
         pairingJob?.cancel()
         searchJob?.cancel()
         detailsJob?.cancel()
+        saveJob?.cancel()
+        dirty.clear()
         store.forget()
         api = null
-        _state.update { it.copy(paired = null, home = null, connect = ConnectState(), message = null, loading = false, homeError = null, search = null, requestPicker = null, details = null) }
+        _state.update { it.copy(paired = null, home = null, connect = ConnectState(), message = null, loading = false, homeError = null, search = null, requestPicker = null, details = null, settings = null) }
     }
 
     private fun onPaired(server: PairedServer, save: Boolean) {
@@ -251,6 +266,140 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun dismissRequesterPicker() = _state.update { it.copy(requestPicker = null) }
+
+    // ---- Lobby settings (this TV's own rows, limits and teams) ---------------------------------
+
+    fun openSettings() {
+        val client = api ?: return
+        dirty.clear()
+        settingsChanged = false
+        _state.update { it.copy(settings = SettingsState()) }
+        viewModelScope.launch {
+            runCatching { client.settings() }
+                .onSuccess { data -> updateSettings { it.copy(loading = false, data = data) } }
+                .onFailure { e ->
+                    if (e is CancellationException) throw e
+                    updateSettings { it.copy(loading = false, error = describe(e, "Couldn't load settings.")) }
+                }
+        }
+    }
+
+    /** Back: closes the team picker first, then the settings; pending edits are saved straight away. */
+    fun closeSettings() {
+        val current = _state.value.settings ?: return
+        if (current.teamsOpen) {
+            updateSettings { it.copy(teamsOpen = false) }
+            return
+        }
+        saveJob?.cancel()
+        val client = api
+        _state.update { it.copy(settings = null) }
+        viewModelScope.launch {
+            if (client != null) withContext(NonCancellable) { performSave(client, current.data) }
+            // Row order, visibility and limits change what Home shows.
+            if (settingsChanged) refreshHome()
+        }
+    }
+
+    fun toggleRow(id: String) = editSettings("rows") { d ->
+        d.copy(rows = d.rows.map { if (it.id == id) it.copy(visible = !it.visible) else it })
+    }
+
+    fun moveRow(id: String, delta: Int) = editSettings("rows") { d ->
+        val rows = d.rows.toMutableList()
+        val from = rows.indexOfFirst { it.id == id }
+        val to = from + delta
+        if (from < 0 || to !in rows.indices) d else d.copy(rows = rows.apply { add(to, removeAt(from)) })
+    }
+
+    fun adjustNumber(setting: NumberSetting, direction: Int) = editSettings(setting.dirtyKey) { d ->
+        val range = d.ranges[setting.rangeKey]
+        val next = (d.valueOf(setting) + direction * setting.step).coerceIn(range?.min ?: 0, range?.max ?: Int.MAX_VALUE)
+        d.withValue(setting, next)
+    }
+
+    fun toggleTeam(name: String) {
+        editSettings("teams") { d ->
+            val chosen = d.sportsTeams.any { it.equals(name, ignoreCase = true) }
+            d.copy(sportsTeams = if (chosen) d.sportsTeams.filterNot { it.equals(name, ignoreCase = true) } else d.sportsTeams + name)
+        }
+        updateSettings { st -> st.copy(teams = st.teams.map { if (it.name == name) it.copy(selected = !it.selected) else it }) }
+    }
+
+    fun openTeams() {
+        val client = api ?: return
+        updateSettings { it.copy(teamsOpen = true, teamsLoading = true, teamsMessage = null) }
+        viewModelScope.launch {
+            runCatching { client.sportsTeams(TEAM_GUIDE_DAYS) }
+                .onSuccess { r -> updateSettings { it.copy(teams = r.teams, teamsMessage = r.message, teamsLoading = false) } }
+                .onFailure { e ->
+                    if (e is CancellationException) throw e
+                    updateSettings { it.copy(teamsLoading = false, teamsMessage = describe(e, "Couldn't load teams.")) }
+                }
+        }
+    }
+
+    /** Back to the server's defaults for this TV. */
+    fun resetSettings() {
+        val client = api ?: return
+        saveJob?.cancel()
+        dirty.clear()
+        viewModelScope.launch {
+            runCatching { client.resetSettings() }
+                .onSuccess { data ->
+                    settingsChanged = true
+                    updateSettings { it.copy(data = data) }
+                }
+                .onFailure { e ->
+                    if (e is CancellationException) throw e
+                    say(describe(e, "Couldn't reset settings."))
+                }
+        }
+    }
+
+    private fun updateSettings(change: (SettingsState) -> SettingsState) {
+        _state.update { s -> s.settings?.let { s.copy(settings = change(it)) } ?: s }
+    }
+
+    private fun editSettings(field: String, change: (TvSettingsResponse) -> TvSettingsResponse) {
+        val client = api ?: return
+        if (_state.value.settings?.data == null) return
+        updateSettings { st -> st.data?.let { st.copy(data = change(it).copy(customized = true)) } ?: st }
+        dirty.add(field)
+        saveJob?.cancel()
+        saveJob = viewModelScope.launch {
+            delay(SETTINGS_SAVE_MS)
+            // Once the request is out it finishes even if a newer edit cancels this job.
+            withContext(NonCancellable) { performSave(client, _state.value.settings?.data) }
+        }
+    }
+
+    private suspend fun performSave(client: LobbyApi, data: TvSettingsResponse?) {
+        saveMutex.withLock {
+            if (data == null || dirty.isEmpty()) return@withLock
+            val fields = dirty.toSet()
+            dirty.clear()
+            val body = SaveTvSettingsBody(
+                rowOrder = if ("rows" in fields) data.rows.map { it.id } else null,
+                hiddenRows = if ("rows" in fields) data.rows.filter { !it.visible }.map { it.id } else null,
+                rowLimit = if ("limit" in fields) data.rowLimit else null,
+                sportsLookaheadHours = if ("lookahead" in fields) data.sportsLookaheadHours else null,
+                playDelayMs = if ("delay" in fields) data.playDelayMs else null,
+                playTimeoutSeconds = if ("timeout" in fields) data.playTimeoutSeconds else null,
+                sportsTeams = if ("teams" in fields) data.sportsTeams else null,
+            )
+            runCatching { client.saveSettings(body) }
+                .onSuccess { saved ->
+                    settingsChanged = true
+                    // Take the server's clamped values, unless the user has already changed something else since.
+                    if (dirty.isEmpty()) updateSettings { it.copy(data = saved) }
+                }
+                .onFailure { e ->
+                    dirty.addAll(fields)
+                    say(describe(e, "Couldn't save settings."))
+                }
+        }
+    }
 
     // ---- Details ------------------------------------------------------------------------------
 
@@ -370,5 +519,7 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
     private companion object {
         const val POLL_MS = 3000L
         const val SEARCH_DEBOUNCE_MS = 500L
+        const val SETTINGS_SAVE_MS = 600L
+        const val TEAM_GUIDE_DAYS = 7
     }
 }

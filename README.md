@@ -35,7 +35,7 @@ First cut, written without an Android SDK available, so treat the first CI build
 - [x] Requests via `/Lobby/Requesters` + `/Lobby/Request`, with a "Who's requesting?" picker when the TV may request as several Seerr accounts (last requester focused first)
 - [x] Search (library + Seerr, debounced; Back returns to Home)
 - [x] Details for Seerr titles (facts, tagline, overview, credits, cast) with Request, and Play/Resume for titles already in the library; partly available shows offer both
-- [ ] Per-TV Settings, Sports team picker
+- [x] Per-TV settings (`/Lobby/Settings`): show/hide and reorder rows, titles per row, sports look-ahead, playback delay/timeout, sports team picker, reset to server defaults
 - [ ] Ambient mode, HDMI input switching, make-default-home onboarding
 - [ ] Real banner/icon artwork
 

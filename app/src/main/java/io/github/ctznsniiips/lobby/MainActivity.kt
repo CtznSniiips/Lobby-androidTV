@@ -13,10 +13,24 @@ import io.github.ctznsniiips.lobby.ui.HomeScreen
 import io.github.ctznsniiips.lobby.ui.LobbyTheme
 import io.github.ctznsniiips.lobby.ui.LobbyViewModel
 import io.github.ctznsniiips.lobby.ui.RequesterDialog
+import io.github.ctznsniiips.lobby.ui.SettingsActions
+import io.github.ctznsniiips.lobby.ui.SettingsScreen
 import io.github.ctznsniiips.lobby.ui.SearchScreen
 
 class MainActivity : ComponentActivity() {
     private val viewModel: LobbyViewModel by viewModels()
+
+    private val settingsActions by lazy {
+        SettingsActions(
+            toggleRow = viewModel::toggleRow,
+            moveRow = viewModel::moveRow,
+            adjust = viewModel::adjustNumber,
+            openTeams = viewModel::openTeams,
+            toggleTeam = viewModel::toggleTeam,
+            reset = viewModel::resetSettings,
+            back = viewModel::closeSettings,
+        )
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -30,6 +44,14 @@ class MainActivity : ComponentActivity() {
                         initialAddress = state.lastAddress,
                         onConnect = viewModel::connect,
                         onCancel = viewModel::cancelPairing,
+                    )
+                } else if (state.settings != null) {
+                    BackHandler(onBack = viewModel::closeSettings)
+                    SettingsScreen(
+                        settings = state.settings!!,
+                        message = state.message,
+                        actions = settingsActions,
+                        onMessageShown = viewModel::clearMessage,
                     )
                 } else if (state.details != null) {
                     BackHandler(onBack = viewModel::closeDetails)
@@ -60,6 +82,7 @@ class MainActivity : ComponentActivity() {
                         onApp = viewModel::launchApp,
                         onSearch = viewModel::openSearch,
                         onRefresh = viewModel::refreshHome,
+                        onLobbySettings = viewModel::openSettings,
                         onSettings = viewModel::openSystemSettings,
                         onDisconnect = viewModel::disconnect,
                         onMessageShown = viewModel::clearMessage,

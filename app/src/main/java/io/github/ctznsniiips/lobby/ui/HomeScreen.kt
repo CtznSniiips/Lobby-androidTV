@@ -54,6 +54,7 @@ fun HomeScreen(
     onApp: (DockApp) -> Unit,
     onSearch: () -> Unit,
     onRefresh: () -> Unit,
+    onLobbySettings: () -> Unit,
     onSettings: () -> Unit,
     onDisconnect: () -> Unit,
     onMessageShown: () -> Unit,
@@ -98,7 +99,8 @@ fun HomeScreen(
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     Button(onClick = onRefresh) { Text("Refresh") }
-                    Button(onClick = onSettings) { Text("Settings") }
+                    Button(onClick = onLobbySettings) { Text("Lobby settings") }
+                    Button(onClick = onSettings) { Text("System settings") }
                     Button(onClick = onDisconnect) { Text("Disconnect") }
                 }
             }
