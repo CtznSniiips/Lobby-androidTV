@@ -52,20 +52,13 @@ fun HomeScreen(
     address: ServerAddress,
     onItem: (HomeItem) -> Unit,
     onApp: (DockApp) -> Unit,
+    onSearch: () -> Unit,
     onRefresh: () -> Unit,
     onSettings: () -> Unit,
     onDisconnect: () -> Unit,
     onMessageShown: () -> Unit,
 ) {
     val home = state.home
-
-    // Feedback from actions disappears on its own.
-    LaunchedEffect(state.message) {
-        if (state.message != null) {
-            delay(5000)
-            onMessageShown()
-        }
-    }
 
     Box(Modifier.fillMaxSize().background(LobbyColors.background)) {
         LazyColumn(
@@ -76,7 +69,8 @@ fun HomeScreen(
             item {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Text(home?.tvName ?: "Lobby", fontSize = 32.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-                    if (state.loading) Text("Loading…", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    if (state.loading) Text("Loading…", color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(end = 24.dp))
+                    Button(onClick = onSearch) { Text("Search") }
                 }
             }
 
@@ -110,16 +104,27 @@ fun HomeScreen(
             }
         }
 
-        state.message?.let { message ->
-            Box(
-                Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(32.dp)
-                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(12.dp))
-                    .background(LobbyColors.scrim)
-                    .padding(horizontal = 24.dp, vertical = 14.dp),
-            ) { Text(message, fontSize = 18.sp) }
+        MessageToast(state.message, onMessageShown, Modifier.align(Alignment.BottomCenter))
+    }
+}
+
+/** One-line feedback from an action. Clears itself after a few seconds. */
+@Composable
+fun MessageToast(message: String?, onShown: () -> Unit, modifier: Modifier = Modifier) {
+    LaunchedEffect(message) {
+        if (message != null) {
+            delay(5000)
+            onShown()
         }
+    }
+    if (message != null) {
+        Box(
+            modifier
+                .padding(32.dp)
+                .clip(androidx.compose.foundation.shape.RoundedCornerShape(12.dp))
+                .background(LobbyColors.scrim)
+                .padding(horizontal = 24.dp, vertical = 14.dp),
+        ) { Text(message, fontSize = 18.sp) }
     }
 }
 
@@ -153,7 +158,7 @@ private fun FeaturedRow(items: List<HomeItem>, address: ServerAddress, onItem: (
 }
 
 @Composable
-private fun MediaRow(row: HomeRow, address: ServerAddress, onItem: (HomeItem) -> Unit) {
+internal fun MediaRow(row: HomeRow, address: ServerAddress, onItem: (HomeItem) -> Unit) {
     val poster = row.layout == "poster"
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(row.title, fontSize = 22.sp, fontWeight = FontWeight.SemiBold)

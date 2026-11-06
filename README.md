@@ -33,7 +33,8 @@ First cut, written without an Android SDK available, so treat the first CI build
 - [x] Home: featured, rows with progress, app dock, refresh on return from the playback app
 - [x] Play / resume via `/Lobby/Play`, then launch the Jellyfin/Emby app
 - [x] Requests via `/Lobby/Requesters` + `/Lobby/Request` (uses last/first requester; picker still to do)
-- [ ] Search, Details, per-TV Settings, Sports team picker
+- [x] Search (library + Seerr, debounced; Back returns to Home)
+- [ ] Details, per-TV Settings, Sports team picker
 - [ ] Ambient mode, HDMI input switching, make-default-home onboarding
 - [ ] Real banner/icon artwork
 
