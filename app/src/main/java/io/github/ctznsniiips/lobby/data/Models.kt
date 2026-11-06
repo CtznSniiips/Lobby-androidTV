@@ -153,6 +153,32 @@ data class SubmitRequestResponse(
     @SerialName("RequestId") val requestId: Int? = null,
 )
 
+// ---- Details (Seerr) ---------------------------------------------------------------------
+
+@Serializable
+data class TitlePerson(
+    @SerialName("Name") val name: String = "",
+    @SerialName("Character") val character: String? = null,
+    /** Absolute TMDB image URL, when the person has a photo. */
+    @SerialName("PhotoUrl") val photoUrl: String? = null,
+)
+
+@Serializable
+data class TitleDetailsResponse(
+    @SerialName("Tagline") val tagline: String? = null,
+    @SerialName("Overview") val overview: String? = null,
+    @SerialName("Genres") val genres: List<String> = emptyList(),
+    /** Minutes: a movie's runtime, or a show's usual episode length. */
+    @SerialName("RuntimeMinutes") val runtimeMinutes: Int? = null,
+    @SerialName("Seasons") val seasons: Int? = null,
+    @SerialName("Rating") val rating: Double? = null,
+    @SerialName("Directors") val directors: List<String> = emptyList(),
+    @SerialName("Writers") val writers: List<String> = emptyList(),
+    @SerialName("Creators") val creators: List<String> = emptyList(),
+    @SerialName("Networks") val networks: List<String> = emptyList(),
+    @SerialName("Cast") val cast: List<TitlePerson> = emptyList(),
+)
+
 // ---- Server probe ----------------------------------------------------------------------------
 
 @Serializable

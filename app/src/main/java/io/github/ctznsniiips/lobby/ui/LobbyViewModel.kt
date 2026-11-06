@@ -14,6 +14,7 @@ import io.github.ctznsniiips.lobby.data.Requester
 import io.github.ctznsniiips.lobby.data.ServerProbe
 import io.github.ctznsniiips.lobby.data.SessionStore
 import io.github.ctznsniiips.lobby.data.StartPairingBody
+import io.github.ctznsniiips.lobby.data.TitleDetailsResponse
 import io.github.ctznsniiips.lobby.data.SubmitRequestBody
 import io.github.ctznsniiips.lobby.device.DockApp
 import io.github.ctznsniiips.lobby.device.TvDevice
@@ -57,6 +58,13 @@ data class RequestPicker(
     val lastRequesterId: Int?,
 )
 
+/** The Details screen for a Seerr title; [data] stays null if Seerr has nothing (the screen then shows what the row carried). */
+data class DetailsState(
+    val item: HomeItem,
+    val loading: Boolean = true,
+    val data: TitleDetailsResponse? = null,
+)
+
 data class LobbyState(
     val paired: PairedServer? = null,
     val connect: ConnectState = ConnectState(),
@@ -71,6 +79,8 @@ data class LobbyState(
     val search: SearchState? = null,
     /** Non-null while the "who's requesting?" dialog is open. */
     val requestPicker: RequestPicker? = null,
+    /** Non-null while a title's Details screen is open (above Home or Search). */
+    val details: DetailsState? = null,
 )
 
 class LobbyViewModel(app: Application) : AndroidViewModel(app) {
@@ -83,6 +93,8 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
     private var api: LobbyApi? = null
     private var pairingJob: Job? = null
     private var searchJob: Job? = null
+    private var detailsJob: Job? = null
+    private val detailsCache = HashMap<String, TitleDetailsResponse>()
 
     init {
         store.load()?.let { onPaired(it, save = false) }
@@ -145,9 +157,10 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
     fun disconnect() {
         pairingJob?.cancel()
         searchJob?.cancel()
+        detailsJob?.cancel()
         store.forget()
         api = null
-        _state.update { it.copy(paired = null, home = null, connect = ConnectState(), message = null, loading = false, homeError = null, search = null, requestPicker = null) }
+        _state.update { it.copy(paired = null, home = null, connect = ConnectState(), message = null, loading = false, homeError = null, search = null, requestPicker = null, details = null) }
     }
 
     private fun onPaired(server: PairedServer, save: Boolean) {
@@ -183,7 +196,8 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
     fun onItem(item: HomeItem) {
         val client = api ?: return
         val playId = item.playItemId
-        val canPlay = !playId.isNullOrBlank() && (item.defaultAction != "request" || item.playAction != null)
+        // Partly available shows open Details instead, which offers both Play and Request (for the missing seasons).
+        val canPlay = !playId.isNullOrBlank() && (item.defaultAction != "request" || item.playAction != null) && item.requestStatus != "partial"
         viewModelScope.launch {
             if (canPlay) {
                 val action = item.playAction ?: if (item.defaultAction == "resume") "resume" else "play"
@@ -194,8 +208,9 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
                 } else if (!device.launchPlaybackApp()) {
                     say("Install the Jellyfin or Emby app on this device so Lobby can hand playback to it.")
                 }
-            } else if (item.defaultAction == "request" && item.tmdbId != null && !item.mediaType.isNullOrBlank()) {
-                request(client, item)
+            } else if (item.tmdbId != null && !item.mediaType.isNullOrBlank()) {
+                // Seerr titles open Details first, like the request screen on the Tizen app.
+                openDetails(item)
             }
         }
     }
@@ -216,6 +231,12 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
             .getOrElse { say(describe(it, "Couldn't send the request.")); return }
         say(result.message ?: if (result.status == "failed") "Request failed." else "Requested.")
         if (result.status != "failed") {
+            val newStatus = if (result.status == "approved") "processing" else "requested"
+            _state.update { s ->
+                val d = s.details
+                if (d == null || d.item.tmdbId != item.tmdbId) s
+                else s.copy(details = d.copy(item = d.item.copy(requestStatus = newStatus)))
+            }
             refreshHome()
             // Searching: show the new "requested" status on the card.
             _state.value.search?.query?.takeIf { it.isNotBlank() }?.let { runSearch(it) }
@@ -230,6 +251,48 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun dismissRequesterPicker() = _state.update { it.copy(requestPicker = null) }
+
+    // ---- Details ------------------------------------------------------------------------------
+
+    fun openDetails(item: HomeItem) {
+        val client = api ?: return
+        val mediaType = item.mediaType ?: return
+        val tmdb = item.tmdbId ?: return
+        val key = "$mediaType:$tmdb"
+        val cached = detailsCache[key]
+        detailsJob?.cancel()
+        _state.update { it.copy(details = DetailsState(item, loading = cached == null, data = cached)) }
+        if (cached != null) return
+        detailsJob = viewModelScope.launch {
+            val data = runCatching { client.details(mediaType, tmdb) }
+                .onFailure { if (it is CancellationException) throw it }
+                .getOrNull()
+            if (data != null) detailsCache[key] = data
+            _state.update { s ->
+                val d = s.details
+                if (d == null || d.item.tmdbId != tmdb) s else s.copy(details = d.copy(loading = false, data = data))
+            }
+        }
+    }
+
+    fun closeDetails() {
+        detailsJob?.cancel()
+        _state.update { it.copy(details = null) }
+    }
+
+    /** The Request button on the Details screen; asks who is requesting when the TV has several accounts. */
+    fun requestFromDetails() {
+        val client = api ?: return
+        val item = _state.value.details?.item ?: return
+        viewModelScope.launch { request(client, item) }
+    }
+
+    /** Play/Resume from Details, for a title that is also in the library. */
+    fun playFromDetails() {
+        val item = _state.value.details?.item ?: return
+        closeDetails()
+        onItem(item)
+    }
 
     // ---- Search -------------------------------------------------------------------------------
 

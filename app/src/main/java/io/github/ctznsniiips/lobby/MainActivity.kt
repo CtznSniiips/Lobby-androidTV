@@ -8,6 +8,7 @@ import androidx.activity.viewModels
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.ctznsniiips.lobby.ui.ConnectScreen
+import io.github.ctznsniiips.lobby.ui.DetailsScreen
 import io.github.ctznsniiips.lobby.ui.HomeScreen
 import io.github.ctznsniiips.lobby.ui.LobbyTheme
 import io.github.ctznsniiips.lobby.ui.LobbyViewModel
@@ -29,6 +30,17 @@ class MainActivity : ComponentActivity() {
                         initialAddress = state.lastAddress,
                         onConnect = viewModel::connect,
                         onCancel = viewModel::cancelPairing,
+                    )
+                } else if (state.details != null) {
+                    BackHandler(onBack = viewModel::closeDetails)
+                    DetailsScreen(
+                        details = state.details!!,
+                        message = state.message,
+                        address = paired.address,
+                        onRequest = viewModel::requestFromDetails,
+                        onPlay = viewModel::playFromDetails,
+                        onClose = viewModel::closeDetails,
+                        onMessageShown = viewModel::clearMessage,
                     )
                 } else if (state.search != null) {
                     BackHandler(onBack = viewModel::closeSearch)
