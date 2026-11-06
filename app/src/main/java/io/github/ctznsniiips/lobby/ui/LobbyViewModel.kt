@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.ctznsniiips.lobby.data.HomeItem
+import io.github.ctznsniiips.lobby.data.HomeRow
 import io.github.ctznsniiips.lobby.data.HomeResponse
 import io.github.ctznsniiips.lobby.data.LobbyApi
 import io.github.ctznsniiips.lobby.data.LobbyApiFactory
@@ -15,6 +16,7 @@ import io.github.ctznsniiips.lobby.data.StartPairingBody
 import io.github.ctznsniiips.lobby.data.SubmitRequestBody
 import io.github.ctznsniiips.lobby.device.DockApp
 import io.github.ctznsniiips.lobby.device.TvDevice
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -35,6 +37,17 @@ data class ConnectState(
     val serverName: String? = null,
 )
 
+data class SearchState(
+    val query: String = "",
+    val loading: Boolean = false,
+    /** search-library and search-seerr rows, as the server built them. */
+    val rows: List<HomeRow> = emptyList(),
+    val warnings: List<String> = emptyList(),
+    val error: String? = null,
+    /** True once a result (possibly empty) has come back for the current query. */
+    val searched: Boolean = false,
+)
+
 data class LobbyState(
     val paired: PairedServer? = null,
     val connect: ConnectState = ConnectState(),
@@ -45,6 +58,8 @@ data class LobbyState(
     /** One-line feedback after an action (play queued, requested, failed...). */
     val message: String? = null,
     val lastAddress: String = "",
+    /** Non-null while the Search screen is open. */
+    val search: SearchState? = null,
 )
 
 class LobbyViewModel(app: Application) : AndroidViewModel(app) {
@@ -56,6 +71,7 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
 
     private var api: LobbyApi? = null
     private var pairingJob: Job? = null
+    private var searchJob: Job? = null
 
     init {
         store.load()?.let { onPaired(it, save = false) }
@@ -117,9 +133,10 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
 
     fun disconnect() {
         pairingJob?.cancel()
+        searchJob?.cancel()
         store.forget()
         api = null
-        _state.update { it.copy(paired = null, home = null, connect = ConnectState(), message = null, loading = false, homeError = null) }
+        _state.update { it.copy(paired = null, home = null, connect = ConnectState(), message = null, loading = false, homeError = null, search = null) }
     }
 
     private fun onPaired(server: PairedServer, save: Boolean) {
@@ -181,7 +198,61 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
         val result = runCatching { client.request(SubmitRequestBody(item.tmdbId!!, item.mediaType!!, seerrUser)) }
             .getOrElse { say(describe(it, "Couldn't send the request.")); return }
         say(result.message ?: if (result.status == "failed") "Request failed." else "Requested.")
-        if (result.status != "failed") refreshHome()
+        if (result.status != "failed") {
+            refreshHome()
+            // Searching: show the new "requested" status on the card.
+            _state.value.search?.query?.takeIf { it.isNotBlank() }?.let { runSearch(it) }
+        }
+    }
+
+    // ---- Search -------------------------------------------------------------------------------
+
+    fun openSearch() = _state.update { it.copy(search = SearchState()) }
+
+    fun closeSearch() {
+        searchJob?.cancel()
+        _state.update { it.copy(search = null) }
+    }
+
+    /** Typing searches after a short pause (the server also queries Seerr/TMDB); [immediate] skips the pause. */
+    fun onSearchQuery(query: String, immediate: Boolean = false) {
+        searchJob?.cancel()
+        _state.update { s -> s.copy(search = (s.search ?: SearchState()).copy(query = query)) }
+        if (query.isBlank()) {
+            _state.update { s ->
+                s.copy(search = s.search?.copy(rows = emptyList(), warnings = emptyList(), loading = false, searched = false, error = null))
+            }
+            return
+        }
+        searchJob = viewModelScope.launch {
+            if (!immediate) delay(SEARCH_DEBOUNCE_MS)
+            runSearch(query)
+        }
+    }
+
+    private suspend fun runSearch(query: String) {
+        val client = api ?: return
+        val term = query.trim()
+        _state.update { s -> s.copy(search = s.search?.copy(loading = true, error = null)) }
+        runCatching { client.search(term) }
+            .onSuccess { result ->
+                _state.update { s ->
+                    // Ignore an answer for a query the user has already typed past.
+                    if (s.search == null || s.search.query.trim() != term) s
+                    else s.copy(
+                        search = s.search.copy(
+                            rows = result.rows.filter { it.items.isNotEmpty() },
+                            warnings = result.warnings,
+                            loading = false,
+                            searched = true,
+                        ),
+                    )
+                }
+            }
+            .onFailure { e ->
+                if (e is CancellationException) throw e
+                _state.update { s -> s.copy(search = s.search?.copy(loading = false, error = describe(e, "Search failed."))) }
+            }
     }
 
     fun launchApp(app: DockApp) {
@@ -209,5 +280,6 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
 
     private companion object {
         const val POLL_MS = 3000L
+        const val SEARCH_DEBOUNCE_MS = 500L
     }
 }

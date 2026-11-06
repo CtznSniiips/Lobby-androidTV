@@ -2,6 +2,7 @@ package io.github.ctznsniiips.lobby
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.compose.runtime.getValue
@@ -10,6 +11,7 @@ import io.github.ctznsniiips.lobby.ui.ConnectScreen
 import io.github.ctznsniiips.lobby.ui.HomeScreen
 import io.github.ctznsniiips.lobby.ui.LobbyTheme
 import io.github.ctznsniiips.lobby.ui.LobbyViewModel
+import io.github.ctznsniiips.lobby.ui.SearchScreen
 
 class MainActivity : ComponentActivity() {
     private val viewModel: LobbyViewModel by viewModels()
@@ -27,12 +29,23 @@ class MainActivity : ComponentActivity() {
                         onConnect = viewModel::connect,
                         onCancel = viewModel::cancelPairing,
                     )
+                } else if (state.search != null) {
+                    BackHandler(onBack = viewModel::closeSearch)
+                    SearchScreen(
+                        search = state.search!!,
+                        message = state.message,
+                        address = paired.address,
+                        onQuery = viewModel::onSearchQuery,
+                        onItem = viewModel::onItem,
+                        onMessageShown = viewModel::clearMessage,
+                    )
                 } else {
                     HomeScreen(
                         state = state,
                         address = paired.address,
                         onItem = viewModel::onItem,
                         onApp = viewModel::launchApp,
+                        onSearch = viewModel::openSearch,
                         onRefresh = viewModel::refreshHome,
                         onSettings = viewModel::openSystemSettings,
                         onDisconnect = viewModel::disconnect,
