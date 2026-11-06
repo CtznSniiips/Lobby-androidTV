@@ -38,6 +38,13 @@ interface LobbyApi {
     @POST("Lobby/Play")
     suspend fun play(@Body body: PlayBody): DispatchResult
 
+    /** Seerr details for a title. 404 when Seerr isn't set up on the server. */
+    @GET("Lobby/Details")
+    suspend fun details(
+        @Query("mediaType") mediaType: String,
+        @Query("tmdbId") tmdbId: Int,
+    ): TitleDetailsResponse
+
     @GET("Lobby/Requesters")
     suspend fun requesters(): RequestersResponse
 
