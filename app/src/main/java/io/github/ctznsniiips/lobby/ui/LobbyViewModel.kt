@@ -10,6 +10,7 @@ import io.github.ctznsniiips.lobby.data.LobbyApi
 import io.github.ctznsniiips.lobby.data.LobbyApiFactory
 import io.github.ctznsniiips.lobby.data.PairedServer
 import io.github.ctznsniiips.lobby.data.PlayBody
+import io.github.ctznsniiips.lobby.data.Requester
 import io.github.ctznsniiips.lobby.data.ServerProbe
 import io.github.ctznsniiips.lobby.data.SessionStore
 import io.github.ctznsniiips.lobby.data.StartPairingBody
@@ -48,6 +49,14 @@ data class SearchState(
     val searched: Boolean = false,
 )
 
+/** Shown when this TV may request as more than one Seerr account (e.g. a couple sharing one TV). */
+data class RequestPicker(
+    val item: HomeItem,
+    val requesters: List<Requester>,
+    /** Whoever requested from this TV recently; focused first. */
+    val lastRequesterId: Int?,
+)
+
 data class LobbyState(
     val paired: PairedServer? = null,
     val connect: ConnectState = ConnectState(),
@@ -60,6 +69,8 @@ data class LobbyState(
     val lastAddress: String = "",
     /** Non-null while the Search screen is open. */
     val search: SearchState? = null,
+    /** Non-null while the "who's requesting?" dialog is open. */
+    val requestPicker: RequestPicker? = null,
 )
 
 class LobbyViewModel(app: Application) : AndroidViewModel(app) {
@@ -136,7 +147,7 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
         searchJob?.cancel()
         store.forget()
         api = null
-        _state.update { it.copy(paired = null, home = null, connect = ConnectState(), message = null, loading = false, homeError = null, search = null) }
+        _state.update { it.copy(paired = null, home = null, connect = ConnectState(), message = null, loading = false, homeError = null, search = null, requestPicker = null) }
     }
 
     private fun onPaired(server: PairedServer, save: Boolean) {
@@ -190,12 +201,18 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private suspend fun request(client: LobbyApi, item: HomeItem) {
-        // First cut: use whoever requested last, else the first allowed account. A "who's requesting?" picker comes next.
         val who = runCatching { client.requesters() }.getOrElse { say(describe(it, "Couldn't load requesters.")); return }
         if (!who.requestsEnabled) { say("Requests are turned off on this server."); return }
-        val seerrUser = who.lastRequesterId ?: who.requesters.firstOrNull()?.id
-        if (seerrUser == null) { say("This TV's user isn't linked to a Seerr account."); return }
-        val result = runCatching { client.request(SubmitRequestBody(item.tmdbId!!, item.mediaType!!, seerrUser)) }
+        when (who.requesters.size) {
+            0 -> say("This TV's user isn't linked to a Seerr account.")
+            // One allowed account (or the server's fallback account): nothing to choose.
+            1 -> submitRequest(client, item, who.requesters.first().id)
+            else -> _state.update { it.copy(requestPicker = RequestPicker(item, who.requesters, who.lastRequesterId)) }
+        }
+    }
+
+    private suspend fun submitRequest(client: LobbyApi, item: HomeItem, seerrUserId: Int) {
+        val result = runCatching { client.request(SubmitRequestBody(item.tmdbId!!, item.mediaType!!, seerrUserId)) }
             .getOrElse { say(describe(it, "Couldn't send the request.")); return }
         say(result.message ?: if (result.status == "failed") "Request failed." else "Requested.")
         if (result.status != "failed") {
@@ -204,6 +221,15 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
             _state.value.search?.query?.takeIf { it.isNotBlank() }?.let { runSearch(it) }
         }
     }
+
+    fun chooseRequester(seerrUserId: Int) {
+        val picker = _state.value.requestPicker ?: return
+        val client = api ?: return
+        _state.update { it.copy(requestPicker = null) }
+        viewModelScope.launch { submitRequest(client, picker.item, seerrUserId) }
+    }
+
+    fun dismissRequesterPicker() = _state.update { it.copy(requestPicker = null) }
 
     // ---- Search -------------------------------------------------------------------------------
 

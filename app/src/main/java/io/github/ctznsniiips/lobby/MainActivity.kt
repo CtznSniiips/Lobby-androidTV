@@ -11,6 +11,7 @@ import io.github.ctznsniiips.lobby.ui.ConnectScreen
 import io.github.ctznsniiips.lobby.ui.HomeScreen
 import io.github.ctznsniiips.lobby.ui.LobbyTheme
 import io.github.ctznsniiips.lobby.ui.LobbyViewModel
+import io.github.ctznsniiips.lobby.ui.RequesterDialog
 import io.github.ctznsniiips.lobby.ui.SearchScreen
 
 class MainActivity : ComponentActivity() {
@@ -51,6 +52,17 @@ class MainActivity : ComponentActivity() {
                         onDisconnect = viewModel::disconnect,
                         onMessageShown = viewModel::clearMessage,
                     )
+                }
+
+                state.requestPicker?.let { picker ->
+                    paired?.let { server ->
+                        RequesterDialog(
+                            picker = picker,
+                            address = server.address,
+                            onChoose = viewModel::chooseRequester,
+                            onDismiss = viewModel::dismissRequesterPicker,
+                        )
+                    }
                 }
             }
         }
