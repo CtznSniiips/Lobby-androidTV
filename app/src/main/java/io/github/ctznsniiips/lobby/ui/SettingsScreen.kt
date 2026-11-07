@@ -2,6 +2,7 @@
 
 package io.github.ctznsniiips.lobby.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,6 +16,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -23,17 +28,26 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Button
+import androidx.tv.material3.Card
 import androidx.tv.material3.ExperimentalTvMaterial3Api
-import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import io.github.ctznsniiips.lobby.data.GuideTeam
 import io.github.ctznsniiips.lobby.data.TvRowSetting
 import io.github.ctznsniiips.lobby.data.TvSettingsResponse
 
+/** The settings sub-menus, matching the grouped layout of the Samsung app. */
+private enum class SettingsCategory(val title: String) {
+    Rows("Home rows"),
+    Limits("Limits & timing"),
+    HomeApp("Home screen"),
+    Saver("Screen saver"),
+    Sports("Sports"),
+}
+
 /**
- * This TV's own settings, kept on the server by the plugin: which home rows show and in what order, how many
- * titles per row, the sports look-ahead, the playback hand-off timing, and the teams for Your Teams. Changes
- * apply on screen at once and are saved a moment later. Back returns to Home.
+ * This TV's own settings, kept on the server by the plugin. The landing page lists categories; opening one shows
+ * just that group's controls. Changes apply on screen at once and are saved a moment later. Back steps out one
+ * level at a time.
  */
 @Composable
 fun SettingsScreen(
@@ -44,95 +58,140 @@ fun SettingsScreen(
     actions: SettingsActions,
     onMessageShown: () -> Unit,
 ) {
+    var category by remember { mutableStateOf<SettingsCategory?>(null) }
+
+    // Back closes an open sub-menu before leaving settings (the teams picker has its own handler in MainActivity).
+    BackHandler(enabled = category != null && !settings.teamsOpen) { category = null }
+
     Box(Modifier.fillMaxSize().background(LobbyColors.background)) {
-        if (settings.teamsOpen) {
-            TeamsPicker(settings, actions)
-        } else {
-            SettingsList(settings, screenSaverMinutes, isDefaultHome, actions)
+        when {
+            settings.teamsOpen -> TeamsPicker(settings, actions)
+            category == null -> CategoryList(settings, actions) { category = it }
+            else -> CategoryDetail(category!!, settings, screenSaverMinutes, isDefaultHome, actions) { category = null }
         }
         MessageToast(message, onMessageShown, Modifier.align(Alignment.BottomCenter))
     }
 }
 
 @Composable
-private fun SettingsList(settings: SettingsState, screenSaverMinutes: Int, isDefaultHome: Boolean, actions: SettingsActions) {
+private fun CategoryList(settings: SettingsState, actions: SettingsActions, onOpen: (SettingsCategory) -> Unit) {
     val data = settings.data
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = 48.dp, vertical = 32.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
+        contentPadding = PaddingValues(horizontal = 56.dp, vertical = 40.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("Lobby settings", fontSize = 32.sp, fontWeight = FontWeight.Bold)
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(bottom = 8.dp)) {
+                Text("Lobby settings", fontSize = 34.sp, fontWeight = FontWeight.Bold, color = LobbyColors.ink)
                 val sub: String = settings.error ?: when {
                     data == null -> "Loading…"
                     data.customized -> "This TV has its own settings."
                     else -> "Using the server's defaults until you change something."
                 }
-                Text(
-                    sub,
-                    fontSize = 15.sp,
-                    color = if (settings.error != null) LobbyColors.error else MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                Text(sub, fontSize = 16.sp, color = if (settings.error != null) LobbyColors.error else LobbyColors.soft)
             }
         }
 
         if (data != null) {
-            item { SectionTitle("Home rows") }
-            items(data.rows, key = { it.id }) { row ->
-                val index = data.rows.indexOfFirst { it.id == row.id }
-                RowSettingLine(row, canMoveUp = index > 0, canMoveDown = index < data.rows.lastIndex, actions)
+            items(SettingsCategory.entries.toList(), key = { it.name }) { cat ->
+                CategoryCard(cat.title, categorySummary(cat, data), onClick = { onOpen(cat) })
             }
-
-            item { SectionTitle("Limits and timing") }
-            items(NumberSetting.entries.toList(), key = { it.name }) { setting ->
-                NumberLine(setting, data, actions)
-            }
-
-            item { SectionTitle("Home screen") }
             item {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    Button(onClick = actions.openHomeSetup) { Text(if (isDefaultHome) "Home screen setup" else "Make Lobby the home screen") }
-                    Text(
-                        if (isDefaultHome) "Lobby is what the Home button opens." else "The Home button opens another launcher.",
-                        fontSize = 15.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                Box(Modifier.padding(top = 12.dp)) {
+                    Button(onClick = actions.reset, enabled = data.customized) { Text("Use the server's defaults") }
                 }
             }
-
-            item { SectionTitle("Screen saver") }
-            item { ScreenSaverLine(screenSaverMinutes, actions) }
-            item { Button(onClick = actions.openScreenSaverSettings) { Text("Choose the screen saver (Android settings)") } }
-
-            item { SectionTitle("Sports") }
-            item {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    Button(onClick = actions.openTeams) { Text("Choose teams") }
-                    Text(teamSummary(data), fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            }
-
-            item { Box(Modifier.padding(top = 12.dp)) { Button(onClick = actions.reset, enabled = data.customized) { Text("Use the server's defaults") } } }
         }
-
         item { Button(onClick = actions.back) { Text("Done") } }
     }
 }
 
 @Composable
-private fun SectionTitle(text: String) {
-    Text(text, fontSize = 22.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 12.dp))
+private fun CategoryCard(title: String, summary: String, onClick: () -> Unit) {
+    Card(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(title, fontSize = 20.sp, fontWeight = FontWeight.SemiBold, color = LobbyColors.ink)
+                if (summary.isNotBlank()) Text(summary, fontSize = 14.sp, color = LobbyColors.soft, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            Text("›", fontSize = 26.sp, color = LobbyColors.mute)
+        }
+    }
+}
+
+private fun categorySummary(cat: SettingsCategory, data: TvSettingsResponse): String = when (cat) {
+    SettingsCategory.Rows -> {
+        val shown = data.rows.count { it.visible }
+        "$shown of ${data.rows.size} rows shown"
+    }
+    SettingsCategory.Limits -> "${data.rowLimit} per row · ${data.sportsLookaheadHours} h look-ahead"
+    SettingsCategory.HomeApp -> "Set whether the Home button opens Lobby"
+    SettingsCategory.Saver -> "Screen saver and when it starts"
+    SettingsCategory.Sports -> teamSummary(data)
+}
+
+@Composable
+private fun CategoryDetail(
+    category: SettingsCategory,
+    settings: SettingsState,
+    screenSaverMinutes: Int,
+    isDefaultHome: Boolean,
+    actions: SettingsActions,
+    onBack: () -> Unit,
+) {
+    val data = settings.data ?: return
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(horizontal = 56.dp, vertical = 40.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp), modifier = Modifier.padding(bottom = 10.dp)) {
+                Text(category.title, fontSize = 30.sp, fontWeight = FontWeight.Bold, color = LobbyColors.ink)
+            }
+        }
+
+        when (category) {
+            SettingsCategory.Rows -> items(data.rows, key = { it.id }) { row ->
+                val index = data.rows.indexOfFirst { it.id == row.id }
+                RowSettingLine(row, canMoveUp = index > 0, canMoveDown = index < data.rows.lastIndex, actions)
+            }
+            SettingsCategory.Limits -> items(NumberSetting.entries.toList(), key = { it.name }) { setting ->
+                NumberLine(setting, data, actions)
+            }
+            SettingsCategory.HomeApp -> item {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        if (isDefaultHome) "Lobby is what the Home button opens." else "The Home button opens another launcher.",
+                        fontSize = 16.sp, color = LobbyColors.soft,
+                    )
+                    Button(onClick = actions.openHomeSetup) { Text(if (isDefaultHome) "Home screen setup" else "Make Lobby the home screen") }
+                }
+            }
+            SettingsCategory.Saver -> {
+                item { ScreenSaverLine(screenSaverMinutes, actions) }
+                item { Button(onClick = actions.openScreenSaverSettings) { Text("Choose the screen saver (Android settings)") } }
+            }
+            SettingsCategory.Sports -> item {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(teamSummary(data), fontSize = 16.sp, color = LobbyColors.soft)
+                    Button(onClick = actions.openTeams) { Text("Choose teams") }
+                }
+            }
+        }
+
+        item { Box(Modifier.padding(top = 8.dp)) { Button(onClick = onBack) { Text("Back") } } }
+    }
 }
 
 @Composable
 private fun RowSettingLine(row: TvRowSetting, canMoveUp: Boolean, canMoveDown: Boolean, actions: SettingsActions) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Column(Modifier.weight(1f)) {
-            Text(row.title, fontSize = 18.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(row.title, fontSize = 18.sp, color = LobbyColors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
             if (!row.available && !row.reason.isNullOrBlank()) {
-                Text(row.reason, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(row.reason, fontSize = 13.sp, color = LobbyColors.soft)
             }
         }
         Button(onClick = { actions.toggleRow(row.id) }, modifier = Modifier.width(120.dp)) {
@@ -149,12 +208,12 @@ private fun NumberLine(setting: NumberSetting, data: TvSettingsResponse, actions
     val range = data.ranges[setting.rangeKey]
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Column(Modifier.weight(1f)) {
-            Text(setting.label, fontSize = 18.sp)
+            Text(setting.label, fontSize = 18.sp, color = LobbyColors.ink)
             val defaultText = range?.let { " Server default: ${it.default}${setting.unit}." }.orEmpty()
-            Text(setting.hint + defaultText, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(setting.hint + defaultText, fontSize = 13.sp, color = LobbyColors.soft)
         }
         Button(onClick = { actions.adjust(setting, -1) }, enabled = range == null || value > range.min) { Text("-") }
-        Text("$value${setting.unit}", fontSize = 18.sp, textAlign = TextAlign.Center, modifier = Modifier.width(96.dp))
+        Text("$value${setting.unit}", fontSize = 18.sp, color = LobbyColors.ink, textAlign = TextAlign.Center, modifier = Modifier.width(96.dp))
         Button(onClick = { actions.adjust(setting, 1) }, enabled = range == null || value < range.max) { Text("+") }
     }
 }
@@ -164,21 +223,20 @@ private fun NumberLine(setting: NumberSetting, data: TvSettingsResponse, actions
 private fun ScreenSaverLine(minutes: Int, actions: SettingsActions) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Column(Modifier.weight(1f)) {
-            Text("Start automatically", fontSize = 18.sp)
+            Text("Start automatically", fontSize = 18.sp, color = LobbyColors.ink)
             Text(
                 "Starts your Android screen saver after Home sits idle. Android's own When to start setting still applies too.",
-                fontSize = 13.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 13.sp, color = LobbyColors.soft,
             )
         }
         Button(onClick = { actions.stepScreenSaver(-1) }, enabled = minutes > SCREEN_SAVER_OPTIONS.first()) { Text("-") }
-        Text(if (minutes <= 0) "Off" else "$minutes min", fontSize = 18.sp, textAlign = TextAlign.Center, modifier = Modifier.width(96.dp))
+        Text(if (minutes <= 0) "Off" else "$minutes min", fontSize = 18.sp, color = LobbyColors.ink, textAlign = TextAlign.Center, modifier = Modifier.width(96.dp))
         Button(onClick = { actions.stepScreenSaver(1) }, enabled = minutes < SCREEN_SAVER_OPTIONS.last()) { Text("+") }
     }
 }
 
 private fun teamSummary(data: TvSettingsResponse): String = when (data.sportsTeams.size) {
-    0 -> "No teams chosen. Your Teams stays empty until you pick some."
+    0 -> "No teams chosen yet"
     1 -> data.sportsTeams.first()
     else -> data.sportsTeams.take(3).joinToString(", ") + if (data.sportsTeams.size > 3) " and ${data.sportsTeams.size - 3} more" else ""
 }
@@ -187,19 +245,18 @@ private fun teamSummary(data: TvSettingsResponse): String = when (data.sportsTea
 private fun TeamsPicker(settings: SettingsState, actions: SettingsActions) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = 48.dp, vertical = 32.dp),
+        contentPadding = PaddingValues(horizontal = 56.dp, vertical = 40.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         item {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("Your teams", fontSize = 32.sp, fontWeight = FontWeight.Bold)
+                Text("Your teams", fontSize = 32.sp, fontWeight = FontWeight.Bold, color = LobbyColors.ink)
                 Text(
                     "Teams found in the next week of the Live TV guide. Pick the ones you follow.",
-                    fontSize = 15.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 15.sp, color = LobbyColors.soft,
                 )
                 when {
-                    settings.teamsLoading -> Text("Reading the guide…", fontSize = 15.sp)
+                    settings.teamsLoading -> Text("Reading the guide…", fontSize = 15.sp, color = LobbyColors.soft)
                     settings.teamsMessage != null -> Text(settings.teamsMessage, fontSize = 15.sp, color = LobbyColors.error)
                 }
             }
@@ -220,6 +277,6 @@ private fun TeamLine(team: GuideTeam, actions: SettingsActions) {
     Button(onClick = { actions.toggleTeam(team.name) }, modifier = Modifier.fillMaxWidth()) {
         Text(if (team.selected) "On" else "", modifier = Modifier.width(44.dp), fontSize = 16.sp, color = LobbyColors.accent)
         Text(team.name, fontSize = 18.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-        if (detail.isNotEmpty()) Text(detail, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        if (detail.isNotEmpty()) Text(detail, fontSize = 14.sp, color = LobbyColors.soft)
     }
 }

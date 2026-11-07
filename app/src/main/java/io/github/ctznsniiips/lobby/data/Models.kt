@@ -102,7 +102,18 @@ data class HomeResponse(
     @SerialName("Rows") val rows: List<HomeRow> = emptyList(),
     @SerialName("Featured") val featured: List<HomeItem> = emptyList(),
     @SerialName("Warnings") val warnings: List<String> = emptyList(),
+    @SerialName("Weather") val weather: WeatherConfig? = null,
 )
+
+/** Where to show the weather, set by the admin in the plugin. The reading itself comes from Open-Meteo. */
+@Serializable
+data class WeatherConfig(
+    @SerialName("Latitude") val latitude: Double? = null,
+    @SerialName("Longitude") val longitude: Double? = null,
+    @SerialName("Fahrenheit") val fahrenheit: Boolean = false,
+) {
+    val valid: Boolean get() = latitude != null && longitude != null
+}
 
 // ---- Play / Request --------------------------------------------------------------------------
 

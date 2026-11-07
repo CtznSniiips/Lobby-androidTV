@@ -49,11 +49,9 @@ import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.CornerRadius
@@ -77,6 +75,7 @@ import kotlinx.coroutines.launch
 import io.github.ctznsniiips.lobby.data.HomeItem
 import io.github.ctznsniiips.lobby.data.HomeRow
 import io.github.ctznsniiips.lobby.data.ServerAddress
+import io.github.ctznsniiips.lobby.data.WeatherNow
 import io.github.ctznsniiips.lobby.device.DockApp
 import io.github.ctznsniiips.lobby.device.TvInput
 import kotlinx.coroutines.delay
@@ -118,7 +117,8 @@ fun HomeScreen(
 
     val searchFocus = remember { FocusRequester() }
     val heroFocus = remember { FocusRequester() }
-    val listState = rememberLazyListState()
+    val dockFocus = remember { FocusRequester() }
+    val hasDock = state.apps.isNotEmpty()
 
     // Rotate the featured titles while nothing in the rows is focused.
     LaunchedEffect(featured, browsed) {
@@ -140,25 +140,24 @@ fun HomeScreen(
             Rail(
                 onSearch = onSearch,
                 onScreenSaver = onScreenSaver,
-                onApps = { /* the dock is the last list entry */ },
+                onApps = if (hasDock) ({ runCatching { dockFocus.requestFocus() } }) else null,
                 onSettings = onLobbySettings,
                 searchFocus = searchFocus,
-                listState = listState,
             )
 
             Column(Modifier.fillMaxSize().padding(end = 40.dp, top = 24.dp)) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Text(greeting(), fontSize = 16.sp, color = Color(0xCCFFFFFF), modifier = Modifier.weight(1f))
-                    if (state.loading) Text("Loading…", fontSize = 14.sp, color = Color(0x99FFFFFF), modifier = Modifier.padding(end = 20.dp))
+                    Text(greeting(), fontSize = 16.sp, color = LobbyColors.soft, modifier = Modifier.weight(1f))
+                    if (state.loading) Text("Loading…", fontSize = 14.sp, color = LobbyColors.mute, modifier = Modifier.padding(end = 20.dp))
                     ClockText()
+                    state.weather?.let { WeatherChip(it, Modifier.padding(start = 18.dp)) }
                 }
 
                 Hero(heroItem, featured.size, featuredIndex, onItem, searchFocus, heroFocus, Modifier.fillMaxWidth().height(190.dp))
 
                 LazyColumn(
-                    state = listState,
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(top = 12.dp, bottom = 32.dp),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(top = 12.dp, bottom = if (hasDock) 132.dp else 32.dp),
                     verticalArrangement = Arrangement.spacedBy(18.dp),
                 ) {
                     if (showHomePrompt) {
@@ -184,10 +183,6 @@ fun HomeScreen(
                         item { Box(Modifier.onFocusChanged { if (it.hasFocus) browsed = null }) { InputRow(state.inputs, onInput) } }
                     }
 
-                    if (state.apps.isNotEmpty()) {
-                        item { Box(Modifier.onFocusChanged { if (it.hasFocus) browsed = null }) { AppDock(state.apps, onApp) } }
-                    }
-
                     item {
                         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             Button(onClick = onRefresh) { Text("Refresh") }
@@ -199,30 +194,45 @@ fun HomeScreen(
             }
         }
 
+        // The app dock stays pinned along the bottom, centred, over the rows.
+        if (hasDock) {
+            Box(
+                Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 20.dp)
+                    .onFocusChanged { if (it.hasFocus) browsed = null },
+            ) { AppDock(state.apps, onApp, dockFocus) }
+        }
+
         MessageToast(state.message, onMessageShown, Modifier.align(Alignment.BottomCenter))
     }
 }
 
 @Composable
 private fun HeroBackdrop(item: HomeItem?, address: ServerAddress) {
-    val art = address.imageUrl(item?.backdropUrl ?: item?.landscapeUrl, width = 1920)
+    val art = address.imageUrl(item?.backdropUrl ?: item?.landscapeUrl, width = 1600)
+    // The image lives in the upper-right of the screen and dissolves into the page toward the left and the bottom,
+    // the way the Samsung app frames it — the rows and hero text sit over flat background, not over the picture.
     Box(Modifier.fillMaxSize()) {
-        Crossfade(targetState = art, animationSpec = tween(600), label = "backdrop") { url ->
-            if (url != null) {
-                AsyncImage(model = url, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+        Box(Modifier.fillMaxWidth(0.68f).fillMaxHeight(0.66f).align(Alignment.TopEnd)) {
+            Crossfade(targetState = art, animationSpec = tween(600), label = "backdrop") { url ->
+                if (url != null) {
+                    AsyncImage(model = url, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                }
             }
+            // Fade the image out to the left so it blends into the dark text area.
+            Box(
+                Modifier.fillMaxSize().background(
+                    Brush.horizontalGradient(0f to LobbyColors.background, 0.42f to Color(0x730E1116), 1f to Color.Transparent),
+                ),
+            )
+            // And fade it down into the rows below.
+            Box(
+                Modifier.fillMaxSize().background(
+                    Brush.verticalGradient(0f to Color.Transparent, 0.62f to Color(0x8C0E1116), 1f to LobbyColors.background),
+                ),
+            )
         }
-        // Dark on the left so the text reads, and fading into the page colour where the rows sit.
-        Box(
-            Modifier.fillMaxSize().background(
-                Brush.horizontalGradient(listOf(Color(0xE60E1116), Color(0x990E1116), Color.Transparent)),
-            ),
-        )
-        Box(
-            Modifier.fillMaxSize().background(
-                Brush.verticalGradient(0.35f to Color.Transparent, 0.7f to Color(0xE60E1116), 1f to LobbyColors.background),
-            ),
-        )
     }
 }
 
@@ -239,10 +249,10 @@ private fun Hero(
     Box(modifier) {
         if (item != null) {
             Column(Modifier.align(Alignment.CenterStart).width(560.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(item.title, fontSize = 40.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(item.title, fontSize = 44.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 val line = item.tagline ?: item.meta ?: item.subtitle
                 if (!line.isNullOrBlank()) {
-                    Text(line, fontSize = 16.sp, color = Color(0xCCFFFFFF), maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(line, fontSize = 16.sp, color = LobbyColors.soft, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
                 Spacer(Modifier.height(6.dp))
                 Button(
@@ -301,12 +311,10 @@ private enum class RailIcon { Search, Art, Apps, Settings }
 private fun Rail(
     onSearch: () -> Unit,
     onScreenSaver: () -> Unit,
-    onApps: () -> Unit,
+    onApps: (() -> Unit)?,
     onSettings: () -> Unit,
     searchFocus: FocusRequester,
-    listState: androidx.compose.foundation.lazy.LazyListState,
 ) {
-    val scope = rememberCoroutineScope()
     Column(
         Modifier.fillMaxHeight().width(88.dp).padding(top = 20.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -314,11 +322,46 @@ private fun Rail(
     ) {
         RailButton(RailIcon.Search, "Search", onSearch, Modifier.focusRequester(searchFocus))
         RailButton(RailIcon.Art, "Screen saver", onScreenSaver)
-        RailButton(RailIcon.Apps, "Apps", {
-            onApps()
-            scope.launch { listState.animateScrollToItem((listState.layoutInfo.totalItemsCount - 1).coerceAtLeast(0)) }
-        })
+        if (onApps != null) RailButton(RailIcon.Apps, "Apps", onApps)
         RailButton(RailIcon.Settings, "Lobby settings", onSettings)
+    }
+}
+
+/** Current weather beside the clock: a small drawn icon and the temperature. */
+@Composable
+private fun WeatherChip(weather: WeatherNow, modifier: Modifier = Modifier) {
+    Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Canvas(Modifier.size(22.dp)) { drawWeatherIcon(weather.code, weather.day, Color(0xE6FFFFFF)) }
+        Text(weather.text, fontSize = 16.sp, color = Color(0xE6FFFFFF))
+    }
+}
+
+/** Minimal line-art weather glyphs keyed off the WMO code, matching the Samsung app's set. */
+private fun DrawScope.drawWeatherIcon(code: Int, day: Boolean, tint: Color) {
+    val w = size.width
+    val stroke = Stroke(width = w * 0.08f, cap = StrokeCap.Round, join = StrokeJoin.Round)
+    fun cloud(cx: Float, cy: Float, s: Float) {
+        drawRoundRect(tint, topLeft = Offset(cx - s, cy - s * 0.4f), size = Size(s * 2f, s * 0.9f), cornerRadius = CornerRadius(s * 0.5f), style = stroke)
+        drawCircle(tint, radius = s * 0.55f, center = Offset(cx - s * 0.4f, cy - s * 0.35f), style = stroke)
+        drawCircle(tint, radius = s * 0.7f, center = Offset(cx + s * 0.35f, cy - s * 0.4f), style = stroke)
+    }
+    fun sun(cx: Float, cy: Float, r: Float) {
+        drawCircle(tint, radius = r, center = Offset(cx, cy), style = stroke)
+        for (i in 0 until 8) {
+            val a = Math.toRadians(i * 45.0)
+            drawLine(tint, Offset(cx + (r * 1.5f * cos(a)).toFloat(), cy + (r * 1.5f * sin(a)).toFloat()), Offset(cx + (r * 2.1f * cos(a)).toFloat(), cy + (r * 2.1f * sin(a)).toFloat()), strokeWidth = stroke.width)
+        }
+    }
+    when {
+        code == 0 && day -> sun(w * 0.5f, w * 0.5f, w * 0.2f)
+        code == 0 -> drawPath(Path().apply { // moon
+            moveTo(w * 0.72f, w * 0.6f); cubicTo(w * 0.5f, w * 0.62f, w * 0.38f, w * 0.44f, w * 0.5f, w * 0.26f); cubicTo(w * 0.3f, w * 0.3f, w * 0.26f, w * 0.6f, w * 0.46f, w * 0.72f); cubicTo(w * 0.58f, w * 0.78f, w * 0.68f, w * 0.72f, w * 0.72f, w * 0.6f); close()
+        }, tint, style = stroke)
+        code in 1..2 && day -> { sun(w * 0.36f, w * 0.36f, w * 0.14f); cloud(w * 0.58f, w * 0.64f, w * 0.22f) }
+        code in 95..99 -> { cloud(w * 0.5f, w * 0.44f, w * 0.26f); drawPath(Path().apply { moveTo(w * 0.52f, w * 0.6f); lineTo(w * 0.4f, w * 0.8f); lineTo(w * 0.54f, w * 0.8f); lineTo(w * 0.46f, w * 0.96f) }, tint, style = stroke) }
+        (code in 71..77) || code == 85 || code == 86 -> { cloud(w * 0.5f, w * 0.42f, w * 0.26f); for (x in listOf(0.36f, 0.5f, 0.64f)) drawCircle(tint, radius = w * 0.025f, center = Offset(w * x, w * 0.82f)) }
+        (code in 51..67) || (code in 80..82) -> { cloud(w * 0.5f, w * 0.42f, w * 0.26f); for (x in listOf(0.38f, 0.52f, 0.66f)) drawLine(tint, Offset(w * x, w * 0.68f), Offset(w * (x - 0.04f), w * 0.86f), strokeWidth = stroke.width) }
+        else -> cloud(w * 0.5f, w * 0.52f, w * 0.28f)
     }
 }
 
@@ -492,30 +535,32 @@ private fun InputRow(inputs: List<TvInput>, onInput: (TvInput) -> Unit) {
     }
 }
 
-/** The app dock: a rounded bar of launchable apps along the bottom, like the Samsung app's. */
+/** The app dock: a compact, centred rounded bar of launchable apps pinned at the bottom, like the Samsung app's. */
 @Composable
-private fun AppDock(apps: List<DockApp>, onApp: (DockApp) -> Unit) {
-    Box(
+private fun AppDock(apps: List<DockApp>, onApp: (DockApp) -> Unit, firstFocus: FocusRequester) {
+    val list = remember(apps) { apps.distinctBy { it.packageName } }
+    Row(
         Modifier
-            .fillMaxWidth()
-            .clip(androidx.compose.foundation.shape.RoundedCornerShape(24.dp))
-            .background(Color(0x99181C24))
-            .padding(vertical = 12.dp),
+            .clip(androidx.compose.foundation.shape.RoundedCornerShape(22.dp))
+            .background(Color(0xCC14181F))
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp), contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp, vertical = 4.dp)) {
-            items(apps.distinctBy { it.packageName }, key = { it.packageName }) { app ->
-                val bitmap = remember(app.packageName) { app.icon?.toBitmap(320, 180)?.asImageBitmap() }
-                Card(onClick = { onApp(app) }, modifier = Modifier.width(132.dp)) {
-                    if (bitmap != null) {
-                        Image(
-                            bitmap = bitmap,
-                            contentDescription = app.label,
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.fillMaxWidth().height(74.dp),
-                        )
-                    }
-                    Text(app.label, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(6.dp))
+        list.forEachIndexed { i, app ->
+            val bitmap = remember(app.packageName) { app.icon?.toBitmap(240, 135)?.asImageBitmap() }
+            Card(
+                onClick = { onApp(app) },
+                modifier = Modifier.width(104.dp).then(if (i == 0) Modifier.focusRequester(firstFocus) else Modifier),
+            ) {
+                if (bitmap != null) {
+                    Image(
+                        bitmap = bitmap,
+                        contentDescription = app.label,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxWidth().height(58.dp),
+                    )
                 }
+                Text(app.label, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 6.dp, vertical = 5.dp))
             }
         }
     }
