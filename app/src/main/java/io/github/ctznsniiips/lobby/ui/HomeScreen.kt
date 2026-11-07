@@ -23,6 +23,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
@@ -66,6 +69,7 @@ fun HomeScreen(
     onMessageShown: () -> Unit,
 ) {
     val home = state.home
+    val searchFocus = remember { FocusRequester() }
 
     Box(Modifier.fillMaxSize().background(LobbyColors.background)) {
         LazyColumn(
@@ -78,7 +82,7 @@ fun HomeScreen(
                     Text(home?.tvName ?: "Lobby", fontSize = 32.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
                     if (state.loading) Text("Loading…", color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(end = 24.dp))
                     Button(onClick = onScreenSaver, modifier = Modifier.padding(end = 12.dp)) { Text("Screen saver") }
-                    Button(onClick = onSearch) { Text("Search") }
+                    Button(onClick = onSearch, modifier = Modifier.focusRequester(searchFocus)) { Text("Search") }
                 }
             }
 
@@ -96,7 +100,7 @@ fun HomeScreen(
             }
 
             if (home != null && home.featured.isNotEmpty()) {
-                item { FeaturedRow(home.featured, address, onItem) }
+                item { FeaturedRow(home.featured, address, onItem, searchFocus) }
             }
 
             home?.rows?.filter { it.items.isNotEmpty() }?.let { rows ->
@@ -171,8 +175,9 @@ private fun HomePrompt(onSetup: () -> Unit, onDismiss: () -> Unit) {
 }
 
 @Composable
-private fun FeaturedRow(items: List<HomeItem>, address: ServerAddress, onItem: (HomeItem) -> Unit) {
-    LazyRow(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+private fun FeaturedRow(items: List<HomeItem>, address: ServerAddress, onItem: (HomeItem) -> Unit, searchFocus: FocusRequester) {
+    // Up from the hero goes to Search rather than the first header button the focus search would pick.
+    LazyRow(modifier = Modifier.focusProperties { up = searchFocus }, horizontalArrangement = Arrangement.spacedBy(20.dp)) {
         items(items.distinctBy { it.id }, key = { it.id }) { item ->
             val art = address.imageUrl(item.backdropUrl ?: item.landscapeUrl, width = 1280)
             Card(onClick = { onItem(item) }, modifier = Modifier.width(560.dp)) {
