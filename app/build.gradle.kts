@@ -1,9 +1,22 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
     id("org.jetbrains.kotlin.plugin.serialization")
 }
+
+// A fixed signing key lets a new APK install over an older one without uninstalling. The key is NOT in the repo:
+// CI decodes it from a GitHub Actions secret and writes keystore.properties (see .github/workflows/build.yml), and
+// for local signed builds you create keystore.properties yourself. When it's absent, builds fall back to the
+// default debug key so the project still compiles (e.g. on fork PRs with no secrets).
+val keystorePropertiesFile = rootProject.file("keystore.properties")
+val keystoreProperties = Properties().apply {
+    if (keystorePropertiesFile.exists()) keystorePropertiesFile.inputStream().use { load(it) }
+}
+val hasReleaseSigning = keystoreProperties.getProperty("storeFile")
+    ?.let { rootProject.file(it).exists() } == true
 
 android {
     namespace = "io.github.ctznsniiips.lobby"
@@ -17,9 +30,24 @@ android {
         versionName = "0.1.0"
     }
 
+    signingConfigs {
+        if (hasReleaseSigning) {
+            create("lobby") {
+                storeFile = rootProject.file(keystoreProperties.getProperty("storeFile"))
+                storePassword = keystoreProperties.getProperty("storePassword")
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
+        debug {
+            if (hasReleaseSigning) signingConfig = signingConfigs.getByName("lobby")
+        }
         release {
             isMinifyEnabled = false
+            if (hasReleaseSigning) signingConfig = signingConfigs.getByName("lobby")
         }
     }
 
