@@ -1,15 +1,20 @@
 package io.github.ctznsniiips.lobby
 
 import android.os.Bundle
+import android.view.KeyEvent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.ctznsniiips.lobby.ui.ConnectScreen
 import io.github.ctznsniiips.lobby.ui.DetailsScreen
 import io.github.ctznsniiips.lobby.ui.HomeScreen
+import io.github.ctznsniiips.lobby.ui.IdleWatcher
 import io.github.ctznsniiips.lobby.ui.LobbyTheme
 import io.github.ctznsniiips.lobby.ui.LobbyViewModel
 import io.github.ctznsniiips.lobby.ui.RequesterDialog
@@ -28,6 +33,8 @@ class MainActivity : ComponentActivity() {
             openTeams = viewModel::openTeams,
             toggleTeam = viewModel::toggleTeam,
             reset = viewModel::resetSettings,
+            stepScreenSaver = viewModel::stepScreenSaver,
+            openScreenSaverSettings = viewModel::openScreenSaverSettings,
             back = viewModel::closeSettings,
         )
     }
@@ -38,6 +45,7 @@ class MainActivity : ComponentActivity() {
             LobbyTheme {
                 val state by viewModel.state.collectAsStateWithLifecycle()
                 val paired = state.paired
+                Box(Modifier.fillMaxSize()) {
                 if (paired == null) {
                     ConnectScreen(
                         state = state.connect,
@@ -49,6 +57,7 @@ class MainActivity : ComponentActivity() {
                     BackHandler(onBack = viewModel::closeSettings)
                     SettingsScreen(
                         settings = state.settings!!,
+                        screenSaverMinutes = state.screenSaverMinutes,
                         message = state.message,
                         actions = settingsActions,
                         onMessageShown = viewModel::clearMessage,
@@ -81,6 +90,7 @@ class MainActivity : ComponentActivity() {
                         onItem = viewModel::onItem,
                         onApp = viewModel::launchApp,
                         onSearch = viewModel::openSearch,
+                        onScreenSaver = { viewModel.startScreenSaver() },
                         onRefresh = viewModel::refreshHome,
                         onLobbySettings = viewModel::openSettings,
                         onSettings = viewModel::openSystemSettings,
@@ -99,6 +109,16 @@ class MainActivity : ComponentActivity() {
                         )
                     }
                 }
+
+                val onHome = paired != null && state.settings == null && state.details == null && state.search == null &&
+                    state.requestPicker == null
+                IdleWatcher(
+                    enabled = onHome,
+                    minutes = state.screenSaverMinutes,
+                    activity = viewModel.activity,
+                    onIdle = { viewModel.startScreenSaver(automatic = true) },
+                )
+                }
             }
         }
     }
@@ -107,5 +127,11 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         // Coming back from the Jellyfin/Emby app: Continue Watching and Next Up have probably changed.
         if (viewModel.state.value.paired != null) viewModel.refreshHome()
+    }
+
+    // Every key press counts as activity, which restarts the idle countdown for the screen saver.
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (event.action == KeyEvent.ACTION_DOWN) viewModel.userActivity()
+        return super.dispatchKeyEvent(event)
     }
 }

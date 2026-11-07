@@ -88,14 +88,20 @@ data class LobbyState(
     val details: DetailsState? = null,
     /** Non-null while the Lobby settings screens are open. */
     val settings: SettingsState? = null,
+    /** Idle minutes before the system screen saver is started; 0 is off. */
+    val screenSaverMinutes: Int = 0,
 )
 
 class LobbyViewModel(app: Application) : AndroidViewModel(app) {
     private val store = SessionStore(app)
     private val device = TvDevice(app)
 
-    private val _state = MutableStateFlow(LobbyState(lastAddress = store.lastOrigin().orEmpty()))
+    private val _state = MutableStateFlow(LobbyState(lastAddress = store.lastOrigin().orEmpty(), screenSaverMinutes = store.screenSaverMinutes()))
     val state: StateFlow<LobbyState> = _state.asStateFlow()
+
+    // Bumped on every remote key press; the idle watcher restarts its countdown when it changes.
+    private val _activity = MutableStateFlow(0)
+    val activity: StateFlow<Int> = _activity.asStateFlow()
 
     private var api: LobbyApi? = null
     private var pairingJob: Job? = null
@@ -266,6 +272,28 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun dismissRequesterPicker() = _state.update { it.copy(requestPicker = null) }
+
+    // ---- System screen saver ------------------------------------------------------------------
+
+    fun userActivity() = _activity.update { it + 1 }
+
+    /** Starts the screen saver chosen in Android's settings. [automatic] (the idle timer) stays quiet if the device won't allow it. */
+    fun startScreenSaver(automatic: Boolean = false) {
+        if (device.startSystemScreensaver()) return
+        if (!automatic) say("This device won't let apps start its screen saver. Start it from System settings, Screen saver.")
+    }
+
+    fun openScreenSaverSettings() {
+        if (!device.openScreenSaverSettings()) say("Couldn't open Settings.")
+    }
+
+    /** Steps the automatic-start delay through [SCREEN_SAVER_OPTIONS] (Off, 2, 5, 10, 15, 30 minutes). */
+    fun stepScreenSaver(direction: Int) {
+        val current = SCREEN_SAVER_OPTIONS.indexOf(_state.value.screenSaverMinutes).coerceAtLeast(0)
+        val next = SCREEN_SAVER_OPTIONS[(current + direction).coerceIn(0, SCREEN_SAVER_OPTIONS.lastIndex)]
+        store.setScreenSaverMinutes(next)
+        _state.update { it.copy(screenSaverMinutes = next) }
+    }
 
     // ---- Lobby settings (this TV's own rows, limits and teams) ---------------------------------
 
