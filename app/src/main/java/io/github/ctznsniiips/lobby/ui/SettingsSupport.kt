@@ -53,5 +53,6 @@ class SettingsActions(
     val reset: () -> Unit,
     val stepScreenSaver: (direction: Int) -> Unit,
     val openScreenSaverSettings: () -> Unit,
+    val openHomeSetup: () -> Unit,
     val back: () -> Unit,
 )

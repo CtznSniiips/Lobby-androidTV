@@ -39,6 +39,7 @@ import io.github.ctznsniiips.lobby.data.TvSettingsResponse
 fun SettingsScreen(
     settings: SettingsState,
     screenSaverMinutes: Int,
+    isDefaultHome: Boolean,
     message: String?,
     actions: SettingsActions,
     onMessageShown: () -> Unit,
@@ -47,14 +48,14 @@ fun SettingsScreen(
         if (settings.teamsOpen) {
             TeamsPicker(settings, actions)
         } else {
-            SettingsList(settings, screenSaverMinutes, actions)
+            SettingsList(settings, screenSaverMinutes, isDefaultHome, actions)
         }
         MessageToast(message, onMessageShown, Modifier.align(Alignment.BottomCenter))
     }
 }
 
 @Composable
-private fun SettingsList(settings: SettingsState, screenSaverMinutes: Int, actions: SettingsActions) {
+private fun SettingsList(settings: SettingsState, screenSaverMinutes: Int, isDefaultHome: Boolean, actions: SettingsActions) {
     val data = settings.data
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -87,6 +88,18 @@ private fun SettingsList(settings: SettingsState, screenSaverMinutes: Int, actio
             item { SectionTitle("Limits and timing") }
             items(NumberSetting.entries.toList(), key = { it.name }) { setting ->
                 NumberLine(setting, data, actions)
+            }
+
+            item { SectionTitle("Home screen") }
+            item {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Button(onClick = actions.openHomeSetup) { Text(if (isDefaultHome) "Home screen setup" else "Make Lobby the home screen") }
+                    Text(
+                        if (isDefaultHome) "Lobby is what the Home button opens." else "The Home button opens another launcher.",
+                        fontSize = 15.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
 
             item { SectionTitle("Screen saver") }

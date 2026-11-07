@@ -18,6 +18,11 @@
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
         </intent>
+        <!-- Which launcher currently answers the Home button. -->
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.HOME" />
+        </intent>
         <package android:name="org.jellyfin.androidtv" />
         <package android:name="org.jellyfin.androidtv.debug" />
         <package android:name="tv.emby.embyatv" />
