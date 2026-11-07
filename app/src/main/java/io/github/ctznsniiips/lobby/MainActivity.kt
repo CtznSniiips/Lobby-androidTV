@@ -123,6 +123,12 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        // Coming back from the Jellyfin/Emby app: Continue Watching and Next Up have probably changed.
+        if (viewModel.state.value.paired != null) viewModel.refreshHome()
+    }
+
     // Every key press counts as activity, which restarts the idle countdown for the screen saver.
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (event.action == KeyEvent.ACTION_DOWN) viewModel.userActivity()
