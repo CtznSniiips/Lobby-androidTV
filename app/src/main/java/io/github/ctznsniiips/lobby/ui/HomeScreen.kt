@@ -41,6 +41,7 @@ import io.github.ctznsniiips.lobby.data.HomeItem
 import io.github.ctznsniiips.lobby.data.HomeRow
 import io.github.ctznsniiips.lobby.data.ServerAddress
 import io.github.ctznsniiips.lobby.device.DockApp
+import io.github.ctznsniiips.lobby.device.TvInput
 import kotlinx.coroutines.delay
 
 private const val LANDSCAPE_W = 280
@@ -52,6 +53,7 @@ fun HomeScreen(
     address: ServerAddress,
     onItem: (HomeItem) -> Unit,
     onApp: (DockApp) -> Unit,
+    onInput: (TvInput) -> Unit,
     onSearch: () -> Unit,
     onScreenSaver: () -> Unit,
     showHomePrompt: Boolean,
@@ -99,6 +101,10 @@ fun HomeScreen(
 
             home?.rows?.filter { it.items.isNotEmpty() }?.let { rows ->
                 items(rows.distinctBy { it.id }, key = { it.id }) { row -> MediaRow(row, address, onItem) }
+            }
+
+            if (state.inputs.isNotEmpty()) {
+                item { InputRow(state.inputs, onInput) }
             }
 
             if (state.apps.isNotEmpty()) {
@@ -226,6 +232,18 @@ private fun MediaCard(item: HomeItem, address: ServerAddress, poster: Boolean, o
             val sub = item.subtitle ?: item.requestStatus?.takeIf { it != "none" }
             if (!sub.isNullOrBlank()) {
                 Text(sub, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+    }
+}
+
+@Composable
+private fun InputRow(inputs: List<TvInput>, onInput: (TvInput) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text("Inputs", fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            items(inputs, key = { it.id }) { input ->
+                Button(onClick = { onInput(input) }) { Text(input.label) }
             }
         }
     }
