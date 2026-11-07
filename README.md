@@ -37,7 +37,8 @@ First cut, written without an Android SDK available, so treat the first CI build
 - [x] Details for Seerr titles (facts, tagline, overview, credits, cast) with Request, and Play/Resume for titles already in the library; partly available shows offer both
 - [x] Per-TV settings (`/Lobby/Settings`): show/hide and reorder rows, titles per row, sports look-ahead, playback delay/timeout, sports team picker, reset to server defaults
 - [x] Screen saver: a Home button and an optional idle timer (Off/2/5/10/15/30 min under Lobby settings; Off by default like the Tizen screen saver) start whatever screen saver is chosen in Android's settings, via SystemUI's `Somnambulator` (falls back to a message if the device lacks it). Lobby doesn't draw its own
-- [ ] HDMI input switching, make-default-home onboarding
+- [x] Make Lobby the home screen: a prompt on Home until it is ("Not now" dismisses it), and a Home screen entry in Lobby settings. Tries Android's home-role prompt, then the TV's home-app setting, then shows the `adb` command
+- [ ] HDMI input switching
 - [ ] Real banner/icon artwork
 
 ## Build

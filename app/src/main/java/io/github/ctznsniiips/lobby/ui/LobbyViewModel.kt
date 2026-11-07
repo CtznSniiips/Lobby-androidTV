@@ -90,13 +90,19 @@ data class LobbyState(
     val settings: SettingsState? = null,
     /** Idle minutes before the system screen saver is started; 0 is off. */
     val screenSaverMinutes: Int = 0,
+    /** Whether the remote's Home button opens Lobby. Starts true so the prompt doesn't flash before the first check. */
+    val isDefaultHome: Boolean = true,
+    /** "Not now" was chosen on the Home prompt (the Lobby settings entry stays available). */
+    val homePromptDismissed: Boolean = false,
+    /** True while the make-Lobby-your-home-screen guide is open. */
+    val homeSetup: Boolean = false,
 )
 
 class LobbyViewModel(app: Application) : AndroidViewModel(app) {
     private val store = SessionStore(app)
     private val device = TvDevice(app)
 
-    private val _state = MutableStateFlow(LobbyState(lastAddress = store.lastOrigin().orEmpty(), screenSaverMinutes = store.screenSaverMinutes()))
+    private val _state = MutableStateFlow(LobbyState(lastAddress = store.lastOrigin().orEmpty(), screenSaverMinutes = store.screenSaverMinutes(), homePromptDismissed = store.homePromptDismissed()))
     val state: StateFlow<LobbyState> = _state.asStateFlow()
 
     // Bumped on every remote key press; the idle watcher restarts its countdown when it changes.
@@ -116,6 +122,7 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
     private val detailsCache = HashMap<String, TitleDetailsResponse>()
 
     init {
+        refreshHomeStatus()
         store.load()?.let { onPaired(it, save = false) }
     }
 
@@ -181,7 +188,7 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
         dirty.clear()
         store.forget()
         api = null
-        _state.update { it.copy(paired = null, home = null, connect = ConnectState(), message = null, loading = false, homeError = null, search = null, requestPicker = null, details = null, settings = null) }
+        _state.update { it.copy(paired = null, home = null, connect = ConnectState(), message = null, loading = false, homeError = null, search = null, requestPicker = null, details = null, settings = null, homeSetup = false) }
     }
 
     private fun onPaired(server: PairedServer, save: Boolean) {
@@ -272,6 +279,38 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun dismissRequesterPicker() = _state.update { it.copy(requestPicker = null) }
+
+    // ---- Make Lobby the home screen ------------------------------------------------------------
+
+    /** Re-checks whether Lobby is the home app; called on start-up and whenever the app comes back to the front. */
+    fun refreshHomeStatus() {
+        val isDefault = device.isDefaultHome()
+        _state.update { it.copy(isDefaultHome = isDefault) }
+    }
+
+    fun openHomeSetup() = _state.update { it.copy(homeSetup = true) }
+
+    fun closeHomeSetup() = _state.update { it.copy(homeSetup = false) }
+
+    /** "Not now" on the Home prompt. */
+    fun dismissHomePrompt() {
+        store.setHomePromptDismissed(true)
+        _state.update { it.copy(homePromptDismissed = true) }
+    }
+
+    fun openHomeSettings() {
+        if (!device.openHomeSettings()) say("This TV has no home-app setting. Use the adb command below.")
+    }
+
+    /** The system's role prompt came back (or never showed); say what happened so the guide isn't silent. */
+    fun onHomeRoleResult() {
+        refreshHomeStatus()
+        if (_state.value.isDefaultHome) say("Lobby is now your home screen.")
+        else say("Your TV didn't switch the home app. Try Android's home-app setting, or the adb command below.")
+    }
+
+    fun homeRolePromptUnavailable() =
+        say("This TV has no prompt for the home app. Try Android's home-app setting, or the adb command below.")
 
     // ---- System screen saver ------------------------------------------------------------------
 

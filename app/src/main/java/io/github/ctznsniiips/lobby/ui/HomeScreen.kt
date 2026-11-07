@@ -54,6 +54,9 @@ fun HomeScreen(
     onApp: (DockApp) -> Unit,
     onSearch: () -> Unit,
     onScreenSaver: () -> Unit,
+    showHomePrompt: Boolean,
+    onHomeSetup: () -> Unit,
+    onHomePromptDismiss: () -> Unit,
     onRefresh: () -> Unit,
     onLobbySettings: () -> Unit,
     onSettings: () -> Unit,
@@ -75,6 +78,10 @@ fun HomeScreen(
                     Button(onClick = onScreenSaver, modifier = Modifier.padding(end = 12.dp)) { Text("Screen saver") }
                     Button(onClick = onSearch) { Text("Search") }
                 }
+            }
+
+            if (showHomePrompt) {
+                item { HomePrompt(onHomeSetup, onHomePromptDismiss) }
             }
 
             state.homeError?.let { error ->
@@ -129,6 +136,31 @@ fun MessageToast(message: String?, onShown: () -> Unit, modifier: Modifier = Mod
                 .background(LobbyColors.scrim)
                 .padding(horizontal = 24.dp, vertical = 14.dp),
         ) { Text(message, fontSize = 18.sp) }
+    }
+}
+
+/** First-run nudge: shown on Home until Lobby is the home app or the user says "Not now". */
+@Composable
+private fun HomePrompt(onSetup: () -> Unit, onDismiss: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(androidx.compose.foundation.shape.RoundedCornerShape(14.dp))
+            .background(MaterialTheme.colorScheme.surface)
+            .padding(20.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text("Make Lobby your home screen", fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+            Text(
+                "So the Home button on your remote opens Lobby.",
+                fontSize = 14.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Button(onClick = onSetup) { Text("Set up") }
+        Button(onClick = onDismiss) { Text("Not now") }
     }
 }
 

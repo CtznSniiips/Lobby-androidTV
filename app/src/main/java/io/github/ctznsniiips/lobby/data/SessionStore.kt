@@ -36,6 +36,13 @@ class SessionStore(context: Context) {
         prefs.edit().putInt(KEY_SCREEN_SAVER, minutes).apply()
     }
 
+    /** True once the user has said "Not now" to the make-Lobby-your-home-screen prompt on Home. */
+    fun homePromptDismissed(): Boolean = prefs.getBoolean(KEY_HOME_PROMPT_DISMISSED, false)
+
+    fun setHomePromptDismissed(dismissed: Boolean) {
+        prefs.edit().putBoolean(KEY_HOME_PROMPT_DISMISSED, dismissed).apply()
+    }
+
     fun lastOrigin(): String? = prefs.getString(KEY_ORIGIN, null)
 
     fun forget() {
@@ -48,5 +55,6 @@ class SessionStore(context: Context) {
         const val KEY_TOKEN = "token"
         const val KEY_NAME = "tvName"
         const val KEY_SCREEN_SAVER = "screenSaverMinutes"
+        const val KEY_HOME_PROMPT_DISMISSED = "homePromptDismissed"
     }
 }

@@ -1,5 +1,6 @@
 package io.github.ctznsniiips.lobby.device
 
+import android.app.role.RoleManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -57,6 +58,25 @@ class TvDevice(private val context: Context) {
      */
     fun startSystemScreensaver(): Boolean =
         start(Intent(Intent.ACTION_MAIN).setClassName("com.android.systemui", "com.android.systemui.Somnambulator"))
+
+    /**
+     * Whether Lobby is what the remote's Home button opens. Uses the Home role on Android 10+, and otherwise asks
+     * which activity currently answers the HOME intent (the chooser, "android", counts as not set).
+     */
+    fun isDefaultHome(): Boolean {
+        if (Build.VERSION.SDK_INT >= 29) {
+            val roles = context.getSystemService(RoleManager::class.java)
+            if (roles != null && roles.isRoleAvailable(RoleManager.ROLE_HOME)) return roles.isRoleHeld(RoleManager.ROLE_HOME)
+        }
+        val home = pm.resolveActivity(
+            Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME),
+            PackageManager.MATCH_DEFAULT_ONLY,
+        )
+        return home?.activityInfo?.packageName == context.packageName
+    }
+
+    /** Android's "default home app" picker, where the TV has one. */
+    fun openHomeSettings(): Boolean = start(Intent(Settings.ACTION_HOME_SETTINGS))
 
     /** Where the user chooses the screen saver and Android's own "When to start" delay. */
     fun openScreenSaverSettings(): Boolean = start(Intent(Settings.ACTION_DREAM_SETTINGS)) || openSystemSettings()
