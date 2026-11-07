@@ -130,6 +130,7 @@ class MainActivity : ComponentActivity() {
                         address = paired.address,
                         onItem = viewModel::onItem,
                         onApp = viewModel::launchApp,
+                        onInput = viewModel::launchInput,
                         onSearch = viewModel::openSearch,
                         onScreenSaver = { viewModel.startScreenSaver() },
                         showHomePrompt = !state.isDefaultHome && !state.homePromptDismissed,

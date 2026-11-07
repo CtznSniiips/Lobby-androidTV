@@ -5,11 +5,17 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.drawable.Drawable
+import android.media.tv.TvContract
+import android.media.tv.TvInputInfo
+import android.media.tv.TvInputManager
 import android.os.Build
 import android.provider.Settings
 
 /** One launchable app in the dock. */
 data class DockApp(val packageName: String, val label: String, val icon: Drawable?)
+
+/** One physical video input (HDMI, composite, ...) the TV can switch to. */
+data class TvInput(val id: String, val label: String)
 
 /**
  * Everything platform-specific, the Android TV counterpart of the Tizen app's device.js. Nothing outside
@@ -43,6 +49,24 @@ class TvDevice(private val context: Context) {
             .sortedWith(compareBy<DockApp> { it.packageName !in PLAYBACK_PACKAGES }.thenBy { it.label.lowercase() })
             .toList()
     }
+
+    /**
+     * The TV's HDMI inputs, via the TV Input Framework (same approach as LtvLauncher): passthrough inputs only,
+     * HDMI type first. Empty on boxes with no tuner/inputs (e.g. a streaming stick), so the UI hides the row.
+     */
+    fun tvInputs(): List<TvInput> = runCatching {
+        val manager = context.getSystemService(Context.TV_INPUT_SERVICE) as? TvInputManager ?: return emptyList()
+        manager.tvInputList
+            .filter { it.isPassthroughInput && it.type == TvInputInfo.TYPE_HDMI }
+            .map { TvInput(it.id, it.loadCustomLabel(context)?.toString()?.takeIf { l -> l.isNotBlank() } ?: it.loadLabel(context)?.toString() ?: it.id) }
+            .distinctBy { it.id }
+            .sortedBy { it.label.lowercase() }
+    }.getOrDefault(emptyList())
+
+    /** Switches the TV to [inputId] by viewing its passthrough channel URI. */
+    fun launchTvInput(inputId: String): Boolean = runCatching {
+        start(Intent(Intent.ACTION_VIEW, TvContract.buildChannelUriForPassthroughInput(inputId)))
+    }.getOrDefault(false)
 
     fun launchApp(packageName: String): Boolean {
         val intent = pm.getLeanbackLaunchIntentForPackage(packageName) ?: pm.getLaunchIntentForPackage(packageName) ?: return false

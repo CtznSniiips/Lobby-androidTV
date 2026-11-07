@@ -19,6 +19,7 @@ import io.github.ctznsniiips.lobby.data.SaveTvSettingsBody
 import io.github.ctznsniiips.lobby.data.SubmitRequestBody
 import io.github.ctznsniiips.lobby.data.TvSettingsResponse
 import io.github.ctznsniiips.lobby.device.DockApp
+import io.github.ctznsniiips.lobby.device.TvInput
 import io.github.ctznsniiips.lobby.device.TvDevice
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -77,6 +78,7 @@ data class LobbyState(
     val loading: Boolean = false,
     val homeError: String? = null,
     val apps: List<DockApp> = emptyList(),
+    val inputs: List<TvInput> = emptyList(),
     /** One-line feedback after an action (play queued, requested, failed...). */
     val message: String? = null,
     val lastAddress: String = "",
@@ -194,7 +196,7 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
     private fun onPaired(server: PairedServer, save: Boolean) {
         if (save) store.save(server)
         api = LobbyApiFactory.create(server.address, server.token)
-        _state.update { it.copy(paired = server, connect = ConnectState(), lastAddress = server.address.origin, apps = device.dockApps()) }
+        _state.update { it.copy(paired = server, connect = ConnectState(), lastAddress = server.address.origin, apps = device.dockApps(), inputs = device.tvInputs()) }
         refreshHome()
     }
 
@@ -203,7 +205,7 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
     fun refreshHome() {
         val client = api ?: return
         if (_state.value.loading) return
-        _state.update { it.copy(loading = true, homeError = null, apps = device.dockApps()) }
+        _state.update { it.copy(loading = true, homeError = null, apps = device.dockApps(), inputs = device.tvInputs()) }
         viewModelScope.launch {
             runCatching { client.home() }
                 .onSuccess { home -> _state.update { it.copy(home = home, loading = false) } }
@@ -558,6 +560,10 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
                 if (e is CancellationException) throw e
                 _state.update { s -> s.copy(search = s.search?.copy(loading = false, error = describe(e, "Search failed."))) }
             }
+    }
+
+    fun launchInput(input: TvInput) {
+        if (!device.launchTvInput(input.id)) say("Couldn't switch to ${input.label}.")
     }
 
     fun launchApp(app: DockApp) {
