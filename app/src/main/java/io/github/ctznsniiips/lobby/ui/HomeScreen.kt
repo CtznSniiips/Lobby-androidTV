@@ -2,7 +2,11 @@
 
 package io.github.ctznsniiips.lobby.ui
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -19,6 +23,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -26,6 +31,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
@@ -221,22 +227,35 @@ private fun MediaCard(item: HomeItem, address: ServerAddress, poster: Boolean, o
     val height = if (poster) 240 else 158
     val art = address.imageUrl(if (poster) item.posterUrl ?: item.landscapeUrl else item.landscapeUrl ?: item.posterUrl, width = width * 2)
 
-    Card(onClick = { onItem(item) }, modifier = Modifier.width(width.dp)) {
+    val interaction = remember { MutableInteractionSource() }
+    val focused by interaction.collectIsFocusedAsState()
+    val titleColor by animateColorAsState(if (focused) Color(0xFFF4F2EE) else Color(0x99F4F2EE), tween(140), label = "title")
+    val subColor by animateColorAsState(if (focused) Color(0xB8F4F2EE) else Color(0x61F4F2EE), tween(140), label = "sub")
+    val sub = item.subtitle ?: item.requestStatus?.takeIf { it != "none" }
+    val progress = item.progressPercent?.takeIf { it > 0 }
+
+    Card(onClick = { onItem(item) }, interactionSource = interaction, modifier = Modifier.width(width.dp)) {
         Box(Modifier.fillMaxWidth().height(height.dp)) {
             if (art != null) {
                 AsyncImage(model = art, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
             }
-            item.progressPercent?.takeIf { it > 0 }?.let { percent ->
+            // The name sits inside the card over a bottom scrim: muted so a row reads at a glance, full strength on focus.
+            Column(
+                Modifier
+                    .align(Alignment.BottomStart)
+                    .fillMaxWidth()
+                    .background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xB8000000))))
+                    .padding(start = 10.dp, end = 10.dp, top = 28.dp, bottom = if (progress != null) 12.dp else 8.dp),
+            ) {
+                Text(item.title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = titleColor, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (!sub.isNullOrBlank()) {
+                    Text(sub, fontSize = 12.sp, color = subColor, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
+            progress?.let { percent ->
                 Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(4.dp).background(Color(0x55FFFFFF))) {
                     Box(Modifier.fillMaxWidth((percent / 100.0).toFloat().coerceIn(0f, 1f)).fillMaxHeight().background(LobbyColors.accent))
                 }
-            }
-        }
-        Column(Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
-            Text(item.title, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            val sub = item.subtitle ?: item.requestStatus?.takeIf { it != "none" }
-            if (!sub.isNullOrBlank()) {
-                Text(sub, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
     }
