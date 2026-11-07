@@ -89,8 +89,9 @@ private fun SettingsList(settings: SettingsState, screenSaverMinutes: Int, actio
                 NumberLine(setting, data, actions)
             }
 
-            item { SectionTitle("Ambient mode") }
+            item { SectionTitle("Screen saver") }
             item { ScreenSaverLine(screenSaverMinutes, actions) }
+            item { Button(onClick = actions.openScreenSaverSettings) { Text("Choose the screen saver (Android settings)") } }
 
             item { SectionTitle("Sports") }
             item {
@@ -145,14 +146,14 @@ private fun NumberLine(setting: NumberSetting, data: TvSettingsResponse, actions
     }
 }
 
-/** Local to this device (not saved on the server): the idle delay before ambient mode starts by itself. */
+/** Local to this device (not saved on the server): the idle delay before Lobby starts the system screen saver. */
 @Composable
 private fun ScreenSaverLine(minutes: Int, actions: SettingsActions) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Column(Modifier.weight(1f)) {
             Text("Start automatically", fontSize = 18.sp)
             Text(
-                "After Home sits idle with no remote activity. Any button exits. You can also start it from Home.",
+                "Starts your Android screen saver after Home sits idle. Android's own When to start setting still applies too.",
                 fontSize = 13.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

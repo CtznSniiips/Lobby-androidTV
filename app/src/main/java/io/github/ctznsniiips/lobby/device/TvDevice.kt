@@ -50,6 +50,17 @@ class TvDevice(private val context: Context) {
 
     fun openSystemSettings(): Boolean = start(Intent(Settings.ACTION_SETTINGS))
 
+    /**
+     * Starts the screen saver the user picked in Android's own settings, the same as Settings -> Screen saver ->
+     * Start now. Apps may not call the dream API directly (it needs a signature permission), so this opens the
+     * SystemUI activity that does. It exists on most Android TV builds but not all, hence the Boolean.
+     */
+    fun startSystemScreensaver(): Boolean =
+        start(Intent(Intent.ACTION_MAIN).setClassName("com.android.systemui", "com.android.systemui.Somnambulator"))
+
+    /** Where the user chooses the screen saver and Android's own "When to start" delay. */
+    fun openScreenSaverSettings(): Boolean = start(Intent(Settings.ACTION_DREAM_SETTINGS)) || openSystemSettings()
+
     /** The installed official Jellyfin or Emby app that playback is handed to, if any. */
     fun playbackApp(): String? = PLAYBACK_PACKAGES.firstOrNull { isInstalled(it) }
 

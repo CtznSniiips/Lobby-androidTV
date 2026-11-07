@@ -22,7 +22,7 @@ official app on the same device alongside Lobby.
 | Installed-app dock              | `PackageManager` query for `LEANBACK_LAUNCHER` activities (`TvDevice.dockApps`) |
 | Samsung Home/Settings shortcuts | `Settings.ACTION_SETTINGS`                                                  |
 | DUID for pairing                | Android ID sent as `Duid`; admin can assign the app's real `DeviceId`       |
-| Art Mode + Screen saver         | In-app ambient mode: backdrop slideshow, optional idle start (`Ambient.kt`) |
+| Art Mode + Screen saver         | The system screen saver: Screen saver button on Home, optional idle start   |
 | HDMI input switching            | To investigate (see LtvLauncher) (not yet built)                            |
 
 ## Status
@@ -36,8 +36,8 @@ First cut, written without an Android SDK available, so treat the first CI build
 - [x] Search (library + Seerr, debounced; Back returns to Home)
 - [x] Details for Seerr titles (facts, tagline, overview, credits, cast) with Request, and Play/Resume for titles already in the library; partly available shows offer both
 - [x] Per-TV settings (`/Lobby/Settings`): show/hide and reorder rows, titles per row, sports look-ahead, playback delay/timeout, sports team picker, reset to server defaults
-- [x] Ambient mode: Ambient button on Home, plus an optional idle start (Off/2/5/10/15/30 min, set under Lobby settings; Off by default like the Tizen screen saver). Slideshow of Home's artwork with a slow push-in, faint title and a clock that changes corner; any button exits
-- [ ] HDMI input switching, make-default-home onboarding, system screensaver (`DreamService`) so it can also run outside Lobby
+- [x] Screen saver: a Home button and an optional idle timer (Off/2/5/10/15/30 min under Lobby settings; Off by default like the Tizen screen saver) start whatever screen saver is chosen in Android's settings, via SystemUI's `Somnambulator` (falls back to a message if the device lacks it). Lobby doesn't draw its own
+- [ ] HDMI input switching, make-default-home onboarding
 - [ ] Real banner/icon artwork
 
 ## Build

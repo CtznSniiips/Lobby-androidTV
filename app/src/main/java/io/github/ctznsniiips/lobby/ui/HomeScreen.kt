@@ -53,7 +53,7 @@ fun HomeScreen(
     onItem: (HomeItem) -> Unit,
     onApp: (DockApp) -> Unit,
     onSearch: () -> Unit,
-    onAmbient: () -> Unit,
+    onScreenSaver: () -> Unit,
     onRefresh: () -> Unit,
     onLobbySettings: () -> Unit,
     onSettings: () -> Unit,
@@ -72,7 +72,7 @@ fun HomeScreen(
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Text(home?.tvName ?: "Lobby", fontSize = 32.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
                     if (state.loading) Text("Loading…", color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(end = 24.dp))
-                    Button(onClick = onAmbient, modifier = Modifier.padding(end = 12.dp)) { Text("Ambient") }
+                    Button(onClick = onScreenSaver, modifier = Modifier.padding(end = 12.dp)) { Text("Screen saver") }
                     Button(onClick = onSearch) { Text("Search") }
                 }
             }

@@ -21,6 +21,8 @@
         <package android:name="org.jellyfin.androidtv" />
         <package android:name="org.jellyfin.androidtv.debug" />
         <package android:name="tv.emby.embyatv" />
+        <!-- Hosts the activity that starts the system screen saver. -->
+        <package android:name="com.android.systemui" />
     </queries>
 
     <application

@@ -29,7 +29,7 @@ class SessionStore(context: Context) {
             .apply()
     }
 
-    /** Idle minutes before ambient mode starts by itself; 0 (the default) is off. This is a per-device choice, kept locally. */
+    /** Idle minutes before Lobby starts the system screen saver; 0 (the default) is off. This is a per-device choice, kept locally. */
     fun screenSaverMinutes(): Int = prefs.getInt(KEY_SCREEN_SAVER, 0)
 
     fun setScreenSaverMinutes(minutes: Int) {

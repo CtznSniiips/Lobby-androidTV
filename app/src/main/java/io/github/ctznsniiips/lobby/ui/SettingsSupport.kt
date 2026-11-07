@@ -52,5 +52,6 @@ class SettingsActions(
     val toggleTeam: (String) -> Unit,
     val reset: () -> Unit,
     val stepScreenSaver: (direction: Int) -> Unit,
+    val openScreenSaverSettings: () -> Unit,
     val back: () -> Unit,
 )

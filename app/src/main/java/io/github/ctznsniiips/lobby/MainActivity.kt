@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import io.github.ctznsniiips.lobby.ui.AmbientScreen
 import io.github.ctznsniiips.lobby.ui.ConnectScreen
 import io.github.ctznsniiips.lobby.ui.DetailsScreen
 import io.github.ctznsniiips.lobby.ui.HomeScreen
@@ -35,6 +34,7 @@ class MainActivity : ComponentActivity() {
             toggleTeam = viewModel::toggleTeam,
             reset = viewModel::resetSettings,
             stepScreenSaver = viewModel::stepScreenSaver,
+            openScreenSaverSettings = viewModel::openScreenSaverSettings,
             back = viewModel::closeSettings,
         )
     }
@@ -90,7 +90,7 @@ class MainActivity : ComponentActivity() {
                         onItem = viewModel::onItem,
                         onApp = viewModel::launchApp,
                         onSearch = viewModel::openSearch,
-                        onAmbient = { viewModel.enterAmbient() },
+                        onScreenSaver = { viewModel.startScreenSaver() },
                         onRefresh = viewModel::refreshHome,
                         onLobbySettings = viewModel::openSettings,
                         onSettings = viewModel::openSystemSettings,
@@ -110,43 +110,22 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                // Over everything else, so Home keeps its scroll position and focus underneath.
-                state.ambient?.let { AmbientScreen(it) }
-
                 val onHome = paired != null && state.settings == null && state.details == null && state.search == null &&
-                    state.requestPicker == null && state.ambient == null
+                    state.requestPicker == null
                 IdleWatcher(
                     enabled = onHome,
                     minutes = state.screenSaverMinutes,
                     activity = viewModel.activity,
-                    onIdle = { viewModel.enterAmbient(automatic = true) },
+                    onIdle = { viewModel.startScreenSaver(automatic = true) },
                 )
                 }
             }
         }
     }
 
-    // A key that wakes ambient mode only wakes it; it doesn't also press something on Home.
-    private var swallowKeyUp: Int? = null
-
+    // Every key press counts as activity, which restarts the idle countdown for the screen saver.
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
-        if (event.action == KeyEvent.ACTION_DOWN) {
-            if (viewModel.state.value.ambient != null) {
-                swallowKeyUp = event.keyCode
-                viewModel.exitAmbient()
-                return true
-            }
-            viewModel.userActivity()
-        } else if (event.action == KeyEvent.ACTION_UP && swallowKeyUp == event.keyCode) {
-            swallowKeyUp = null
-            return true
-        }
+        if (event.action == KeyEvent.ACTION_DOWN) viewModel.userActivity()
         return super.dispatchKeyEvent(event)
-    }
-
-    override fun onResume() {
-        super.onResume()
-        // Coming back from the Jellyfin/Emby app: Continue Watching and Next Up have probably changed.
-        if (viewModel.state.value.paired != null) viewModel.refreshHome()
     }
 }
