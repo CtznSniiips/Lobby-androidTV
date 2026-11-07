@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import io.github.ctznsniiips.lobby.data.HomeItem
 import io.github.ctznsniiips.lobby.data.HomeRow
 import io.github.ctznsniiips.lobby.data.HomeResponse
+import io.github.ctznsniiips.lobby.data.WeatherNow
 import io.github.ctznsniiips.lobby.data.LobbyApi
 import io.github.ctznsniiips.lobby.data.LobbyApiFactory
 import io.github.ctznsniiips.lobby.data.PairedServer
@@ -79,6 +80,8 @@ data class LobbyState(
     val homeError: String? = null,
     val apps: List<DockApp> = emptyList(),
     val inputs: List<TvInput> = emptyList(),
+    /** Current weather shown next to the clock, when the plugin supplies a location. */
+    val weather: WeatherNow? = null,
     /** One-line feedback after an action (play queued, requested, failed...). */
     val message: String? = null,
     val lastAddress: String = "",
@@ -208,7 +211,10 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
         _state.update { it.copy(loading = true, homeError = null, apps = device.dockApps(), inputs = device.tvInputs()) }
         viewModelScope.launch {
             runCatching { client.home() }
-                .onSuccess { home -> _state.update { it.copy(home = home, loading = false) } }
+                .onSuccess { home ->
+                    _state.update { it.copy(home = home, loading = false) }
+                    refreshWeather(home.weather)
+                }
                 .onFailure { e ->
                     if (e is HttpException && e.code() == 401) {
                         // The server no longer knows this TV: drop the token and pair again.
@@ -218,6 +224,17 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
                         _state.update { it.copy(loading = false, homeError = describe(e, "Couldn't load Home.")) }
                     }
                 }
+        }
+    }
+
+    private fun refreshWeather(config: io.github.ctznsniiips.lobby.data.WeatherConfig?) {
+        if (config == null || !config.valid) {
+            _state.update { it.copy(weather = null) }
+            return
+        }
+        viewModelScope.launch {
+            val now = io.github.ctznsniiips.lobby.data.WeatherService.current(config)
+            _state.update { it.copy(weather = now) }
         }
     }
 
