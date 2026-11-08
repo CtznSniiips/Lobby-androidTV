@@ -519,7 +519,7 @@ private fun mergeContinueRows(rows: List<HomeRow>): List<HomeRow> {
             out.add(row)
         }
     }
-    val ordered = items.values.sortedByDescending { it.action == "resume" }
+    val ordered = items.values.sortedByDescending { it.defaultAction == "resume" || it.playAction == "resume" }
     out[slot] = HomeRow(id = "continue", title = "Continue Watching", layout = rows.first { it.id == "continue" }.layout, items = ordered)
     return out
 }
