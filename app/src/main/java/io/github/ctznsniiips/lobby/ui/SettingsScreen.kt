@@ -193,7 +193,15 @@ private fun CategoryDetail(
 
         when (category) {
             SettingsCategory.Apps -> items(apps, key = { it.packageName }) { app ->
-                ToggleLine(app.label, hidden = app.packageName in hiddenApps) { hide -> actions.setAppHidden(app.packageName, hide) }
+                val index = apps.indexOfFirst { it.packageName == app.packageName }
+                AppLine(
+                    label = app.label,
+                    hidden = app.packageName in hiddenApps,
+                    canMoveUp = index > 0,
+                    canMoveDown = index < apps.lastIndex,
+                    onToggle = { hide -> actions.setAppHidden(app.packageName, hide) },
+                    onMove = { delta -> actions.moveApp(app.packageName, delta) },
+                )
             }
             SettingsCategory.Inputs -> items(inputs, key = { it.id }) { input ->
                 ToggleLine(input.label, hidden = input.id in hiddenInputs) { hide -> actions.setInputHidden(input.id, hide) }
@@ -234,7 +242,27 @@ private fun CategoryDetail(
     }
 }
 
-/** A single show/hide row used by the Apps and Inputs categories. */
+/** A dock-app row: show/hide plus reorder. */
+@Composable
+private fun AppLine(
+    label: String,
+    hidden: Boolean,
+    canMoveUp: Boolean,
+    canMoveDown: Boolean,
+    onToggle: (hidden: Boolean) -> Unit,
+    onMove: (delta: Int) -> Unit,
+) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text(label, fontSize = 18.sp, color = LobbyColors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        Button(onClick = { onToggle(!hidden) }, modifier = Modifier.width(120.dp)) {
+            Text(if (hidden) "Hidden" else "Shown", textAlign = TextAlign.Center)
+        }
+        Button(onClick = { onMove(-1) }, enabled = canMoveUp) { Text("Up") }
+        Button(onClick = { onMove(1) }, enabled = canMoveDown) { Text("Down") }
+    }
+}
+
+/** A single show/hide row used by the Inputs category. */
 @Composable
 private fun ToggleLine(label: String, hidden: Boolean, onSet: (hidden: Boolean) -> Unit) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {

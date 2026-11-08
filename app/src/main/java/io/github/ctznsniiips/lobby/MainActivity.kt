@@ -42,6 +42,7 @@ class MainActivity : ComponentActivity() {
             openScreenSaverSettings = viewModel::openScreenSaverSettings,
             openHomeSetup = viewModel::openHomeSetup,
             setAppHidden = viewModel::setAppHidden,
+            moveApp = viewModel::moveApp,
             setInputHidden = viewModel::setInputHidden,
             back = viewModel::closeSettings,
         )
