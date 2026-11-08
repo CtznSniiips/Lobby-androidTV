@@ -50,6 +50,13 @@ class SessionStore(context: Context) {
         prefs.edit().putStringSet(KEY_HIDDEN_APPS, values).apply()
     }
 
+    /** The user's preferred order of dock apps, by package name. Apps not listed keep their detected order after these. */
+    fun appOrder(): List<String> = prefs.getString(KEY_APP_ORDER, null)?.split('\n')?.filter { it.isNotBlank() } ?: emptyList()
+
+    fun setAppOrder(order: List<String>) {
+        prefs.edit().putString(KEY_APP_ORDER, order.joinToString("\n")).apply()
+    }
+
     /** TV input ids the user has hidden from the Home inputs row. */
     fun hiddenInputs(): Set<String> = prefs.getStringSet(KEY_HIDDEN_INPUTS, emptySet())?.toSet() ?: emptySet()
 
@@ -72,5 +79,6 @@ class SessionStore(context: Context) {
         const val KEY_HOME_PROMPT_DISMISSED = "homePromptDismissed"
         const val KEY_HIDDEN_APPS = "hiddenApps"
         const val KEY_HIDDEN_INPUTS = "hiddenInputs"
+        const val KEY_APP_ORDER = "appOrder"
     }
 }

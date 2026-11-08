@@ -45,7 +45,10 @@ import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import android.graphics.drawable.BitmapDrawable
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -95,10 +98,10 @@ import io.github.ctznsniiips.lobby.device.DockApp
 import io.github.ctznsniiips.lobby.device.TvInput
 import kotlinx.coroutines.delay
 
-private const val LANDSCAPE_W = 188
-private const val LANDSCAPE_H = 106
-private const val POSTER_W = 92
-private const val POSTER_H = 138
+private const val LANDSCAPE_W = 164
+private const val LANDSCAPE_H = 92
+private const val POSTER_W = 84
+private const val POSTER_H = 126
 private const val ROTATE_MS = 8000L
 // Room for a focused card to grow into without the row clipping it, especially the first card in a row.
 private val ROW_H_PAD = 14.dp
@@ -192,6 +195,7 @@ fun HomeScreen(
 
             Hero(
                 item = heroItem,
+                address = address,
                 count = featured.size,
                 index = featuredIndex,
                 onItem = onItem,
@@ -263,7 +267,7 @@ fun HomeScreen(
             Box(
                 Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(bottom = 18.dp)
+                    .padding(bottom = 8.dp)
                     .onFocusChanged { if (it.hasFocus) browsed = null },
             ) { AppDock(state.apps, onApp, dockFocus) }
         }
@@ -303,6 +307,7 @@ private fun HeroBackdrop(item: HomeItem?, address: ServerAddress) {
 @Composable
 private fun Hero(
     item: HomeItem?,
+    address: ServerAddress,
     count: Int,
     index: Int,
     onItem: (HomeItem) -> Unit,
@@ -313,11 +318,35 @@ private fun Hero(
 ) {
     Box(modifier) {
         if (item != null) {
-            Column(Modifier.align(Alignment.TopStart).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(item.title, fontSize = 42.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                val line = item.tagline ?: item.subtitle
-                if (!line.isNullOrBlank()) {
-                    Text(line, fontSize = 16.sp, color = LobbyColors.soft, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            // Right side: the show's logo (title treatment), as the Samsung app shows it; its title text if none.
+            val logo = address.imageUrl(item.logoUrl, width = 640)
+            when {
+                logo != null -> AsyncImage(
+                    model = logo,
+                    contentDescription = item.title,
+                    contentScale = ContentScale.Fit,
+                    alignment = Alignment.CenterEnd,
+                    modifier = Modifier.align(Alignment.CenterEnd).padding(end = 24.dp).heightIn(max = 88.dp).widthIn(max = 320.dp),
+                )
+                !item.tagline.isNullOrBlank() -> Text(
+                    item.title,
+                    fontSize = 30.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White,
+                    textAlign = TextAlign.End,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.align(Alignment.CenterEnd).padding(end = 24.dp).widthIn(max = 320.dp),
+                )
+            }
+
+            // Left side: the tagline as the heading, the overview as the description.
+            Column(Modifier.align(Alignment.TopStart).fillMaxWidth(0.62f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                val heading = item.tagline?.takeIf { it.isNotBlank() } ?: item.title
+                Text(heading, fontSize = 38.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                val desc = item.overview?.takeIf { it.isNotBlank() }
+                if (desc != null) {
+                    Text(desc, fontSize = 15.sp, color = LobbyColors.soft, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
                 Spacer(Modifier.height(4.dp))
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -480,10 +509,10 @@ private fun RailButton(icon: RailIcon, label: String, onClick: () -> Unit, modif
             containerColor = Color.Transparent,
             focusedContainerColor = Color(0xFFF4F2EE),
         ),
-        modifier = modifier.size(42.dp).semantics { contentDescription = label },
+        modifier = modifier.size(34.dp).semantics { contentDescription = label },
     ) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Canvas(Modifier.size(19.dp)) { drawRailIcon(icon, tint) }
+            Canvas(Modifier.size(15.dp)) { drawRailIcon(icon, tint) }
         }
     }
 }
@@ -625,9 +654,9 @@ internal fun MediaRow(row: HomeRow, address: ServerAddress, onItem: (HomeItem) -
             modifier = Modifier.padding(start = ROW_H_PAD),
         )
         LazyRow(
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            // Padding on both axes gives a focused card (which scales up) room before the row clips it.
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = ROW_H_PAD, vertical = ROW_V_PAD),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            // Small top gap keeps the title close to its cards; the bottom gap gives a focused card room to scale.
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(start = ROW_H_PAD, end = ROW_H_PAD, top = 3.dp, bottom = ROW_V_PAD),
         ) {
             items(row.items.distinctBy { it.id }, key = { it.id }) { item -> MediaCard(item, address, poster, onItem, onFocused) }
         }
@@ -723,7 +752,7 @@ private fun AppDock(apps: List<DockApp>, onApp: (DockApp) -> Unit, firstFocus: F
                             bitmap = bitmap,
                             contentDescription = app.label,
                             contentScale = ContentScale.Fit,
-                            modifier = Modifier.fillMaxWidth().height(32.dp),
+                            modifier = Modifier.fillMaxWidth().height(32.dp).clip(androidx.compose.foundation.shape.RoundedCornerShape(10.dp)),
                         )
                     }
                     Text(app.label, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)

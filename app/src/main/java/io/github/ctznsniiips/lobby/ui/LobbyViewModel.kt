@@ -234,9 +234,9 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** Re-reads the launchable apps and TV inputs from the device and applies the user's hidden sets. */
+    /** Re-reads the launchable apps and TV inputs from the device, applying the user's order and hidden sets. */
     private fun withDevices(state: LobbyState): LobbyState {
-        val allApps = device.dockApps()
+        val allApps = orderApps(device.dockApps())
         val allInputs = device.tvInputs()
         return state.copy(
             allApps = allApps,
@@ -246,11 +246,32 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
         )
     }
 
+    /** Sorts apps by the user's saved order; anything not in it keeps its detected order, after the ordered ones. */
+    private fun orderApps(apps: List<DockApp>): List<DockApp> {
+        val order = store.appOrder()
+        if (order.isEmpty()) return apps
+        val rank = order.withIndex().associate { (i, pkg) -> pkg to i }
+        return apps.sortedBy { rank[it.packageName] ?: Int.MAX_VALUE }
+    }
+
     fun setAppHidden(packageName: String, hidden: Boolean) {
         val hiddenApps = _state.value.hiddenApps.toMutableSet().apply { if (hidden) add(packageName) else remove(packageName) }
         store.setHiddenApps(hiddenApps)
         _state.update {
             it.copy(hiddenApps = hiddenApps, apps = it.allApps.filter { app -> app.packageName !in hiddenApps })
+        }
+    }
+
+    fun moveApp(packageName: String, delta: Int) {
+        val order = _state.value.allApps.map { it.packageName }.toMutableList()
+        val from = order.indexOf(packageName)
+        val to = from + delta
+        if (from < 0 || to !in order.indices) return
+        order.add(to, order.removeAt(from))
+        store.setAppOrder(order)
+        _state.update {
+            val ordered = orderApps(it.allApps)
+            it.copy(allApps = ordered, apps = ordered.filter { app -> app.packageName !in it.hiddenApps })
         }
     }
 
