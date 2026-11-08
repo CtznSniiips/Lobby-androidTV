@@ -37,15 +37,13 @@ import io.github.ctznsniiips.lobby.data.TvSettingsResponse
 import io.github.ctznsniiips.lobby.device.DockApp
 import io.github.ctznsniiips.lobby.device.TvInput
 
-/** The settings sub-menus, matching the grouped layout of the Samsung app. */
+/** The settings sub-menus, matching the Samsung app's top-level groups (minus its Frame-specific appearance ones). */
 private enum class SettingsCategory(val title: String) {
-    Rows("Home rows"),
-    Apps("Home apps"),
-    Inputs("Inputs"),
-    Limits("Limits & timing"),
-    HomeApp("Home screen"),
     Saver("Screen saver"),
-    Sports("Sports"),
+    Apps("Apps on Home"),
+    Inputs("Inputs on Home"),
+    Media("Emby & Seerr"),
+    System("System"),
 }
 
 /**
@@ -62,6 +60,8 @@ fun SettingsScreen(
     inputs: List<TvInput>,
     hiddenApps: Set<String>,
     hiddenInputs: Set<String>,
+    tvName: String,
+    host: String,
     message: String?,
     actions: SettingsActions,
     onMessageShown: () -> Unit,
@@ -75,7 +75,7 @@ fun SettingsScreen(
         when {
             settings.teamsOpen -> TeamsPicker(settings, actions)
             category == null -> CategoryList(settings, apps, inputs, hiddenApps, actions) { category = it }
-            else -> CategoryDetail(category!!, settings, screenSaverMinutes, isDefaultHome, apps, inputs, hiddenApps, hiddenInputs, actions) { category = null }
+            else -> CategoryDetail(category!!, settings, screenSaverMinutes, isDefaultHome, apps, inputs, hiddenApps, hiddenInputs, tvName, host, actions) { category = null }
         }
         MessageToast(message, onMessageShown, Modifier.align(Alignment.BottomCenter))
     }
@@ -108,28 +108,22 @@ private fun CategoryList(
             }
         }
 
-        // Device-local categories don't need the server's settings.
         val shown = SettingsCategory.entries.filter { cat ->
             when (cat) {
                 SettingsCategory.Apps -> apps.isNotEmpty()
                 SettingsCategory.Inputs -> inputs.isNotEmpty()
-                else -> data != null
+                else -> true
             }
         }
         items(shown, key = { it.name }) { cat ->
             val summary = when (cat) {
+                SettingsCategory.Saver -> "Screen saver and when it starts"
                 SettingsCategory.Apps -> "${apps.count { it.packageName !in hiddenApps }} of ${apps.size} apps shown"
                 SettingsCategory.Inputs -> "${inputs.size} ${if (inputs.size == 1) "input" else "inputs"}"
-                else -> data?.let { categorySummary(cat, it) }.orEmpty()
+                SettingsCategory.Media -> data?.let { if (it.customized) "Rows, playback and teams · this TV's own settings" else "Rows, playback, teams and connection" } ?: "Loading…"
+                SettingsCategory.System -> "System settings and the home screen"
             }
             CategoryCard(cat.title, summary, onClick = { onOpen(cat) })
-        }
-        if (data != null) {
-            item {
-                Box(Modifier.padding(top = 12.dp)) {
-                    Button(onClick = actions.reset, enabled = data.customized) { Text("Use the server's defaults") }
-                }
-            }
         }
         item { Button(onClick = actions.back) { Text("Done") } }
     }
@@ -148,18 +142,6 @@ private fun CategoryCard(title: String, summary: String, onClick: () -> Unit) {
     }
 }
 
-private fun categorySummary(cat: SettingsCategory, data: TvSettingsResponse): String = when (cat) {
-    SettingsCategory.Rows -> {
-        val shown = data.rows.count { it.visible }
-        "$shown of ${data.rows.size} rows shown"
-    }
-    SettingsCategory.Limits -> "${data.rowLimit} per row · ${data.sportsLookaheadHours} h look-ahead"
-    SettingsCategory.HomeApp -> "Set whether the Home button opens Lobby"
-    SettingsCategory.Saver -> "Screen saver and when it starts"
-    SettingsCategory.Sports -> teamSummary(data)
-    SettingsCategory.Apps, SettingsCategory.Inputs -> ""
-}
-
 @Composable
 private fun CategoryDetail(
     category: SettingsCategory,
@@ -170,6 +152,8 @@ private fun CategoryDetail(
     inputs: List<TvInput>,
     hiddenApps: Set<String>,
     hiddenInputs: Set<String>,
+    tvName: String,
+    host: String,
     actions: SettingsActions,
     onBack: () -> Unit,
 ) {
@@ -183,7 +167,7 @@ private fun CategoryDetail(
             Column(verticalArrangement = Arrangement.spacedBy(2.dp), modifier = Modifier.padding(bottom = 10.dp)) {
                 Text(category.title, fontSize = 30.sp, fontWeight = FontWeight.Bold, color = LobbyColors.ink)
                 val hint = when (category) {
-                    SettingsCategory.Apps -> "Which apps appear in the dock at the bottom of Home."
+                    SettingsCategory.Apps -> "Which apps appear in the dock at the bottom of Home, and in what order."
                     SettingsCategory.Inputs -> "Which TV inputs appear on Home."
                     else -> null
                 }
@@ -204,37 +188,72 @@ private fun CategoryDetail(
                 )
             }
             SettingsCategory.Inputs -> items(inputs, key = { it.id }) { input ->
-                ToggleLine(input.label, hidden = input.id in hiddenInputs) { hide -> actions.setInputHidden(input.id, hide) }
-            }
-            SettingsCategory.Rows -> data?.let {
-                items(it.rows, key = { r -> r.id }) { row ->
-                    val index = it.rows.indexOfFirst { r -> r.id == row.id }
-                    RowSettingLine(row, canMoveUp = index > 0, canMoveDown = index < it.rows.lastIndex, actions)
-                }
-            }
-            SettingsCategory.Limits -> data?.let {
-                items(NumberSetting.entries.toList(), key = { s -> s.name }) { setting ->
-                    NumberLine(setting, it, actions)
-                }
-            }
-            SettingsCategory.HomeApp -> item {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text(
-                        if (isDefaultHome) "Lobby is what the Home button opens." else "The Home button opens another launcher.",
-                        fontSize = 16.sp, color = LobbyColors.soft,
-                    )
-                    Button(onClick = actions.openHomeSetup) { Text(if (isDefaultHome) "Home screen setup" else "Make Lobby the home screen") }
+                ToggleLine(input.label, hidden = input.id in hiddenInputs, onLabel = "On Home", offLabel = "Add to Home") { hide ->
+                    actions.setInputHidden(input.id, hide)
                 }
             }
             SettingsCategory.Saver -> {
                 item { ScreenSaverLine(screenSaverMinutes, actions) }
                 item { Button(onClick = actions.openScreenSaverSettings) { Text("Choose the screen saver (Android settings)") } }
             }
-            SettingsCategory.Sports -> item {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text(data?.let { teamSummary(it) }.orEmpty(), fontSize = 16.sp, color = LobbyColors.soft)
-                    Button(onClick = actions.openTeams) { Text("Choose teams") }
+            SettingsCategory.System -> {
+                item {
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text(
+                            if (isDefaultHome) "Lobby is what the Home button opens." else "The Home button opens another launcher.",
+                            fontSize = 16.sp, color = LobbyColors.soft,
+                        )
+                        Button(onClick = actions.openHomeSetup) { Text(if (isDefaultHome) "Home screen setup" else "Make Lobby the home screen") }
+                        Button(onClick = actions.openSystemSettings) { Text("TV settings") }
+                    }
                 }
+            }
+            // Emby & Seerr: the connection plus everything the plugin keeps for this TV, grouped like the Samsung app.
+            SettingsCategory.Media -> {
+                item {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Column(Modifier.weight(1f)) {
+                            Text(tvName, fontSize = 18.sp, color = LobbyColors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text("Connected to $host", fontSize = 13.sp, color = LobbyColors.soft, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                        Button(onClick = actions.refreshRows) { Text("Refresh rows") }
+                    }
+                }
+                if (data == null) {
+                    item { Text(settings.error ?: "Loading settings…", fontSize = 15.sp, color = if (settings.error != null) LobbyColors.error else LobbyColors.soft) }
+                } else {
+                    item { SectionHeader("Home rows") }
+                    items(data.rows, key = { "row-" + it.id }) { row ->
+                        val index = data.rows.indexOfFirst { it.id == row.id }
+                        RowSettingLine(row, canMoveUp = index > 0, canMoveDown = index < data.rows.lastIndex, actions)
+                    }
+                    item { SectionHeader("Rows") }
+                    item { NumberLine(NumberSetting.RowLimit, data, actions) }
+                    item {
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Column(Modifier.weight(1f)) {
+                                Text("Your teams", fontSize = 18.sp, color = LobbyColors.ink)
+                                Text(teamSummary(data), fontSize = 13.sp, color = LobbyColors.soft, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                            Button(onClick = actions.openTeams) { Text("Choose teams") }
+                        }
+                    }
+                    item { NumberLine(NumberSetting.SportsLookahead, data, actions) }
+                    item { SectionHeader("Playback") }
+                    item { NumberLine(NumberSetting.PlayDelay, data, actions) }
+                    item { NumberLine(NumberSetting.PlayTimeout, data, actions) }
+                    item { SectionHeader("This TV") }
+                    item {
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Column(Modifier.weight(1f)) {
+                                Text("Server defaults", fontSize = 18.sp, color = LobbyColors.ink)
+                                Text(if (data.customized) "This TV uses its own settings." else "This TV uses the server's defaults.", fontSize = 13.sp, color = LobbyColors.soft)
+                            }
+                            Button(onClick = actions.reset, enabled = data.customized) { Text("Use defaults") }
+                        }
+                    }
+                }
+                item { Button(onClick = actions.disconnect) { Text("Disconnect") } }
             }
         }
 
@@ -262,13 +281,26 @@ private fun AppLine(
     }
 }
 
+/** A section header inside a settings detail list (Samsung's grouped headings). */
+@Composable
+private fun SectionHeader(text: String) {
+    Text(
+        text,
+        fontSize = 14.sp,
+        fontWeight = FontWeight.SemiBold,
+        letterSpacing = 0.4.sp,
+        color = LobbyColors.mute,
+        modifier = Modifier.padding(top = 8.dp),
+    )
+}
+
 /** A single show/hide row used by the Inputs category. */
 @Composable
-private fun ToggleLine(label: String, hidden: Boolean, onSet: (hidden: Boolean) -> Unit) {
+private fun ToggleLine(label: String, hidden: Boolean, onLabel: String = "Shown", offLabel: String = "Hidden", onSet: (hidden: Boolean) -> Unit) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(label, fontSize = 18.sp, color = LobbyColors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-        Button(onClick = { onSet(!hidden) }, modifier = Modifier.width(120.dp)) {
-            Text(if (hidden) "Hidden" else "Shown", textAlign = TextAlign.Center)
+        Button(onClick = { onSet(!hidden) }, modifier = Modifier.width(140.dp)) {
+            Text(if (hidden) offLabel else onLabel, textAlign = TextAlign.Center)
         }
     }
 }

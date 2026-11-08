@@ -57,5 +57,8 @@ class SettingsActions(
     val setAppHidden: (packageName: String, hidden: Boolean) -> Unit,
     val moveApp: (packageName: String, delta: Int) -> Unit,
     val setInputHidden: (inputId: String, hidden: Boolean) -> Unit,
+    val openSystemSettings: () -> Unit,
+    val refreshRows: () -> Unit,
+    val disconnect: () -> Unit,
     val back: () -> Unit,
 )
