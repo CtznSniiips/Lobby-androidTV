@@ -43,6 +43,20 @@ class SessionStore(context: Context) {
         prefs.edit().putBoolean(KEY_HOME_PROMPT_DISMISSED, dismissed).apply()
     }
 
+    /** Packages the user has hidden from the Home app dock. */
+    fun hiddenApps(): Set<String> = prefs.getStringSet(KEY_HIDDEN_APPS, emptySet())?.toSet() ?: emptySet()
+
+    fun setHiddenApps(values: Set<String>) {
+        prefs.edit().putStringSet(KEY_HIDDEN_APPS, values).apply()
+    }
+
+    /** TV input ids the user has hidden from the Home inputs row. */
+    fun hiddenInputs(): Set<String> = prefs.getStringSet(KEY_HIDDEN_INPUTS, emptySet())?.toSet() ?: emptySet()
+
+    fun setHiddenInputs(values: Set<String>) {
+        prefs.edit().putStringSet(KEY_HIDDEN_INPUTS, values).apply()
+    }
+
     fun lastOrigin(): String? = prefs.getString(KEY_ORIGIN, null)
 
     fun forget() {
@@ -56,5 +70,7 @@ class SessionStore(context: Context) {
         const val KEY_NAME = "tvName"
         const val KEY_SCREEN_SAVER = "screenSaverMinutes"
         const val KEY_HOME_PROMPT_DISMISSED = "homePromptDismissed"
+        const val KEY_HIDDEN_APPS = "hiddenApps"
+        const val KEY_HIDDEN_INPUTS = "hiddenInputs"
     }
 }

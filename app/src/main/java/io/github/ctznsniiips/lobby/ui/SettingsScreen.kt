@@ -34,10 +34,14 @@ import androidx.tv.material3.Text
 import io.github.ctznsniiips.lobby.data.GuideTeam
 import io.github.ctznsniiips.lobby.data.TvRowSetting
 import io.github.ctznsniiips.lobby.data.TvSettingsResponse
+import io.github.ctznsniiips.lobby.device.DockApp
+import io.github.ctznsniiips.lobby.device.TvInput
 
 /** The settings sub-menus, matching the grouped layout of the Samsung app. */
 private enum class SettingsCategory(val title: String) {
     Rows("Home rows"),
+    Apps("Home apps"),
+    Inputs("Inputs"),
     Limits("Limits & timing"),
     HomeApp("Home screen"),
     Saver("Screen saver"),
@@ -54,6 +58,10 @@ fun SettingsScreen(
     settings: SettingsState,
     screenSaverMinutes: Int,
     isDefaultHome: Boolean,
+    apps: List<DockApp>,
+    inputs: List<TvInput>,
+    hiddenApps: Set<String>,
+    hiddenInputs: Set<String>,
     message: String?,
     actions: SettingsActions,
     onMessageShown: () -> Unit,
@@ -66,15 +74,22 @@ fun SettingsScreen(
     Box(Modifier.fillMaxSize().background(LobbyColors.background)) {
         when {
             settings.teamsOpen -> TeamsPicker(settings, actions)
-            category == null -> CategoryList(settings, actions) { category = it }
-            else -> CategoryDetail(category!!, settings, screenSaverMinutes, isDefaultHome, actions) { category = null }
+            category == null -> CategoryList(settings, apps, inputs, hiddenApps, actions) { category = it }
+            else -> CategoryDetail(category!!, settings, screenSaverMinutes, isDefaultHome, apps, inputs, hiddenApps, hiddenInputs, actions) { category = null }
         }
         MessageToast(message, onMessageShown, Modifier.align(Alignment.BottomCenter))
     }
 }
 
 @Composable
-private fun CategoryList(settings: SettingsState, actions: SettingsActions, onOpen: (SettingsCategory) -> Unit) {
+private fun CategoryList(
+    settings: SettingsState,
+    apps: List<DockApp>,
+    inputs: List<TvInput>,
+    hiddenApps: Set<String>,
+    actions: SettingsActions,
+    onOpen: (SettingsCategory) -> Unit,
+) {
     val data = settings.data
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -93,10 +108,23 @@ private fun CategoryList(settings: SettingsState, actions: SettingsActions, onOp
             }
         }
 
-        if (data != null) {
-            items(SettingsCategory.entries.toList(), key = { it.name }) { cat ->
-                CategoryCard(cat.title, categorySummary(cat, data), onClick = { onOpen(cat) })
+        // Device-local categories don't need the server's settings.
+        val shown = SettingsCategory.entries.filter { cat ->
+            when (cat) {
+                SettingsCategory.Apps -> apps.isNotEmpty()
+                SettingsCategory.Inputs -> inputs.isNotEmpty()
+                else -> data != null
             }
+        }
+        items(shown, key = { it.name }) { cat ->
+            val summary = when (cat) {
+                SettingsCategory.Apps -> "${apps.count { it.packageName !in hiddenApps }} of ${apps.size} apps shown"
+                SettingsCategory.Inputs -> "${inputs.size} ${if (inputs.size == 1) "input" else "inputs"}"
+                else -> data?.let { categorySummary(cat, it) }.orEmpty()
+            }
+            CategoryCard(cat.title, summary, onClick = { onOpen(cat) })
+        }
+        if (data != null) {
             item {
                 Box(Modifier.padding(top = 12.dp)) {
                     Button(onClick = actions.reset, enabled = data.customized) { Text("Use the server's defaults") }
@@ -129,6 +157,7 @@ private fun categorySummary(cat: SettingsCategory, data: TvSettingsResponse): St
     SettingsCategory.HomeApp -> "Set whether the Home button opens Lobby"
     SettingsCategory.Saver -> "Screen saver and when it starts"
     SettingsCategory.Sports -> teamSummary(data)
+    SettingsCategory.Apps, SettingsCategory.Inputs -> ""
 }
 
 @Composable
@@ -137,10 +166,14 @@ private fun CategoryDetail(
     settings: SettingsState,
     screenSaverMinutes: Int,
     isDefaultHome: Boolean,
+    apps: List<DockApp>,
+    inputs: List<TvInput>,
+    hiddenApps: Set<String>,
+    hiddenInputs: Set<String>,
     actions: SettingsActions,
     onBack: () -> Unit,
 ) {
-    val data = settings.data ?: return
+    val data = settings.data
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 56.dp, vertical = 40.dp),
@@ -149,16 +182,32 @@ private fun CategoryDetail(
         item {
             Column(verticalArrangement = Arrangement.spacedBy(2.dp), modifier = Modifier.padding(bottom = 10.dp)) {
                 Text(category.title, fontSize = 30.sp, fontWeight = FontWeight.Bold, color = LobbyColors.ink)
+                val hint = when (category) {
+                    SettingsCategory.Apps -> "Which apps appear in the dock at the bottom of Home."
+                    SettingsCategory.Inputs -> "Which TV inputs appear on Home."
+                    else -> null
+                }
+                if (hint != null) Text(hint, fontSize = 15.sp, color = LobbyColors.soft)
             }
         }
 
         when (category) {
-            SettingsCategory.Rows -> items(data.rows, key = { it.id }) { row ->
-                val index = data.rows.indexOfFirst { it.id == row.id }
-                RowSettingLine(row, canMoveUp = index > 0, canMoveDown = index < data.rows.lastIndex, actions)
+            SettingsCategory.Apps -> items(apps, key = { it.packageName }) { app ->
+                ToggleLine(app.label, hidden = app.packageName in hiddenApps) { hide -> actions.setAppHidden(app.packageName, hide) }
             }
-            SettingsCategory.Limits -> items(NumberSetting.entries.toList(), key = { it.name }) { setting ->
-                NumberLine(setting, data, actions)
+            SettingsCategory.Inputs -> items(inputs, key = { it.id }) { input ->
+                ToggleLine(input.label, hidden = input.id in hiddenInputs) { hide -> actions.setInputHidden(input.id, hide) }
+            }
+            SettingsCategory.Rows -> data?.let {
+                items(it.rows, key = { r -> r.id }) { row ->
+                    val index = it.rows.indexOfFirst { r -> r.id == row.id }
+                    RowSettingLine(row, canMoveUp = index > 0, canMoveDown = index < it.rows.lastIndex, actions)
+                }
+            }
+            SettingsCategory.Limits -> data?.let {
+                items(NumberSetting.entries.toList(), key = { s -> s.name }) { setting ->
+                    NumberLine(setting, it, actions)
+                }
             }
             SettingsCategory.HomeApp -> item {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -175,13 +224,24 @@ private fun CategoryDetail(
             }
             SettingsCategory.Sports -> item {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text(teamSummary(data), fontSize = 16.sp, color = LobbyColors.soft)
+                    Text(data?.let { teamSummary(it) }.orEmpty(), fontSize = 16.sp, color = LobbyColors.soft)
                     Button(onClick = actions.openTeams) { Text("Choose teams") }
                 }
             }
         }
 
         item { Box(Modifier.padding(top = 8.dp)) { Button(onClick = onBack) { Text("Back") } } }
+    }
+}
+
+/** A single show/hide row used by the Apps and Inputs categories. */
+@Composable
+private fun ToggleLine(label: String, hidden: Boolean, onSet: (hidden: Boolean) -> Unit) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text(label, fontSize = 18.sp, color = LobbyColors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        Button(onClick = { onSet(!hidden) }, modifier = Modifier.width(120.dp)) {
+            Text(if (hidden) "Hidden" else "Shown", textAlign = TextAlign.Center)
+        }
     }
 }
 

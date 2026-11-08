@@ -46,6 +46,11 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import android.graphics.drawable.BitmapDrawable
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
 import androidx.palette.graphics.Palette
 import androidx.tv.material3.CardDefaults
@@ -97,7 +102,10 @@ private const val POSTER_H = 138
 private const val ROTATE_MS = 8000L
 // Room for a focused card to grow into without the row clipping it, especially the first card in a row.
 private val ROW_H_PAD = 14.dp
-private val ROW_V_PAD = 12.dp
+private val ROW_V_PAD = 10.dp
+// The hero text and greeting are inset to clear the floating rail; the rows start much further left.
+private val HERO_INSET = 76.dp
+private val ROWS_INSET = 16.dp
 
 /**
  * Home, laid out like the Samsung app: the focused (or featured) title's backdrop fills the screen, a slim rail of
@@ -146,92 +154,116 @@ fun HomeScreen(
         if (featured.isNotEmpty()) runCatching { heroFocus.requestFocus() }
     }
 
+    val settingsFocus = remember { FocusRequester() }
     val heroArt = address.imageUrl(heroItem?.backdropUrl ?: heroItem?.landscapeUrl, width = 400)
     val accent = rememberAccentColor(heroArt)
 
     Box(Modifier.fillMaxSize().background(LobbyColors.background)) {
         HeroBackdrop(heroItem, address)
 
-        // A soft wash of the hero image's dominant colour on the left, like the Samsung app.
+        // A soft wash of the hero image's dominant colour, kept to the upper-left so it doesn't bleed into the rows.
         if (accent != Color.Transparent) {
             Box(
                 Modifier.fillMaxSize().drawBehind {
                     drawRect(
                         Brush.radialGradient(
-                            0f to accent.copy(alpha = 0.34f),
-                            0.62f to Color.Transparent,
-                            center = Offset(size.width * 0.16f, size.height * 0.52f),
-                            radius = size.width * 0.6f,
+                            0f to accent.copy(alpha = 0.30f),
+                            0.55f to Color.Transparent,
+                            center = Offset(size.width * 0.14f, size.height * 0.24f),
+                            radius = size.width * 0.42f,
                         ),
                     )
                 },
             )
         }
 
-        Row(Modifier.fillMaxSize()) {
-            Rail(
-                onSearch = onSearch,
-                onScreenSaver = onScreenSaver,
-                onApps = if (hasDock) ({ runCatching { dockFocus.requestFocus() } }) else null,
-                onSettings = onLobbySettings,
+        // Content fills the width; the rail is an overlay, so the rows reach almost to the left edge while the
+        // hero text and greeting are inset enough to clear it.
+        Column(Modifier.fillMaxSize().padding(end = 40.dp, top = 20.dp)) {
+            Row(
+                Modifier.fillMaxWidth().padding(start = HERO_INSET),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(greeting(), fontSize = 16.sp, color = LobbyColors.soft, modifier = Modifier.weight(1f))
+                if (state.loading) Text("Loading…", fontSize = 14.sp, color = LobbyColors.mute, modifier = Modifier.padding(end = 20.dp))
+                ClockText()
+                state.weather?.let { WeatherChip(it, Modifier.padding(start = 18.dp)) }
+            }
+
+            Hero(
+                item = heroItem,
+                count = featured.size,
+                index = featuredIndex,
+                onItem = onItem,
                 searchFocus = searchFocus,
+                heroFocus = heroFocus,
+                onCycle = { delta ->
+                    if (featured.size <= 1) false
+                    else if (delta < 0 && featuredIndex == 0) false // let focus fall left to the rail
+                    else {
+                        featuredIndex = (featuredIndex + delta + featured.size) % featured.size
+                        true
+                    }
+                },
+                modifier = Modifier.fillMaxWidth().padding(start = HERO_INSET).height(150.dp),
             )
 
-            Column(Modifier.fillMaxSize().padding(end = 40.dp, top = 24.dp)) {
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Text(greeting(), fontSize = 16.sp, color = LobbyColors.soft, modifier = Modifier.weight(1f))
-                    if (state.loading) Text("Loading…", fontSize = 14.sp, color = LobbyColors.mute, modifier = Modifier.padding(end = 20.dp))
-                    ClockText()
-                    state.weather?.let { WeatherChip(it, Modifier.padding(start = 18.dp)) }
+            LazyColumn(
+                modifier = Modifier.fillMaxSize().padding(start = ROWS_INSET),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(top = 2.dp, bottom = if (hasDock) 112.dp else 28.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                if (showHomePrompt) {
+                    item { HomePrompt(onHomeSetup, onHomePromptDismiss) }
                 }
 
-                Hero(heroItem, featured.size, featuredIndex, onItem, searchFocus, heroFocus, Modifier.fillMaxWidth().height(168.dp))
-
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(top = 4.dp, bottom = if (hasDock) 128.dp else 28.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    if (showHomePrompt) {
-                        item { HomePrompt(onHomeSetup, onHomePromptDismiss) }
-                    }
-
-                    state.homeError?.let { error ->
-                        item {
-                            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                Text(error, color = LobbyColors.error)
-                                Button(onClick = onRefresh) { Text("Try again") }
-                            }
-                        }
-                    }
-
-                    home?.rows?.let { mergeContinueRows(it) }?.filter { it.items.isNotEmpty() }?.let { rows ->
-                        items(rows, key = { it.id }) { row ->
-                            MediaRow(row, address, onItem, onFocused = { browsed = it })
-                        }
-                    }
-
-                    if (state.inputs.isNotEmpty()) {
-                        item { Box(Modifier.onFocusChanged { if (it.hasFocus) browsed = null }) { InputRow(state.inputs, onInput) } }
-                    }
-
+                state.homeError?.let { error ->
                     item {
-                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Button(onClick = onRefresh) { Text("Refresh") }
-                            Button(onClick = onSettings) { Text("System settings") }
-                            Button(onClick = onDisconnect) { Text("Disconnect") }
+                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Text(error, color = LobbyColors.error)
+                            Button(onClick = onRefresh) { Text("Try again") }
                         }
+                    }
+                }
+
+                home?.rows?.let { mergeContinueRows(it) }?.filter { it.items.isNotEmpty() }?.let { rows ->
+                    items(rows, key = { it.id }) { row ->
+                        MediaRow(row, address, onItem, onFocused = { browsed = it })
+                    }
+                }
+
+                if (state.inputs.isNotEmpty()) {
+                    item { Box(Modifier.onFocusChanged { if (it.hasFocus) browsed = null }) { InputRow(state.inputs, onInput) } }
+                }
+
+                item {
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Button(onClick = onRefresh) { Text("Refresh") }
+                        Button(onClick = onSettings) { Text("System settings") }
+                        Button(onClick = onDisconnect) { Text("Disconnect") }
                     }
                 }
             }
         }
+
+        // The left rail floats over the content so the rows can run full width beneath it.
+        Rail(
+            onSearch = onSearch,
+            onScreenSaver = onScreenSaver,
+            onApps = if (hasDock) ({ runCatching { dockFocus.requestFocus() } }) else null,
+            onSettings = onLobbySettings,
+            searchFocus = searchFocus,
+            settingsFocus = settingsFocus,
+            settingsDown = if (hasDock) dockFocus else null,
+            modifier = Modifier.align(Alignment.TopStart),
+        )
 
         // The app dock stays pinned along the bottom, centred, over the rows.
         if (hasDock) {
             Box(
                 Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(bottom = 26.dp)
+                    .padding(bottom = 18.dp)
                     .onFocusChanged { if (it.hasFocus) browsed = null },
             ) { AppDock(state.apps, onApp, dockFocus) }
         }
@@ -276,26 +308,41 @@ private fun Hero(
     onItem: (HomeItem) -> Unit,
     searchFocus: FocusRequester,
     heroFocus: FocusRequester,
+    onCycle: (delta: Int) -> Boolean,
     modifier: Modifier = Modifier,
 ) {
     Box(modifier) {
         if (item != null) {
-            Column(Modifier.align(Alignment.CenterStart).width(560.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(item.title, fontSize = 44.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                val line = item.tagline ?: item.meta ?: item.subtitle
+            Column(Modifier.align(Alignment.TopStart).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(item.title, fontSize = 42.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                val line = item.tagline ?: item.subtitle
                 if (!line.isNullOrBlank()) {
-                    Text(line, fontSize = 16.sp, color = LobbyColors.soft, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(line, fontSize = 16.sp, color = LobbyColors.soft, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
-                Spacer(Modifier.height(6.dp))
-                Button(
-                    onClick = { onItem(item) },
-                    modifier = Modifier
-                        .focusRequester(heroFocus)
-                        .focusProperties { up = searchFocus },
-                ) { Text(heroVerb(item)) }
+                Spacer(Modifier.height(4.dp))
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Button(
+                        onClick = { onItem(item) },
+                        modifier = Modifier
+                            .focusRequester(heroFocus)
+                            .focusProperties { up = searchFocus }
+                            // Left/right cycle the featured titles; at the first one, Left falls through to the rail.
+                            .onPreviewKeyEvent { e ->
+                                if (e.type == KeyEventType.KeyDown) when (e.key) {
+                                    Key.DirectionRight -> onCycle(1)
+                                    Key.DirectionLeft -> onCycle(-1)
+                                    else -> false
+                                } else false
+                            },
+                    ) { Text(heroVerb(item)) }
+                    val details = heroDetails(item)
+                    if (details.isNotBlank()) {
+                        Text(details, fontSize = 15.sp, color = LobbyColors.soft, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                }
             }
             if (count > 1) {
-                Row(Modifier.align(Alignment.BottomEnd).padding(bottom = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(Modifier.align(Alignment.BottomEnd).padding(bottom = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     repeat(count) { i ->
                         Box(
                             Modifier
@@ -315,6 +362,19 @@ private fun heroVerb(item: HomeItem): String = when {
     item.defaultAction == "request" && item.requestStatus != "available" -> "Request"
     item.defaultAction == "resume" || item.playAction == "resume" -> "Resume"
     else -> "Play"
+}
+
+/** The detail line beside the hero button: why it's featured, plus its metadata (year · runtime · genres). */
+private fun heroDetails(item: HomeItem): String {
+    val reason = when (item.featureReason) {
+        "game" -> "Your team"
+        "resume" -> "Continue watching"
+        "nextup" -> "Up next"
+        "new" -> "New in your library"
+        "trending" -> "Trending"
+        else -> null
+    }
+    return listOfNotNull(reason, item.meta?.takeIf { it.isNotBlank() }).joinToString("  ·  ")
 }
 
 private fun greeting(): String = when (LocalTime.now().hour) {
@@ -346,16 +406,26 @@ private fun Rail(
     onApps: (() -> Unit)?,
     onSettings: () -> Unit,
     searchFocus: FocusRequester,
+    settingsFocus: FocusRequester,
+    settingsDown: FocusRequester?,
+    modifier: Modifier = Modifier,
 ) {
     Column(
-        Modifier.fillMaxHeight().width(88.dp).padding(top = 20.dp),
+        modifier.width(60.dp).padding(start = 8.dp, top = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         RailButton(RailIcon.Search, "Search", onSearch, Modifier.focusRequester(searchFocus))
         RailButton(RailIcon.Art, "Screen saver", onScreenSaver)
         if (onApps != null) RailButton(RailIcon.Apps, "Apps", onApps)
-        RailButton(RailIcon.Settings, "Lobby settings", onSettings)
+        RailButton(
+            RailIcon.Settings,
+            "Lobby settings",
+            onSettings,
+            Modifier.focusRequester(settingsFocus).then(
+                if (settingsDown != null) Modifier.focusProperties { down = settingsDown } else Modifier,
+            ),
+        )
     }
 }
 
@@ -410,10 +480,10 @@ private fun RailButton(icon: RailIcon, label: String, onClick: () -> Unit, modif
             containerColor = Color.Transparent,
             focusedContainerColor = Color(0xFFF4F2EE),
         ),
-        modifier = modifier.size(52.dp).semantics { contentDescription = label },
+        modifier = modifier.size(42.dp).semantics { contentDescription = label },
     ) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Canvas(Modifier.size(24.dp)) { drawRailIcon(icon, tint) }
+            Canvas(Modifier.size(19.dp)) { drawRailIcon(icon, tint) }
         }
     }
 }
@@ -545,12 +615,12 @@ private fun rememberAccentColor(url: String?): Color {
 @Composable
 internal fun MediaRow(row: HomeRow, address: ServerAddress, onItem: (HomeItem) -> Unit, onFocused: (HomeItem?) -> Unit = {}) {
     val poster = row.layout == "poster"
-    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
         Text(
             row.title,
-            fontSize = 22.sp,
+            fontSize = 15.sp,
             fontWeight = FontWeight.Medium,
-            letterSpacing = (-0.5).sp,
+            letterSpacing = (-0.2).sp,
             color = LobbyColors.soft,
             modifier = Modifier.padding(start = ROW_H_PAD),
         )
@@ -611,9 +681,9 @@ private fun MediaCard(item: HomeItem, address: ServerAddress, poster: Boolean, o
 
 @Composable
 private fun InputRow(inputs: List<TvInput>, onInput: (TvInput) -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("Inputs", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = Color(0xCCFFFFFF))
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp), contentPadding = androidx.compose.foundation.layout.PaddingValues(4.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
+        Text("Inputs", fontSize = 15.sp, fontWeight = FontWeight.Medium, letterSpacing = (-0.2).sp, color = LobbyColors.soft, modifier = Modifier.padding(start = ROW_H_PAD))
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp), contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = ROW_H_PAD, vertical = ROW_V_PAD)) {
             items(inputs, key = { it.id }) { input ->
                 Button(onClick = { onInput(input) }) { Text(input.label, fontSize = 14.sp) }
             }
@@ -641,22 +711,22 @@ private fun AppDock(apps: List<DockApp>, onApp: (DockApp) -> Unit, firstFocus: F
                     containerColor = Color.Transparent,
                     focusedContainerColor = Color(0x26FFFFFF),
                 ),
-                modifier = Modifier.width(96.dp).then(if (i == 0) Modifier.focusRequester(firstFocus) else Modifier),
+                modifier = Modifier.width(84.dp).then(if (i == 0) Modifier.focusRequester(firstFocus) else Modifier),
             ) {
                 Column(
-                    Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 10.dp),
+                    Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 8.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(5.dp),
                 ) {
                     if (bitmap != null) {
                         Image(
                             bitmap = bitmap,
                             contentDescription = app.label,
                             contentScale = ContentScale.Fit,
-                            modifier = Modifier.fillMaxWidth().height(40.dp),
+                            modifier = Modifier.fillMaxWidth().height(32.dp),
                         )
                     }
-                    Text(app.label, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(app.label, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
         }
