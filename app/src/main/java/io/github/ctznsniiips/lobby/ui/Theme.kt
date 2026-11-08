@@ -9,6 +9,7 @@ import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.tv.material3.ExperimentalTvMaterial3Api
+import androidx.tv.material3.LocalContentColor
 import androidx.tv.material3.LocalTextStyle
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.darkColorScheme
@@ -45,9 +46,12 @@ fun LobbyTheme(content: @Composable () -> Unit) {
             primary = LobbyColors.accent,
         ),
     ) {
-        // Make every Text default to Manrope and the light ink colour unless it overrides them.
+        // Default every Text to Manrope and to light ink via LocalContentColor — not via the text style's own
+        // colour, which would override the dark-on-light content colour a focused Button/Surface sets for itself
+        // (that was the white-on-white bug).
         CompositionLocalProvider(
-            LocalTextStyle provides LocalTextStyle.current.copy(fontFamily = Manrope, color = LobbyColors.ink),
+            LocalContentColor provides LobbyColors.ink,
+            LocalTextStyle provides LocalTextStyle.current.copy(fontFamily = Manrope),
             content = content,
         )
     }

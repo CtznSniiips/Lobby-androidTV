@@ -44,7 +44,17 @@ import androidx.tv.material3.Card
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import android.graphics.drawable.BitmapDrawable
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.platform.LocalContext
+import androidx.palette.graphics.Palette
+import androidx.tv.material3.CardDefaults
 import coil.compose.AsyncImage
+import coil.imageLoader
+import coil.request.ImageRequest
+import coil.request.SuccessResult
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Spacer
@@ -80,11 +90,14 @@ import io.github.ctznsniiips.lobby.device.DockApp
 import io.github.ctznsniiips.lobby.device.TvInput
 import kotlinx.coroutines.delay
 
-private const val LANDSCAPE_W = 200
-private const val LANDSCAPE_H = 112
-private const val POSTER_W = 84
-private const val POSTER_H = 126
+private const val LANDSCAPE_W = 188
+private const val LANDSCAPE_H = 106
+private const val POSTER_W = 92
+private const val POSTER_H = 138
 private const val ROTATE_MS = 8000L
+// Room for a focused card to grow into without the row clipping it, especially the first card in a row.
+private val ROW_H_PAD = 14.dp
+private val ROW_V_PAD = 12.dp
 
 /**
  * Home, laid out like the Samsung app: the focused (or featured) title's backdrop fills the screen, a slim rail of
@@ -133,8 +146,27 @@ fun HomeScreen(
         if (featured.isNotEmpty()) runCatching { heroFocus.requestFocus() }
     }
 
+    val heroArt = address.imageUrl(heroItem?.backdropUrl ?: heroItem?.landscapeUrl, width = 400)
+    val accent = rememberAccentColor(heroArt)
+
     Box(Modifier.fillMaxSize().background(LobbyColors.background)) {
         HeroBackdrop(heroItem, address)
+
+        // A soft wash of the hero image's dominant colour on the left, like the Samsung app.
+        if (accent != Color.Transparent) {
+            Box(
+                Modifier.fillMaxSize().drawBehind {
+                    drawRect(
+                        Brush.radialGradient(
+                            0f to accent.copy(alpha = 0.34f),
+                            0.62f to Color.Transparent,
+                            center = Offset(size.width * 0.16f, size.height * 0.52f),
+                            radius = size.width * 0.6f,
+                        ),
+                    )
+                },
+            )
+        }
 
         Row(Modifier.fillMaxSize()) {
             Rail(
@@ -153,12 +185,12 @@ fun HomeScreen(
                     state.weather?.let { WeatherChip(it, Modifier.padding(start = 18.dp)) }
                 }
 
-                Hero(heroItem, featured.size, featuredIndex, onItem, searchFocus, heroFocus, Modifier.fillMaxWidth().height(190.dp))
+                Hero(heroItem, featured.size, featuredIndex, onItem, searchFocus, heroFocus, Modifier.fillMaxWidth().height(168.dp))
 
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(top = 12.dp, bottom = if (hasDock) 132.dp else 32.dp),
-                    verticalArrangement = Arrangement.spacedBy(18.dp),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(top = 4.dp, bottom = if (hasDock) 128.dp else 28.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     if (showHomePrompt) {
                         item { HomePrompt(onHomeSetup, onHomePromptDismiss) }
@@ -173,8 +205,8 @@ fun HomeScreen(
                         }
                     }
 
-                    home?.rows?.filter { it.items.isNotEmpty() }?.let { rows ->
-                        items(rows.distinctBy { it.id }, key = { it.id }) { row ->
+                    home?.rows?.let { mergeContinueRows(it) }?.filter { it.items.isNotEmpty() }?.let { rows ->
+                        items(rows, key = { it.id }) { row ->
                             MediaRow(row, address, onItem, onFocused = { browsed = it })
                         }
                     }
@@ -199,7 +231,7 @@ fun HomeScreen(
             Box(
                 Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(bottom = 20.dp)
+                    .padding(bottom = 26.dp)
                     .onFocusChanged { if (it.hasFocus) browsed = null },
             ) { AppDock(state.apps, onApp, dockFocus) }
         }
@@ -472,12 +504,61 @@ private fun HomePrompt(onSetup: () -> Unit, onDismiss: () -> Unit) {
     }
 }
 
+/** Fold the server's Continue Watching and Next Up rows into one, in-progress titles first (as the Samsung app does). */
+private fun mergeContinueRows(rows: List<HomeRow>): List<HomeRow> {
+    val hasBoth = rows.any { it.id == "continue" } && rows.any { it.id == "nextup" }
+    if (!hasBoth) return rows
+    val out = ArrayList<HomeRow>(rows.size)
+    var slot = -1
+    val items = linkedMapOf<String, HomeItem>()
+    for (row in rows) {
+        if (row.id == "continue" || row.id == "nextup") {
+            if (slot < 0) { slot = out.size; out.add(row) }
+            row.items.forEach { items.putIfAbsent(it.id, it) }
+        } else {
+            out.add(row)
+        }
+    }
+    val ordered = items.values.sortedByDescending { it.defaultAction == "resume" || it.playAction == "resume" }
+    out[slot] = HomeRow(id = "continue", title = "Continue Watching", layout = rows.first { it.id == "continue" }.layout, items = ordered)
+    return out
+}
+
+/** The dominant colour of the hero image, for the left-side wash. Transparent until it loads (or if it can't). */
+@Composable
+private fun rememberAccentColor(url: String?): Color {
+    val context = LocalContext.current
+    var color by remember { mutableStateOf(Color.Transparent) }
+    LaunchedEffect(url) {
+        color = Color.Transparent
+        if (url.isNullOrBlank()) return@LaunchedEffect
+        val request = ImageRequest.Builder(context).data(url).allowHardware(false).size(160).build()
+        val drawable = (context.imageLoader.execute(request) as? SuccessResult)?.drawable
+        val bitmap = (drawable as? BitmapDrawable)?.bitmap ?: return@LaunchedEffect
+        val palette = withContext(Dispatchers.Default) { Palette.from(bitmap).generate() }
+        val swatch = palette.vibrantSwatch ?: palette.lightVibrantSwatch ?: palette.dominantSwatch ?: palette.mutedSwatch
+        swatch?.let { color = Color(it.rgb) }
+    }
+    return color
+}
+
 @Composable
 internal fun MediaRow(row: HomeRow, address: ServerAddress, onItem: (HomeItem) -> Unit, onFocused: (HomeItem?) -> Unit = {}) {
     val poster = row.layout == "poster"
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(row.title, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = Color(0xCCFFFFFF))
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp), contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 4.dp, vertical = 4.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(
+            row.title,
+            fontSize = 22.sp,
+            fontWeight = FontWeight.Medium,
+            letterSpacing = (-0.5).sp,
+            color = LobbyColors.soft,
+            modifier = Modifier.padding(start = ROW_H_PAD),
+        )
+        LazyRow(
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            // Padding on both axes gives a focused card (which scales up) room before the row clips it.
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = ROW_H_PAD, vertical = ROW_V_PAD),
+        ) {
             items(row.items.distinctBy { it.id }, key = { it.id }) { item -> MediaCard(item, address, poster, onItem, onFocused) }
         }
     }
@@ -496,7 +577,12 @@ private fun MediaCard(item: HomeItem, address: ServerAddress, poster: Boolean, o
     val sub = item.subtitle ?: item.requestStatus?.takeIf { it != "none" }
     val progress = item.progressPercent?.takeIf { it > 0 }
 
-    Card(onClick = { onItem(item) }, interactionSource = interaction, modifier = Modifier.width(width.dp).onFocusChanged { if (it.isFocused) onFocused(item) }) {
+    Card(
+        onClick = { onItem(item) },
+        interactionSource = interaction,
+        scale = CardDefaults.scale(focusedScale = 1.06f),
+        modifier = Modifier.width(width.dp).onFocusChanged { if (it.isFocused) onFocused(item) },
+    ) {
         Box(Modifier.fillMaxWidth().height(height.dp)) {
             if (art != null) {
                 AsyncImage(model = art, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
@@ -541,26 +627,37 @@ private fun AppDock(apps: List<DockApp>, onApp: (DockApp) -> Unit, firstFocus: F
     val list = remember(apps) { apps.distinctBy { it.packageName } }
     Row(
         Modifier
-            .clip(androidx.compose.foundation.shape.RoundedCornerShape(22.dp))
-            .background(Color(0xCC14181F))
-            .padding(horizontal = 14.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+            .clip(androidx.compose.foundation.shape.RoundedCornerShape(26.dp))
+            .background(Color(0xD90F1319))
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         list.forEachIndexed { i, app ->
             val bitmap = remember(app.packageName) { app.icon?.toBitmap(240, 135)?.asImageBitmap() }
-            Card(
+            Surface(
                 onClick = { onApp(app) },
-                modifier = Modifier.width(104.dp).then(if (i == 0) Modifier.focusRequester(firstFocus) else Modifier),
+                shape = ClickableSurfaceDefaults.shape(androidx.compose.foundation.shape.RoundedCornerShape(16.dp)),
+                colors = ClickableSurfaceDefaults.colors(
+                    containerColor = Color.Transparent,
+                    focusedContainerColor = Color(0x26FFFFFF),
+                ),
+                modifier = Modifier.width(96.dp).then(if (i == 0) Modifier.focusRequester(firstFocus) else Modifier),
             ) {
-                if (bitmap != null) {
-                    Image(
-                        bitmap = bitmap,
-                        contentDescription = app.label,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxWidth().height(58.dp),
-                    )
+                Column(
+                    Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 10.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    if (bitmap != null) {
+                        Image(
+                            bitmap = bitmap,
+                            contentDescription = app.label,
+                            contentScale = ContentScale.Fit,
+                            modifier = Modifier.fillMaxWidth().height(40.dp),
+                        )
+                    }
+                    Text(app.label, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
-                Text(app.label, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 6.dp, vertical = 5.dp))
             }
         }
     }
