@@ -78,8 +78,15 @@ data class LobbyState(
     val home: HomeResponse? = null,
     val loading: Boolean = false,
     val homeError: String? = null,
+    /** The apps shown in the Home dock (all detected apps minus the ones hidden in settings). */
     val apps: List<DockApp> = emptyList(),
+    /** The inputs shown on Home (all detected inputs minus the ones hidden in settings). */
     val inputs: List<TvInput> = emptyList(),
+    /** Everything detected, for the settings pickers. */
+    val allApps: List<DockApp> = emptyList(),
+    val allInputs: List<TvInput> = emptyList(),
+    val hiddenApps: Set<String> = emptySet(),
+    val hiddenInputs: Set<String> = emptySet(),
     /** Current weather shown next to the clock, when the plugin supplies a location. */
     val weather: WeatherNow? = null,
     /** One-line feedback after an action (play queued, requested, failed...). */
@@ -107,7 +114,7 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
     private val store = SessionStore(app)
     private val device = TvDevice(app)
 
-    private val _state = MutableStateFlow(LobbyState(lastAddress = store.lastOrigin().orEmpty(), screenSaverMinutes = store.screenSaverMinutes(), homePromptDismissed = store.homePromptDismissed()))
+    private val _state = MutableStateFlow(LobbyState(lastAddress = store.lastOrigin().orEmpty(), screenSaverMinutes = store.screenSaverMinutes(), homePromptDismissed = store.homePromptDismissed(), hiddenApps = store.hiddenApps(), hiddenInputs = store.hiddenInputs()))
     val state: StateFlow<LobbyState> = _state.asStateFlow()
 
     // Bumped on every remote key press; the idle watcher restarts its countdown when it changes.
@@ -199,7 +206,7 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
     private fun onPaired(server: PairedServer, save: Boolean) {
         if (save) store.save(server)
         api = LobbyApiFactory.create(server.address, server.token)
-        _state.update { it.copy(paired = server, connect = ConnectState(), lastAddress = server.address.origin, apps = device.dockApps(), inputs = device.tvInputs()) }
+        _state.update { withDevices(it.copy(paired = server, connect = ConnectState(), lastAddress = server.address.origin)) }
         refreshHome()
     }
 
@@ -208,7 +215,7 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
     fun refreshHome() {
         val client = api ?: return
         if (_state.value.loading) return
-        _state.update { it.copy(loading = true, homeError = null, apps = device.dockApps(), inputs = device.tvInputs()) }
+        _state.update { withDevices(it.copy(loading = true, homeError = null)) }
         viewModelScope.launch {
             runCatching { client.home() }
                 .onSuccess { home ->
@@ -224,6 +231,34 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
                         _state.update { it.copy(loading = false, homeError = describe(e, "Couldn't load Home.")) }
                     }
                 }
+        }
+    }
+
+    /** Re-reads the launchable apps and TV inputs from the device and applies the user's hidden sets. */
+    private fun withDevices(state: LobbyState): LobbyState {
+        val allApps = device.dockApps()
+        val allInputs = device.tvInputs()
+        return state.copy(
+            allApps = allApps,
+            allInputs = allInputs,
+            apps = allApps.filter { it.packageName !in state.hiddenApps },
+            inputs = allInputs.filter { it.id !in state.hiddenInputs },
+        )
+    }
+
+    fun setAppHidden(packageName: String, hidden: Boolean) {
+        val hiddenApps = _state.value.hiddenApps.toMutableSet().apply { if (hidden) add(packageName) else remove(packageName) }
+        store.setHiddenApps(hiddenApps)
+        _state.update {
+            it.copy(hiddenApps = hiddenApps, apps = it.allApps.filter { app -> app.packageName !in hiddenApps })
+        }
+    }
+
+    fun setInputHidden(inputId: String, hidden: Boolean) {
+        val hiddenInputs = _state.value.hiddenInputs.toMutableSet().apply { if (hidden) add(inputId) else remove(inputId) }
+        store.setHiddenInputs(hiddenInputs)
+        _state.update {
+            it.copy(hiddenInputs = hiddenInputs, inputs = it.allInputs.filter { input -> input.id !in hiddenInputs })
         }
     }
 

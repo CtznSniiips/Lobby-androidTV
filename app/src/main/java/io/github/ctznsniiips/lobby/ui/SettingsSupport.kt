@@ -54,5 +54,7 @@ class SettingsActions(
     val stepScreenSaver: (direction: Int) -> Unit,
     val openScreenSaverSettings: () -> Unit,
     val openHomeSetup: () -> Unit,
+    val setAppHidden: (packageName: String, hidden: Boolean) -> Unit,
+    val setInputHidden: (inputId: String, hidden: Boolean) -> Unit,
     val back: () -> Unit,
 )

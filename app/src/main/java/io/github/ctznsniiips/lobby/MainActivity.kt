@@ -41,6 +41,8 @@ class MainActivity : ComponentActivity() {
             stepScreenSaver = viewModel::stepScreenSaver,
             openScreenSaverSettings = viewModel::openScreenSaverSettings,
             openHomeSetup = viewModel::openHomeSetup,
+            setAppHidden = viewModel::setAppHidden,
+            setInputHidden = viewModel::setInputHidden,
             back = viewModel::closeSettings,
         )
     }
@@ -99,6 +101,10 @@ class MainActivity : ComponentActivity() {
                         settings = state.settings!!,
                         screenSaverMinutes = state.screenSaverMinutes,
                         isDefaultHome = state.isDefaultHome,
+                        apps = state.allApps,
+                        inputs = state.allInputs,
+                        hiddenApps = state.hiddenApps,
+                        hiddenInputs = state.hiddenInputs,
                         message = state.message,
                         actions = settingsActions,
                         onMessageShown = viewModel::clearMessage,
