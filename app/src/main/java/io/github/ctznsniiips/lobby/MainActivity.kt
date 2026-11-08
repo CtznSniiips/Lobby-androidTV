@@ -44,6 +44,9 @@ class MainActivity : ComponentActivity() {
             setAppHidden = viewModel::setAppHidden,
             moveApp = viewModel::moveApp,
             setInputHidden = viewModel::setInputHidden,
+            openSystemSettings = viewModel::openSystemSettings,
+            refreshRows = viewModel::refreshHome,
+            disconnect = viewModel::disconnect,
             back = viewModel::closeSettings,
         )
     }
@@ -106,6 +109,8 @@ class MainActivity : ComponentActivity() {
                         inputs = state.allInputs,
                         hiddenApps = state.hiddenApps,
                         hiddenInputs = state.hiddenInputs,
+                        tvName = paired.tvName.ifBlank { "This TV" },
+                        host = paired.address.origin,
                         message = state.message,
                         actions = settingsActions,
                         onMessageShown = viewModel::clearMessage,

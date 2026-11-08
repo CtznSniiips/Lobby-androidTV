@@ -423,8 +423,8 @@ private fun HeroButton(
                 } else false
             },
     ) {
-        Box(Modifier.padding(horizontal = 24.dp, vertical = 10.dp), contentAlignment = Alignment.Center) {
-            Text(text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+        Box(Modifier.padding(horizontal = 18.dp, vertical = 7.dp), contentAlignment = Alignment.Center) {
+            Text(text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
         }
     }
 }
@@ -713,38 +713,42 @@ private fun MediaCard(item: HomeItem, address: ServerAddress, poster: Boolean, o
 
     val interaction = remember { MutableInteractionSource() }
     val focused by interaction.collectIsFocusedAsState()
-    val titleColor by animateColorAsState(if (focused) Color(0xFFF4F2EE) else Color(0x99F4F2EE), tween(140), label = "title")
-    val subColor by animateColorAsState(if (focused) Color(0xB8F4F2EE) else Color(0x61F4F2EE), tween(140), label = "sub")
+    val titleColor by animateColorAsState(if (focused) Color(0xFFF4F2EE) else Color(0xD9F4F2EE), tween(140), label = "title")
     val sub = item.subtitle ?: item.requestStatus?.takeIf { it != "none" }
     val progress = item.progressPercent?.takeIf { it > 0 }
 
-    Card(
-        onClick = { onItem(item) },
-        interactionSource = interaction,
-        scale = CardDefaults.scale(focusedScale = 1.06f),
-        modifier = Modifier.width(width.dp).onFocusChanged { if (it.isFocused) onFocused(item) },
-    ) {
-        Box(Modifier.fillMaxWidth().height(height.dp)) {
-            if (art != null) {
-                AsyncImage(model = art, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-            }
-            // The name sits inside the card over a bottom scrim: muted so a row reads at a glance, full strength on focus.
-            Column(
-                Modifier
-                    .align(Alignment.BottomStart)
-                    .fillMaxWidth()
-                    .background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xB8000000))))
-                    .padding(start = 10.dp, end = 10.dp, top = 28.dp, bottom = if (progress != null) 12.dp else 8.dp),
-            ) {
-                Text(item.title, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = titleColor, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                if (!sub.isNullOrBlank()) {
-                    Text(sub, fontSize = 10.sp, color = subColor, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    // Samsung behaviour: the title sits on the card; the detail line shows below it only while focused (a fixed slot
+    // is reserved so the row doesn't jump).
+    Column(Modifier.width(width.dp)) {
+        Card(
+            onClick = { onItem(item) },
+            interactionSource = interaction,
+            scale = CardDefaults.scale(focusedScale = 1.06f),
+            modifier = Modifier.onFocusChanged { if (it.isFocused) onFocused(item) },
+        ) {
+            Box(Modifier.fillMaxWidth().height(height.dp)) {
+                if (art != null) {
+                    AsyncImage(model = art, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                }
+                Box(
+                    Modifier
+                        .align(Alignment.BottomStart)
+                        .fillMaxWidth()
+                        .background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xC2000000))))
+                        .padding(start = 8.dp, end = 8.dp, top = 24.dp, bottom = if (progress != null) 10.dp else 6.dp),
+                ) {
+                    Text(item.title, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = titleColor, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                progress?.let { percent ->
+                    Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(4.dp).background(Color(0x55FFFFFF))) {
+                        Box(Modifier.fillMaxWidth((percent / 100.0).toFloat().coerceIn(0f, 1f)).fillMaxHeight().background(LobbyColors.accent))
+                    }
                 }
             }
-            progress?.let { percent ->
-                Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(4.dp).background(Color(0x55FFFFFF))) {
-                    Box(Modifier.fillMaxWidth((percent / 100.0).toFloat().coerceIn(0f, 1f)).fillMaxHeight().background(LobbyColors.accent))
-                }
+        }
+        Box(Modifier.fillMaxWidth().height(16.dp).padding(top = 3.dp, start = 2.dp)) {
+            if (focused && !sub.isNullOrBlank()) {
+                Text(sub, fontSize = 10.sp, color = LobbyColors.soft, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
     }
@@ -768,9 +772,9 @@ private fun AppDock(apps: List<DockApp>, onApp: (DockApp) -> Unit, firstFocus: F
     val list = remember(apps) { apps.distinctBy { it.packageName } }
     Row(
         Modifier
-            .clip(androidx.compose.foundation.shape.RoundedCornerShape(26.dp))
+            .clip(androidx.compose.foundation.shape.RoundedCornerShape(24.dp))
             .background(Color(0xD90F1319))
-            .padding(horizontal = 12.dp, vertical = 10.dp),
+            .padding(horizontal = 12.dp, vertical = 5.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         list.forEachIndexed { i, app ->
@@ -785,15 +789,15 @@ private fun AppDock(apps: List<DockApp>, onApp: (DockApp) -> Unit, firstFocus: F
                 modifier = Modifier.width(84.dp).then(if (i == 0) Modifier.focusRequester(firstFocus) else Modifier),
             ) {
                 Column(
-                    Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 8.dp),
+                    Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 5.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(5.dp),
+                    verticalArrangement = Arrangement.spacedBy(3.dp),
                 ) {
                     // Fill a rounded tile with the banner so the icon's own corners are rounded off.
                     Box(
                         Modifier
-                            .width(64.dp)
-                            .height(38.dp)
+                            .width(60.dp)
+                            .height(34.dp)
                             .clip(androidx.compose.foundation.shape.RoundedCornerShape(10.dp))
                             .background(Color(0x22000000)),
                     ) {
