@@ -209,7 +209,7 @@ fun HomeScreen(
                         true
                     }
                 },
-                modifier = Modifier.fillMaxWidth().padding(start = HERO_INSET).height(150.dp),
+                modifier = Modifier.fillMaxWidth().padding(start = HERO_INSET).height(178.dp),
             )
 
             LazyColumn(
@@ -318,55 +318,58 @@ private fun Hero(
 ) {
     Box(modifier) {
         if (item != null) {
-            // Right side: the show's logo (title treatment), as the Samsung app shows it; its title text if none.
+            // Right side: the show's logo (title treatment), bottom-right over the backdrop, as the Samsung app
+            // places it; its title text when there is no logo. Sized and positioned so it never meets the text.
             val logo = address.imageUrl(item.logoUrl, width = 640)
             when {
                 logo != null -> AsyncImage(
                     model = logo,
                     contentDescription = item.title,
                     contentScale = ContentScale.Fit,
-                    alignment = Alignment.CenterEnd,
-                    modifier = Modifier.align(Alignment.CenterEnd).padding(end = 24.dp).heightIn(max = 88.dp).widthIn(max = 320.dp),
+                    alignment = Alignment.BottomEnd,
+                    modifier = Modifier.align(Alignment.CenterEnd).padding(end = 24.dp).heightIn(max = 96.dp).widthIn(max = 300.dp),
                 )
                 !item.tagline.isNullOrBlank() -> Text(
                     item.title,
-                    fontSize = 30.sp,
+                    fontSize = 32.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color.White,
                     textAlign = TextAlign.End,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.align(Alignment.CenterEnd).padding(end = 24.dp).widthIn(max = 320.dp),
+                    modifier = Modifier.align(Alignment.CenterEnd).padding(end = 24.dp).widthIn(max = 300.dp),
                 )
             }
 
-            // Left side: the tagline as the heading, the overview as the description.
-            Column(Modifier.align(Alignment.TopStart).fillMaxWidth(0.62f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            // Left side (Samsung .w-info, ~52% width so it clears the logo): tagline heading, overview, button + meta.
+            Column(Modifier.align(Alignment.TopStart).fillMaxWidth(0.52f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 val heading = item.tagline?.takeIf { it.isNotBlank() } ?: item.title
-                Text(heading, fontSize = 38.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(
+                    heading,
+                    fontSize = 30.sp,
+                    lineHeight = 34.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = (-0.6).sp,
+                    color = Color.White,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
                 val desc = item.overview?.takeIf { it.isNotBlank() }
                 if (desc != null) {
-                    Text(desc, fontSize = 15.sp, color = LobbyColors.soft, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(desc, fontSize = 13.sp, lineHeight = 17.sp, color = LobbyColors.soft, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
-                Spacer(Modifier.height(4.dp))
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    Button(
+                Spacer(Modifier.height(6.dp))
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                    HeroButton(
+                        text = heroVerb(item),
+                        heroFocus = heroFocus,
+                        searchFocus = searchFocus,
+                        onCycle = onCycle,
                         onClick = { onItem(item) },
-                        modifier = Modifier
-                            .focusRequester(heroFocus)
-                            .focusProperties { up = searchFocus }
-                            // Left/right cycle the featured titles; at the first one, Left falls through to the rail.
-                            .onPreviewKeyEvent { e ->
-                                if (e.type == KeyEventType.KeyDown) when (e.key) {
-                                    Key.DirectionRight -> onCycle(1)
-                                    Key.DirectionLeft -> onCycle(-1)
-                                    else -> false
-                                } else false
-                            },
-                    ) { Text(heroVerb(item)) }
+                    )
                     val details = heroDetails(item)
                     if (details.isNotBlank()) {
-                        Text(details, fontSize = 15.sp, color = LobbyColors.soft, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(details, fontSize = 12.sp, color = LobbyColors.mute, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
             }
@@ -383,6 +386,45 @@ private fun Hero(
                     }
                 }
             }
+        }
+    }
+}
+
+/**
+ * The hero action button. Built on Surface with explicit padding (not the stock Button) so the label is never
+ * clipped, and styled like Samsung's .wi-btn: subtle fill, solid white with dark text on focus.
+ */
+@Composable
+private fun HeroButton(
+    text: String,
+    heroFocus: FocusRequester,
+    searchFocus: FocusRequester,
+    onCycle: (delta: Int) -> Boolean,
+    onClick: () -> Unit,
+) {
+    Surface(
+        onClick = onClick,
+        shape = ClickableSurfaceDefaults.shape(androidx.compose.foundation.shape.RoundedCornerShape(22.dp)),
+        colors = ClickableSurfaceDefaults.colors(
+            containerColor = Color(0x24FFFFFF),
+            contentColor = LobbyColors.ink,
+            focusedContainerColor = Color(0xFFF4F2EE),
+            focusedContentColor = Color(0xFF0E1116),
+        ),
+        modifier = Modifier
+            .focusRequester(heroFocus)
+            .focusProperties { up = searchFocus }
+            // Left/right cycle the featured titles; at the first one, Left falls through to the rail.
+            .onPreviewKeyEvent { e ->
+                if (e.type == KeyEventType.KeyDown) when (e.key) {
+                    Key.DirectionRight -> onCycle(1)
+                    Key.DirectionLeft -> onCycle(-1)
+                    else -> false
+                } else false
+            },
+    ) {
+        Box(Modifier.padding(horizontal = 24.dp, vertical = 10.dp), contentAlignment = Alignment.Center) {
+            Text(text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
         }
     }
 }
@@ -747,13 +789,22 @@ private fun AppDock(apps: List<DockApp>, onApp: (DockApp) -> Unit, firstFocus: F
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(5.dp),
                 ) {
-                    if (bitmap != null) {
-                        Image(
-                            bitmap = bitmap,
-                            contentDescription = app.label,
-                            contentScale = ContentScale.Fit,
-                            modifier = Modifier.fillMaxWidth().height(32.dp).clip(androidx.compose.foundation.shape.RoundedCornerShape(10.dp)),
-                        )
+                    // Fill a rounded tile with the banner so the icon's own corners are rounded off.
+                    Box(
+                        Modifier
+                            .width(64.dp)
+                            .height(38.dp)
+                            .clip(androidx.compose.foundation.shape.RoundedCornerShape(10.dp))
+                            .background(Color(0x22000000)),
+                    ) {
+                        if (bitmap != null) {
+                            Image(
+                                bitmap = bitmap,
+                                contentDescription = app.label,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                        }
                     }
                     Text(app.label, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
