@@ -572,12 +572,12 @@ private fun RailButton(icon: RailIcon, label: String, onClick: () -> Unit, modif
                 Text(
                     label,
                     fontSize = 13.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = LobbyColors.ink,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color(0xFF0E1116),
                     maxLines = 1,
                     modifier = Modifier
                         .clip(androidx.compose.foundation.shape.RoundedCornerShape(50))
-                        .background(Color(0xF015181E))
+                        .background(Color(0xFFF4F2EE))
                         .padding(horizontal = 12.dp, vertical = 5.dp),
                 )
             }
