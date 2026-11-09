@@ -81,6 +81,8 @@ val BackgroundModes = listOf("photo" to "Photo", "dark" to "Dark", "light" to "L
 data class LobbyPalette(
     val background: Color,
     val surface: Color,
+    /** The fill of settings cards/selectors (surfaceVariant). */
+    val card: Color,
     val ink: Color,
     val soft: Color,
     val mute: Color,
@@ -91,6 +93,7 @@ data class LobbyPalette(
 val DarkPalette = LobbyPalette(
     background = Color(0xFF0E1116),
     surface = Color(0xFF181C24),
+    card = Color(0xFF2A2E38),
     ink = Color(0xFFF4F2EE),
     soft = Color(0xCCF4F2EE),
     mute = Color(0x99F4F2EE),
@@ -101,6 +104,7 @@ val DarkPalette = LobbyPalette(
 val LightPalette = LobbyPalette(
     background = Color(0xFFF3F1EC),
     surface = Color(0xFFFFFFFF),
+    card = Color(0xFFE3E0D8),
     ink = Color(0xFF16181C),
     soft = Color(0xC216181C),
     mute = Color(0x8C16181C),
@@ -127,6 +131,7 @@ object LobbyColors {
     val error = Color(0xFFFF8A80)
     val background: Color get() = palette.background
     val surface: Color get() = palette.surface
+    val card: Color get() = palette.card
     val ink: Color get() = palette.ink
     val soft: Color get() = palette.soft
     val mute: Color get() = palette.mute
@@ -141,6 +146,7 @@ fun LobbyTheme(font: String = "manrope", bgMode: String = "dark", content: @Comp
             background = LobbyColors.background,
             surface = LobbyColors.surface,
             onSurface = LobbyColors.ink,
+            surfaceVariant = LobbyColors.card,
             onSurfaceVariant = LobbyColors.soft,
             primary = LobbyColors.accent,
         ),

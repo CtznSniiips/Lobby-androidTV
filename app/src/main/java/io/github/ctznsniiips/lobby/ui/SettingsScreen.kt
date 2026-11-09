@@ -147,7 +147,11 @@ private fun CategoryList(
 
 @Composable
 private fun CategoryCard(title: String, summary: String, onClick: () -> Unit) {
-    Card(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
+    Card(
+        onClick = onClick,
+        colors = CardDefaults.colors(containerColor = LobbyColors.card, focusedContainerColor = LobbyColors.card),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text(title, fontSize = 20.sp, fontWeight = FontWeight.SemiBold, color = LobbyColors.ink)
