@@ -300,13 +300,13 @@ private fun HeroBackdrop(item: HomeItem?, address: ServerAddress) {
             // Fade the image out to the left so it blends into the dark text area.
             Box(
                 Modifier.fillMaxSize().background(
-                    Brush.horizontalGradient(0f to LobbyColors.background, 0.42f to Color(0x730E1116), 1f to Color.Transparent),
+                    Brush.horizontalGradient(0f to LobbyColors.background, 0.42f to LobbyColors.background.copy(alpha = 0.55f), 1f to Color.Transparent),
                 ),
             )
             // And fade it down into the rows below.
             Box(
                 Modifier.fillMaxSize().background(
-                    Brush.verticalGradient(0f to Color.Transparent, 0.62f to Color(0x8C0E1116), 1f to LobbyColors.background),
+                    Brush.verticalGradient(0f to Color.Transparent, 0.55f to LobbyColors.background.copy(alpha = 0.6f), 1f to LobbyColors.background),
                 ),
             )
         }
@@ -359,7 +359,7 @@ private fun Hero(
                     lineHeight = 34.sp,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = (-0.6).sp,
-                    color = Color.White,
+                    color = LobbyColors.ink,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -539,7 +539,7 @@ private fun weatherIconRes(code: Int, day: Boolean): Int = when {
 private fun RailButton(icon: RailIcon, label: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val interaction = remember { MutableInteractionSource() }
     val focused by interaction.collectIsFocusedAsState()
-    val tint = if (focused) Color(0xFF0E1116) else Color(0xCCFFFFFF)
+    val tint = if (focused) LobbyColors.background else LobbyColors.soft
     Box {
         Surface(
             onClick = onClick,
@@ -547,7 +547,7 @@ private fun RailButton(icon: RailIcon, label: String, onClick: () -> Unit, modif
             shape = ClickableSurfaceDefaults.shape(androidx.compose.foundation.shape.CircleShape),
             colors = ClickableSurfaceDefaults.colors(
                 containerColor = Color.Transparent,
-                focusedContainerColor = Color(0xFFF4F2EE),
+                focusedContainerColor = LobbyColors.ink,
             ),
             modifier = modifier.size(34.dp).semantics { contentDescription = label },
         ) {
@@ -564,11 +564,11 @@ private fun RailButton(icon: RailIcon, label: String, onClick: () -> Unit, modif
                     label,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = Color(0xFF0E1116),
+                    color = LobbyColors.background,
                     maxLines = 1,
                     modifier = Modifier
                         .clip(androidx.compose.foundation.shape.RoundedCornerShape(50))
-                        .background(Color(0xFFF4F2EE))
+                        .background(LobbyColors.ink)
                         .padding(horizontal = 12.dp, vertical = 5.dp),
                 )
             }
