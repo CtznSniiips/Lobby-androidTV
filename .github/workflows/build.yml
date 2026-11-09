@@ -39,7 +39,8 @@ jobs:
           EOF
 
       - name: Assemble debug APK
-        run: ./gradlew assembleDebug --stacktrace
+        # Stamp an ever-increasing versionCode (the run number) so each CI debug build installs over the last.
+        run: ./gradlew assembleDebug -PversionCode=${{ github.run_number }} --stacktrace
 
       - uses: actions/upload-artifact@v4
         with:
