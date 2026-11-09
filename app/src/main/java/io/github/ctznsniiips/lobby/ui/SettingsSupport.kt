@@ -58,6 +58,7 @@ class SettingsActions(
     val moveApp: (packageName: String, delta: Int) -> Unit,
     val setInputHidden: (inputId: String, hidden: Boolean) -> Unit,
     val openSystemSettings: () -> Unit,
+    val setHomeFont: (id: String) -> Unit,
     val refreshRows: () -> Unit,
     val disconnect: () -> Unit,
     val back: () -> Unit,

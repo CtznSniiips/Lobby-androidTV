@@ -87,6 +87,8 @@ data class LobbyState(
     val allInputs: List<TvInput> = emptyList(),
     val hiddenApps: Set<String> = emptySet(),
     val hiddenInputs: Set<String> = emptySet(),
+    /** The chosen home font id. */
+    val homeFont: String = "manrope",
     /** Current weather shown next to the clock, when the plugin supplies a location. */
     val weather: WeatherNow? = null,
     /** One-line feedback after an action (play queued, requested, failed...). */
@@ -114,7 +116,7 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
     private val store = SessionStore(app)
     private val device = TvDevice(app)
 
-    private val _state = MutableStateFlow(LobbyState(lastAddress = store.lastOrigin().orEmpty(), screenSaverMinutes = store.screenSaverMinutes(), homePromptDismissed = store.homePromptDismissed(), hiddenApps = store.hiddenApps(), hiddenInputs = store.hiddenInputs()))
+    private val _state = MutableStateFlow(LobbyState(lastAddress = store.lastOrigin().orEmpty(), screenSaverMinutes = store.screenSaverMinutes(), homePromptDismissed = store.homePromptDismissed(), hiddenApps = store.hiddenApps(), hiddenInputs = store.hiddenInputs(), homeFont = store.homeFont()))
     val state: StateFlow<LobbyState> = _state.asStateFlow()
 
     // Bumped on every remote key press; the idle watcher restarts its countdown when it changes.
@@ -260,6 +262,11 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
         _state.update {
             it.copy(hiddenApps = hiddenApps, apps = it.allApps.filter { app -> app.packageName !in hiddenApps })
         }
+    }
+
+    fun setHomeFont(id: String) {
+        store.setHomeFont(id)
+        _state.update { it.copy(homeFont = id) }
     }
 
     fun moveApp(packageName: String, delta: Int) {
