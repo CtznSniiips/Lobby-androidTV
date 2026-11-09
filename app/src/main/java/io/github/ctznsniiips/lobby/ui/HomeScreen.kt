@@ -688,14 +688,19 @@ private fun rememberAccentColor(url: String?): Color {
 @Composable
 internal fun MediaRow(row: HomeRow, address: ServerAddress, onItem: (HomeItem) -> Unit, onFocused: (HomeItem?) -> Unit = {}) {
     val poster = row.layout == "poster"
-    Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
-        // Matches Samsung's .wr-title: ~13sp, SemiBold, muted (their row headers sit at ~58% ink).
+    // Samsung brightens a row's title only while that row is active (holds the focused card): ~95% vs ~58% ink.
+    var active by remember { mutableStateOf(false) }
+    val titleColor by animateColorAsState(if (active) Color(0xF2F4F2EE) else Color(0x94F4F2EE), tween(140), label = "rowTitle")
+    Column(
+        Modifier.onFocusChanged { active = it.hasFocus },
+        verticalArrangement = Arrangement.spacedBy(0.dp),
+    ) {
         Text(
             row.title,
             fontSize = 13.sp,
             fontWeight = FontWeight.SemiBold,
             letterSpacing = (-0.1).sp,
-            color = LobbyColors.mute,
+            color = titleColor,
             modifier = Modifier.padding(start = ROW_H_PAD),
         )
         LazyRow(
@@ -774,8 +779,13 @@ private fun MediaCard(item: HomeItem, address: ServerAddress, poster: Boolean, o
 
 @Composable
 private fun InputRow(inputs: List<TvInput>, onInput: (TvInput) -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
-        Text("Inputs", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.1).sp, color = LobbyColors.mute, modifier = Modifier.padding(start = ROW_H_PAD))
+    var active by remember { mutableStateOf(false) }
+    val titleColor by animateColorAsState(if (active) Color(0xF2F4F2EE) else Color(0x94F4F2EE), tween(140), label = "inputsTitle")
+    Column(
+        Modifier.onFocusChanged { active = it.hasFocus },
+        verticalArrangement = Arrangement.spacedBy(0.dp),
+    ) {
+        Text("Inputs", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.1).sp, color = titleColor, modifier = Modifier.padding(start = ROW_H_PAD))
         LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp), contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = ROW_H_PAD, vertical = ROW_V_PAD)) {
             items(inputs, key = { it.id }) { input ->
                 Button(onClick = { onInput(input) }) { Text(input.label, fontSize = 14.sp) }
