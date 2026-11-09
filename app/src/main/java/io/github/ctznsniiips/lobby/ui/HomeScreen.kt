@@ -45,6 +45,7 @@ import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import android.graphics.drawable.BitmapDrawable
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.ui.draw.drawBehind
@@ -56,6 +57,7 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
 import androidx.palette.graphics.Palette
+import androidx.tv.material3.Border
 import androidx.tv.material3.CardDefaults
 import coil.compose.AsyncImage
 import coil.imageLoader
@@ -209,13 +211,13 @@ fun HomeScreen(
                         true
                     }
                 },
-                modifier = Modifier.fillMaxWidth().padding(start = HERO_INSET).height(178.dp),
+                modifier = Modifier.fillMaxWidth().padding(start = HERO_INSET).height(164.dp),
             )
 
             LazyColumn(
                 modifier = Modifier.fillMaxSize().padding(start = ROWS_INSET),
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(top = 2.dp, bottom = if (hasDock) 112.dp else 28.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(top = 0.dp, bottom = if (hasDock) 112.dp else 28.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
             ) {
                 if (showHomePrompt) {
                     item { HomePrompt(onHomeSetup, onHomePromptDismiss) }
@@ -711,19 +713,23 @@ private fun MediaCard(item: HomeItem, address: ServerAddress, poster: Boolean, o
     val height = if (poster) POSTER_H else LANDSCAPE_H
     val art = address.imageUrl(if (poster) item.posterUrl ?: item.landscapeUrl else item.landscapeUrl ?: item.posterUrl, width = width * 2)
 
+    val logo = address.imageUrl(item.logoUrl, width = 240)
     val interaction = remember { MutableInteractionSource() }
     val focused by interaction.collectIsFocusedAsState()
-    val titleColor by animateColorAsState(if (focused) Color(0xFFF4F2EE) else Color(0xD9F4F2EE), tween(140), label = "title")
-    val sub = item.subtitle ?: item.requestStatus?.takeIf { it != "none" }
+    val titleColor by animateColorAsState(if (focused) Color(0xFFF4F2EE) else Color(0x99F4F2EE), tween(140), label = "title")
     val progress = item.progressPercent?.takeIf { it > 0 }
+    val sub = item.subtitle ?: item.requestStatus?.takeIf { it != "none" }
 
-    // Samsung behaviour: the title sits on the card; the detail line shows below it only while focused (a fixed slot
-    // is reserved so the row doesn't jump).
+    // Samsung behaviour: the show's logo sits bottom-left on the card (muted title if it has no logo); the detail
+    // line shows below the card only while focused (a fixed slot is reserved so the row doesn't jump).
     Column(Modifier.width(width.dp)) {
         Card(
             onClick = { onItem(item) },
             interactionSource = interaction,
-            scale = CardDefaults.scale(focusedScale = 1.06f),
+            scale = CardDefaults.scale(focusedScale = 1.04f),
+            border = CardDefaults.border(
+                focusedBorder = Border(BorderStroke(1.5.dp, Color(0x9EFFFFFF)), shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)),
+            ),
             modifier = Modifier.onFocusChanged { if (it.isFocused) onFocused(item) },
         ) {
             Box(Modifier.fillMaxWidth().height(height.dp)) {
@@ -734,10 +740,21 @@ private fun MediaCard(item: HomeItem, address: ServerAddress, poster: Boolean, o
                     Modifier
                         .align(Alignment.BottomStart)
                         .fillMaxWidth()
-                        .background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xC2000000))))
-                        .padding(start = 8.dp, end = 8.dp, top = 24.dp, bottom = if (progress != null) 10.dp else 6.dp),
+                        .background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xA6000000))))
+                        .padding(start = 8.dp, end = 8.dp, top = 24.dp, bottom = if (progress != null) 10.dp else 7.dp),
+                    contentAlignment = Alignment.BottomStart,
                 ) {
-                    Text(item.title, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = titleColor, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    if (logo != null) {
+                        AsyncImage(
+                            model = logo,
+                            contentDescription = item.title,
+                            contentScale = ContentScale.Fit,
+                            alignment = Alignment.BottomStart,
+                            modifier = Modifier.heightIn(max = 22.dp).widthIn(max = (width * 0.74f).dp),
+                        )
+                    } else {
+                        Text(item.title, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = titleColor, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
                 }
                 progress?.let { percent ->
                     Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(4.dp).background(Color(0x55FFFFFF))) {
