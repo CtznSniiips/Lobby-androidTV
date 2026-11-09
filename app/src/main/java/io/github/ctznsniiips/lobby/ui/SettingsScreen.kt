@@ -39,6 +39,7 @@ import io.github.ctznsniiips.lobby.device.TvInput
 
 /** The settings sub-menus, matching the Samsung app's top-level groups (minus its Frame-specific appearance ones). */
 private enum class SettingsCategory(val title: String) {
+    Typography("Typography"),
     Saver("Screen saver"),
     Apps("Apps on Home"),
     Inputs("Inputs on Home"),
@@ -62,6 +63,7 @@ fun SettingsScreen(
     hiddenInputs: Set<String>,
     tvName: String,
     host: String,
+    homeFont: String,
     message: String?,
     actions: SettingsActions,
     onMessageShown: () -> Unit,
@@ -74,8 +76,8 @@ fun SettingsScreen(
     Box(Modifier.fillMaxSize().background(LobbyColors.background)) {
         when {
             settings.teamsOpen -> TeamsPicker(settings, actions)
-            category == null -> CategoryList(settings, apps, inputs, hiddenApps, actions) { category = it }
-            else -> CategoryDetail(category!!, settings, screenSaverMinutes, isDefaultHome, apps, inputs, hiddenApps, hiddenInputs, tvName, host, actions) { category = null }
+            category == null -> CategoryList(settings, apps, inputs, hiddenApps, homeFont, actions) { category = it }
+            else -> CategoryDetail(category!!, settings, screenSaverMinutes, isDefaultHome, apps, inputs, hiddenApps, hiddenInputs, tvName, host, homeFont, actions) { category = null }
         }
         MessageToast(message, onMessageShown, Modifier.align(Alignment.BottomCenter))
     }
@@ -87,6 +89,7 @@ private fun CategoryList(
     apps: List<DockApp>,
     inputs: List<TvInput>,
     hiddenApps: Set<String>,
+    homeFont: String,
     actions: SettingsActions,
     onOpen: (SettingsCategory) -> Unit,
 ) {
@@ -117,6 +120,7 @@ private fun CategoryList(
         }
         items(shown, key = { it.name }) { cat ->
             val summary = when (cat) {
+                SettingsCategory.Typography -> FontChoices.firstOrNull { it.first == homeFont }?.second ?: "Manrope"
                 SettingsCategory.Saver -> "Screen saver and when it starts"
                 SettingsCategory.Apps -> "${apps.count { it.packageName !in hiddenApps }} of ${apps.size} apps shown"
                 SettingsCategory.Inputs -> "${inputs.size} ${if (inputs.size == 1) "input" else "inputs"}"
@@ -154,6 +158,7 @@ private fun CategoryDetail(
     hiddenInputs: Set<String>,
     tvName: String,
     host: String,
+    homeFont: String,
     actions: SettingsActions,
     onBack: () -> Unit,
 ) {
@@ -191,6 +196,9 @@ private fun CategoryDetail(
                 ToggleLine(input.label, hidden = input.id in hiddenInputs, onLabel = "On Home", offLabel = "Add to Home") { hide ->
                     actions.setInputHidden(input.id, hide)
                 }
+            }
+            SettingsCategory.Typography -> items(FontChoices, key = { it.first }) { (id, name) ->
+                FontLine(name, id, selected = id == homeFont) { actions.setHomeFont(id) }
             }
             SettingsCategory.Saver -> {
                 item { ScreenSaverLine(screenSaverMinutes, actions) }
@@ -260,6 +268,15 @@ private fun CategoryDetail(
         }
 
         item { Box(Modifier.padding(top = 8.dp)) { Button(onClick = onBack) { Text("Back") } } }
+    }
+}
+
+/** A font choice, previewed in its own typeface, with a selected marker. */
+@Composable
+private fun FontLine(name: String, id: String, selected: Boolean, onSelect: () -> Unit) {
+    Button(onClick = onSelect, modifier = Modifier.fillMaxWidth()) {
+        Text(name, fontSize = 20.sp, fontFamily = fontFamilyFor(id), textAlign = TextAlign.Start, modifier = Modifier.weight(1f))
+        if (selected) Text("Selected", fontSize = 13.sp, color = LobbyColors.accent)
     }
 }
 

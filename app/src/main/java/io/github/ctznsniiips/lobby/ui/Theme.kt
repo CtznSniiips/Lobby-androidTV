@@ -15,13 +15,36 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.darkColorScheme
 import io.github.ctznsniiips.lobby.R
 
-/** Manrope, the same type family the Samsung app uses, bundled as static weights in res/font. */
+/** The three selectable type families (the Samsung app's names), bundled as static weights in res/font. */
 val Manrope = FontFamily(
     Font(R.font.manrope_regular, FontWeight.Normal),
     Font(R.font.manrope_medium, FontWeight.Medium),
     Font(R.font.manrope_semibold, FontWeight.SemiBold),
     Font(R.font.manrope_bold, FontWeight.Bold),
 )
+
+val Geist = FontFamily(
+    Font(R.font.geist_regular, FontWeight.Normal),
+    Font(R.font.geist_medium, FontWeight.Medium),
+    Font(R.font.geist_semibold, FontWeight.SemiBold),
+    Font(R.font.geist_bold, FontWeight.Bold),
+)
+
+val Newsreader = FontFamily(
+    Font(R.font.newsreader_regular, FontWeight.Normal),
+    Font(R.font.newsreader_medium, FontWeight.Medium),
+    Font(R.font.newsreader_semibold, FontWeight.SemiBold),
+    Font(R.font.newsreader_bold, FontWeight.Bold),
+)
+
+/** The font ids offered in settings, with display names, in order. */
+val FontChoices = listOf("manrope" to "Manrope", "geist" to "Geist", "newsreader" to "Newsreader")
+
+fun fontFamilyFor(id: String): FontFamily = when (id) {
+    "geist" -> Geist
+    "newsreader" -> Newsreader
+    else -> Manrope
+}
 
 object LobbyColors {
     val background = Color(0xFF0E1116)
@@ -36,7 +59,7 @@ object LobbyColors {
 }
 
 @Composable
-fun LobbyTheme(content: @Composable () -> Unit) {
+fun LobbyTheme(font: String = "manrope", content: @Composable () -> Unit) {
     MaterialTheme(
         colorScheme = darkColorScheme(
             background = LobbyColors.background,
@@ -46,12 +69,11 @@ fun LobbyTheme(content: @Composable () -> Unit) {
             primary = LobbyColors.accent,
         ),
     ) {
-        // Default every Text to Manrope and to light ink via LocalContentColor — not via the text style's own
-        // colour, which would override the dark-on-light content colour a focused Button/Surface sets for itself
-        // (that was the white-on-white bug).
+        // Default every Text to the chosen family and to light ink via LocalContentColor — not via the text style's
+        // own colour, which would override the dark-on-light content colour a focused Button/Surface sets for itself.
         CompositionLocalProvider(
             LocalContentColor provides LobbyColors.ink,
-            LocalTextStyle provides LocalTextStyle.current.copy(fontFamily = Manrope),
+            LocalTextStyle provides LocalTextStyle.current.copy(fontFamily = fontFamilyFor(font)),
             content = content,
         )
     }
