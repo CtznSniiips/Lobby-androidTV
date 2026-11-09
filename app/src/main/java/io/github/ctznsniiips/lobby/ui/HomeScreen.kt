@@ -689,12 +689,13 @@ private fun rememberAccentColor(url: String?): Color {
 internal fun MediaRow(row: HomeRow, address: ServerAddress, onItem: (HomeItem) -> Unit, onFocused: (HomeItem?) -> Unit = {}) {
     val poster = row.layout == "poster"
     Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
+        // Matches Samsung's .wr-title: ~13sp, SemiBold, muted (their row headers sit at ~58% ink).
         Text(
             row.title,
-            fontSize = 15.sp,
-            fontWeight = FontWeight.Medium,
-            letterSpacing = (-0.2).sp,
-            color = LobbyColors.soft,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.SemiBold,
+            letterSpacing = (-0.1).sp,
+            color = LobbyColors.mute,
             modifier = Modifier.padding(start = ROW_H_PAD),
         )
         LazyRow(
@@ -774,7 +775,7 @@ private fun MediaCard(item: HomeItem, address: ServerAddress, poster: Boolean, o
 @Composable
 private fun InputRow(inputs: List<TvInput>, onInput: (TvInput) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
-        Text("Inputs", fontSize = 15.sp, fontWeight = FontWeight.Medium, letterSpacing = (-0.2).sp, color = LobbyColors.soft, modifier = Modifier.padding(start = ROW_H_PAD))
+        Text("Inputs", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.1).sp, color = LobbyColors.mute, modifier = Modifier.padding(start = ROW_H_PAD))
         LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp), contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = ROW_H_PAD, vertical = ROW_V_PAD)) {
             items(inputs, key = { it.id }) { input ->
                 Button(onClick = { onInput(input) }) { Text(input.label, fontSize = 14.sp) }
@@ -827,7 +828,8 @@ private fun AppDock(apps: List<DockApp>, onApp: (DockApp) -> Unit, firstFocus: F
                             )
                         }
                     }
-                    Text(app.label, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    // Matches Samsung's .wapp-name: SemiBold, soft ink.
+                    Text(app.label, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = LobbyColors.soft, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
         }
