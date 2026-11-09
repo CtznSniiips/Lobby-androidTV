@@ -57,6 +57,20 @@ class SessionStore(context: Context) {
         prefs.edit().putString(KEY_HOME_FONT, id).apply()
     }
 
+    /** The Background mode: dark, light or photo. */
+    fun bgMode(): String = prefs.getString(KEY_BG_MODE, "dark") ?: "dark"
+
+    fun setBgMode(mode: String) {
+        prefs.edit().putString(KEY_BG_MODE, mode).apply()
+    }
+
+    /** The chosen wallpaper id for Photo mode. */
+    fun wallpaper(): String = prefs.getString(KEY_WALLPAPER, "misty") ?: "misty"
+
+    fun setWallpaper(id: String) {
+        prefs.edit().putString(KEY_WALLPAPER, id).apply()
+    }
+
     /** The user's preferred order of dock apps, by package name. Apps not listed keep their detected order after these. */
     fun appOrder(): List<String> = prefs.getString(KEY_APP_ORDER, null)?.split('\n')?.filter { it.isNotBlank() } ?: emptyList()
 
@@ -88,5 +102,7 @@ class SessionStore(context: Context) {
         const val KEY_HIDDEN_INPUTS = "hiddenInputs"
         const val KEY_APP_ORDER = "appOrder"
         const val KEY_HOME_FONT = "homeFont"
+        const val KEY_BG_MODE = "bgMode"
+        const val KEY_WALLPAPER = "wallpaper"
     }
 }

@@ -89,6 +89,9 @@ data class LobbyState(
     val hiddenInputs: Set<String> = emptySet(),
     /** The chosen home font id. */
     val homeFont: String = "manrope",
+    /** Background mode (dark, light, photo) and the chosen wallpaper for photo mode. */
+    val bgMode: String = "dark",
+    val wallpaper: String = "misty",
     /** Current weather shown next to the clock, when the plugin supplies a location. */
     val weather: WeatherNow? = null,
     /** One-line feedback after an action (play queued, requested, failed...). */
@@ -116,7 +119,7 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
     private val store = SessionStore(app)
     private val device = TvDevice(app)
 
-    private val _state = MutableStateFlow(LobbyState(lastAddress = store.lastOrigin().orEmpty(), screenSaverMinutes = store.screenSaverMinutes(), homePromptDismissed = store.homePromptDismissed(), hiddenApps = store.hiddenApps(), hiddenInputs = store.hiddenInputs(), homeFont = store.homeFont()))
+    private val _state = MutableStateFlow(LobbyState(lastAddress = store.lastOrigin().orEmpty(), screenSaverMinutes = store.screenSaverMinutes(), homePromptDismissed = store.homePromptDismissed(), hiddenApps = store.hiddenApps(), hiddenInputs = store.hiddenInputs(), homeFont = store.homeFont(), bgMode = store.bgMode(), wallpaper = store.wallpaper()))
     val state: StateFlow<LobbyState> = _state.asStateFlow()
 
     // Bumped on every remote key press; the idle watcher restarts its countdown when it changes.
@@ -267,6 +270,17 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
     fun setHomeFont(id: String) {
         store.setHomeFont(id)
         _state.update { it.copy(homeFont = id) }
+    }
+
+    fun setBgMode(mode: String) {
+        store.setBgMode(mode)
+        _state.update { it.copy(bgMode = mode) }
+    }
+
+    fun setWallpaper(id: String) {
+        store.setWallpaper(id)
+        _state.update { it.copy(wallpaper = id, bgMode = "photo") }
+        store.setBgMode("photo")
     }
 
     fun moveApp(packageName: String, delta: Int) {

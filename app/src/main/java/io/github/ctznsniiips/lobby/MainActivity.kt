@@ -46,6 +46,8 @@ class MainActivity : ComponentActivity() {
             setInputHidden = viewModel::setInputHidden,
             openSystemSettings = viewModel::openSystemSettings,
             setHomeFont = viewModel::setHomeFont,
+            setBgMode = viewModel::setBgMode,
+            setWallpaper = viewModel::setWallpaper,
             refreshRows = viewModel::refreshHome,
             disconnect = viewModel::disconnect,
             back = viewModel::closeSettings,
@@ -80,7 +82,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             val state by viewModel.state.collectAsStateWithLifecycle()
-            LobbyTheme(font = state.homeFont) {
+            LobbyTheme(font = state.homeFont, bgMode = state.bgMode) {
                 val paired = state.paired
                 Box(Modifier.fillMaxSize()) {
                 if (paired == null) {
@@ -113,6 +115,8 @@ class MainActivity : ComponentActivity() {
                         tvName = paired.tvName.ifBlank { "This TV" },
                         host = paired.address.origin,
                         homeFont = state.homeFont,
+                        bgMode = state.bgMode,
+                        wallpaper = state.wallpaper,
                         message = state.message,
                         actions = settingsActions,
                         onMessageShown = viewModel::clearMessage,

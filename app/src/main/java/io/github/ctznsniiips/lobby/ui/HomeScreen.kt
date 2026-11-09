@@ -172,6 +172,13 @@ fun HomeScreen(
     val accent = rememberAccentColor(heroArt)
 
     Box(Modifier.fillMaxSize().background(LobbyColors.background)) {
+        // Photo background mode: the chosen wallpaper fills the screen behind a readability scrim.
+        if (state.bgMode == "photo") {
+            val wallpaper = remember(state.wallpaper) { Wallpapers.firstOrNull { it.id == state.wallpaper } ?: Wallpapers.first() }
+            AsyncImage(model = wallpaper.fullUri, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+            Box(Modifier.fillMaxSize().background(Color(0x730B0D10)))
+        }
+
         HeroBackdrop(heroItem, address)
 
         // A soft wash of the hero image's dominant colour, kept to the upper-left so it doesn't bleed into the rows.
@@ -466,7 +473,7 @@ private fun ClockText() {
         }
     }
     val text = remember(now) { now.format(DateTimeFormatter.ofPattern("EEE, MMM d   h:mm a")) }
-    Text(text, fontSize = 16.sp, color = Color(0xE6FFFFFF))
+    Text(text, fontSize = 16.sp, color = LobbyColors.ink)
 }
 
 private enum class RailIcon { Search, Art, Apps, Settings }
@@ -509,10 +516,10 @@ private fun WeatherChip(weather: WeatherNow, modifier: Modifier = Modifier) {
         Icon(
             painter = painterResource(weatherIconRes(weather.code, weather.day)),
             contentDescription = null,
-            tint = Color(0xE6FFFFFF),
+            tint = LobbyColors.ink,
             modifier = Modifier.size(22.dp),
         )
-        Text(weather.text, fontSize = 16.sp, color = Color(0xE6FFFFFF))
+        Text(weather.text, fontSize = 16.sp, color = LobbyColors.ink)
     }
 }
 
@@ -698,7 +705,7 @@ internal fun MediaRow(row: HomeRow, address: ServerAddress, onItem: (HomeItem) -
     val poster = row.layout == "poster"
     // Samsung brightens a row's title only while that row is active (holds the focused card): ~95% vs ~58% ink.
     var active by remember { mutableStateOf(false) }
-    val titleColor by animateColorAsState(if (active) Color(0xF2F4F2EE) else Color(0x94F4F2EE), tween(140), label = "rowTitle")
+    val titleColor by animateColorAsState(if (active) LobbyColors.ink else LobbyColors.mute, tween(140), label = "rowTitle")
     Column(
         Modifier.onFocusChanged { active = it.hasFocus },
         verticalArrangement = Arrangement.spacedBy(0.dp),
@@ -867,7 +874,7 @@ private fun statusColor(status: String): Color = when (status) {
 @Composable
 private fun InputRow(inputs: List<TvInput>, onInput: (TvInput) -> Unit) {
     var active by remember { mutableStateOf(false) }
-    val titleColor by animateColorAsState(if (active) Color(0xF2F4F2EE) else Color(0x94F4F2EE), tween(140), label = "inputsTitle")
+    val titleColor by animateColorAsState(if (active) LobbyColors.ink else LobbyColors.mute, tween(140), label = "inputsTitle")
     Column(
         Modifier.onFocusChanged { active = it.hasFocus },
         verticalArrangement = Arrangement.spacedBy(0.dp),

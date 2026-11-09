@@ -4,6 +4,9 @@ package io.github.ctznsniiips.lobby.ui
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
@@ -46,24 +49,97 @@ fun fontFamilyFor(id: String): FontFamily = when (id) {
     else -> Manrope
 }
 
+/** A bundled wallpaper for Photo background mode. Images live in assets/wallpapers (Unsplash-licensed). */
+data class Wallpaper(val id: String, val name: String) {
+    val fullUri: String get() = "file:///android_asset/wallpapers/$id.jpg"
+    val thumbUri: String get() = "file:///android_asset/wallpapers/$id-thumb.jpg"
+}
+
+/** The fifteen bundled wallpapers, matching the Samsung app's gallery. */
+val Wallpapers = listOf(
+    Wallpaper("misty", "Misty coast"),
+    Wallpaper("cove", "Quiet cove"),
+    Wallpaper("forest", "Forest mist"),
+    Wallpaper("valley", "Mountain valley"),
+    Wallpaper("night", "Desert stars"),
+    Wallpaper("peaks", "Blue peaks"),
+    Wallpaper("bridge", "Bridge at dusk"),
+    Wallpaper("ridge", "Sunlit ridges"),
+    Wallpaper("golden", "Golden hour"),
+    Wallpaper("summit", "Sunlit summits"),
+    Wallpaper("goldcoast", "Gold Coast dusk"),
+    Wallpaper("sydney", "Sydney Harbour"),
+    Wallpaper("amber", "Amber hills"),
+    Wallpaper("mint", "Mint wave"),
+    Wallpaper("alpine", "Alpine glow"),
+)
+
+/** The three Background modes, with display names. */
+val BackgroundModes = listOf("photo" to "Photo", "dark" to "Dark", "light" to "Light")
+
+/** A background/text colour set. The theme swaps this for the chosen Background mode (dark, light, photo). */
+data class LobbyPalette(
+    val background: Color,
+    val surface: Color,
+    val ink: Color,
+    val soft: Color,
+    val mute: Color,
+    val scrim: Color,
+    val light: Boolean,
+)
+
+val DarkPalette = LobbyPalette(
+    background = Color(0xFF0E1116),
+    surface = Color(0xFF181C24),
+    ink = Color(0xFFF4F2EE),
+    soft = Color(0xCCF4F2EE),
+    mute = Color(0x99F4F2EE),
+    scrim = Color(0xCC0E1116),
+    light = false,
+)
+
+val LightPalette = LobbyPalette(
+    background = Color(0xFFF3F1EC),
+    surface = Color(0xFFFFFFFF),
+    ink = Color(0xFF16181C),
+    soft = Color(0xC216181C),
+    mute = Color(0x8C16181C),
+    scrim = Color(0xBFF3F1EC),
+    light = true,
+)
+
+/** Photo mode keeps light text — it sits over the wallpaper behind a scrim. */
+val PhotoPalette = DarkPalette.copy(background = Color(0xFF0B0D10))
+
+fun paletteFor(bgMode: String): LobbyPalette = when (bgMode) {
+    "light" -> LightPalette
+    "photo" -> PhotoPalette
+    else -> DarkPalette
+}
+
+/**
+ * The active colours. Backed by snapshot state the theme sets from the Background mode, so every `LobbyColors.ink`
+ * read tracks the current palette and recomposes on a mode change. accent and error are fixed across modes.
+ */
 object LobbyColors {
-    val background = Color(0xFF0E1116)
+    var palette by mutableStateOf(DarkPalette)
     val accent = Color(0xFF6CB6FF)
     val error = Color(0xFFFF8A80)
-    val scrim = Color(0xCC0E1116)
-
-    /** Text tiers, bright enough to read over the dark background and backdrops. */
-    val ink = Color(0xFFF4F2EE)
-    val soft = Color(0xCCF4F2EE)
-    val mute = Color(0x99F4F2EE)
+    val background: Color get() = palette.background
+    val surface: Color get() = palette.surface
+    val ink: Color get() = palette.ink
+    val soft: Color get() = palette.soft
+    val mute: Color get() = palette.mute
+    val scrim: Color get() = palette.scrim
 }
 
 @Composable
-fun LobbyTheme(font: String = "manrope", content: @Composable () -> Unit) {
+fun LobbyTheme(font: String = "manrope", bgMode: String = "dark", content: @Composable () -> Unit) {
+    LobbyColors.palette = paletteFor(bgMode)
     MaterialTheme(
         colorScheme = darkColorScheme(
             background = LobbyColors.background,
-            surface = Color(0xFF181C24),
+            surface = LobbyColors.surface,
             onSurface = LobbyColors.ink,
             onSurfaceVariant = LobbyColors.soft,
             primary = LobbyColors.accent,
