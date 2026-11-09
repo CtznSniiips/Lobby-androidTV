@@ -43,13 +43,16 @@ import androidx.tv.material3.Button
 import androidx.tv.material3.Card
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.MaterialTheme
+import androidx.tv.material3.Icon
 import androidx.tv.material3.Text
+import io.github.ctznsniiips.lobby.R
 import android.graphics.drawable.BitmapDrawable
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -57,6 +60,7 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
@@ -506,42 +510,30 @@ private fun Rail(
     }
 }
 
-/** Current weather beside the clock: a small drawn icon and the temperature. */
+/** Current weather beside the clock: the Samsung weather glyph (as a vector drawable) and the temperature. */
 @Composable
 private fun WeatherChip(weather: WeatherNow, modifier: Modifier = Modifier) {
     Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        Canvas(Modifier.size(22.dp)) { drawWeatherIcon(weather.code, weather.day, Color(0xE6FFFFFF)) }
+        Icon(
+            painter = painterResource(weatherIconRes(weather.code, weather.day)),
+            contentDescription = null,
+            tint = Color(0xE6FFFFFF),
+            modifier = Modifier.size(22.dp),
+        )
         Text(weather.text, fontSize = 16.sp, color = Color(0xE6FFFFFF))
     }
 }
 
-/** Minimal line-art weather glyphs keyed off the WMO code, matching the Samsung app's set. */
-private fun DrawScope.drawWeatherIcon(code: Int, day: Boolean, tint: Color) {
-    val w = size.width
-    val stroke = Stroke(width = w * 0.08f, cap = StrokeCap.Round, join = StrokeJoin.Round)
-    fun cloud(cx: Float, cy: Float, s: Float) {
-        drawRoundRect(tint, topLeft = Offset(cx - s, cy - s * 0.4f), size = Size(s * 2f, s * 0.9f), cornerRadius = CornerRadius(s * 0.5f), style = stroke)
-        drawCircle(tint, radius = s * 0.55f, center = Offset(cx - s * 0.4f, cy - s * 0.35f), style = stroke)
-        drawCircle(tint, radius = s * 0.7f, center = Offset(cx + s * 0.35f, cy - s * 0.4f), style = stroke)
-    }
-    fun sun(cx: Float, cy: Float, r: Float) {
-        drawCircle(tint, radius = r, center = Offset(cx, cy), style = stroke)
-        for (i in 0 until 8) {
-            val a = Math.toRadians(i * 45.0)
-            drawLine(tint, Offset(cx + (r * 1.5f * cos(a)).toFloat(), cy + (r * 1.5f * sin(a)).toFloat()), Offset(cx + (r * 2.1f * cos(a)).toFloat(), cy + (r * 2.1f * sin(a)).toFloat()), strokeWidth = stroke.width)
-        }
-    }
-    when {
-        code == 0 && day -> sun(w * 0.5f, w * 0.5f, w * 0.2f)
-        code == 0 -> drawPath(Path().apply { // moon
-            moveTo(w * 0.72f, w * 0.6f); cubicTo(w * 0.5f, w * 0.62f, w * 0.38f, w * 0.44f, w * 0.5f, w * 0.26f); cubicTo(w * 0.3f, w * 0.3f, w * 0.26f, w * 0.6f, w * 0.46f, w * 0.72f); cubicTo(w * 0.58f, w * 0.78f, w * 0.68f, w * 0.72f, w * 0.72f, w * 0.6f); close()
-        }, tint, style = stroke)
-        code in 1..2 && day -> { sun(w * 0.36f, w * 0.36f, w * 0.14f); cloud(w * 0.58f, w * 0.64f, w * 0.22f) }
-        code in 95..99 -> { cloud(w * 0.5f, w * 0.44f, w * 0.26f); drawPath(Path().apply { moveTo(w * 0.52f, w * 0.6f); lineTo(w * 0.4f, w * 0.8f); lineTo(w * 0.54f, w * 0.8f); lineTo(w * 0.46f, w * 0.96f) }, tint, style = stroke) }
-        (code in 71..77) || code == 85 || code == 86 -> { cloud(w * 0.5f, w * 0.42f, w * 0.26f); for (x in listOf(0.36f, 0.5f, 0.64f)) drawCircle(tint, radius = w * 0.025f, center = Offset(w * x, w * 0.82f)) }
-        (code in 51..67) || (code in 80..82) -> { cloud(w * 0.5f, w * 0.42f, w * 0.26f); for (x in listOf(0.38f, 0.52f, 0.66f)) drawLine(tint, Offset(w * x, w * 0.68f), Offset(w * (x - 0.04f), w * 0.86f), strokeWidth = stroke.width) }
-        else -> cloud(w * 0.5f, w * 0.52f, w * 0.28f)
-    }
+/** WMO weather code → the matching drawable, using the Samsung app's own mapping. */
+private fun weatherIconRes(code: Int, day: Boolean): Int = when {
+    code == 0 -> if (day) R.drawable.wx_sun else R.drawable.wx_moon
+    code == 1 || code == 2 -> if (day) R.drawable.wx_partly else R.drawable.wx_cloud
+    code == 3 -> R.drawable.wx_cloud
+    code == 45 || code == 48 -> R.drawable.wx_fog
+    (code in 71..77) || code == 85 || code == 86 -> R.drawable.wx_snow
+    code >= 95 -> R.drawable.wx_storm
+    code in 51..82 -> R.drawable.wx_rain
+    else -> R.drawable.wx_cloud
 }
 
 @Composable
@@ -801,9 +793,10 @@ private fun MediaCard(item: HomeItem, address: ServerAddress, poster: Boolean, t
                 }
 
                 // Status or type badge, top-left.
+                val badgeMax = (width - 12).dp
                 when {
-                    status != null -> CardBadge(statusLabel(status), statusColor(status), Modifier.align(Alignment.TopStart))
-                    typeBadge != null -> CardBadge(typeBadge, Color(0xB80A0C0E), Modifier.align(Alignment.TopStart))
+                    status != null -> CardBadge(statusLabel(status), statusColor(status), badgeMax, Modifier.align(Alignment.TopStart))
+                    typeBadge != null -> CardBadge(typeBadge, Color(0xB80A0C0E), badgeMax, Modifier.align(Alignment.TopStart))
                 }
 
                 progress?.let { percent ->
@@ -813,29 +806,34 @@ private fun MediaCard(item: HomeItem, address: ServerAddress, poster: Boolean, t
                 }
             }
         }
-        Box(Modifier.fillMaxWidth().height(16.dp).padding(top = 3.dp, start = 2.dp)) {
-            if (focused && !sub.isNullOrBlank()) {
-                Text(sub, fontSize = 10.sp, color = LobbyColors.soft, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        // Discovery cards show nothing below (and so pack their rows closer); other cards reserve a detail slot.
+        if (!discover) {
+            Box(Modifier.fillMaxWidth().height(16.dp).padding(top = 3.dp, start = 2.dp)) {
+                if (focused && !sub.isNullOrBlank()) {
+                    Text(sub, fontSize = 10.sp, color = LobbyColors.soft, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
             }
         }
     }
 }
 
-/** A small rounded badge in the top-left of a card (status or type). */
+/** A small rounded badge in the top-left of a card (status or type), sized like Samsung's .wc .mc-badge. */
 @Composable
-private fun CardBadge(text: String, background: Color, modifier: Modifier = Modifier) {
+private fun CardBadge(text: String, background: Color, maxWidth: Dp, modifier: Modifier = Modifier) {
     Text(
         text,
-        fontSize = 9.sp,
+        fontSize = 8.sp,
         fontWeight = FontWeight.Bold,
         letterSpacing = 0.2.sp,
         color = Color.White,
         maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
         modifier = modifier
-            .padding(start = 6.dp, top = 6.dp)
-            .clip(androidx.compose.foundation.shape.RoundedCornerShape(6.dp))
+            .padding(start = 5.dp, top = 5.dp)
+            .widthIn(max = maxWidth)
+            .clip(androidx.compose.foundation.shape.RoundedCornerShape(5.dp))
             .background(background)
-            .padding(horizontal = 6.dp, vertical = 2.dp),
+            .padding(horizontal = 5.dp, vertical = 1.5.dp),
     )
 }
 
