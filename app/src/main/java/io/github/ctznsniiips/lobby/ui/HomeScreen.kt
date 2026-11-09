@@ -249,14 +249,6 @@ fun HomeScreen(
                 if (state.inputs.isNotEmpty()) {
                     item { Box(Modifier.onFocusChanged { if (it.hasFocus) browsed = null }) { InputRow(state.inputs, onInput) } }
                 }
-
-                item {
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Button(onClick = onRefresh) { Text("Refresh") }
-                        Button(onClick = onSettings) { Text("System settings") }
-                        Button(onClick = onDisconnect) { Text("Disconnect") }
-                    }
-                }
             }
         }
 

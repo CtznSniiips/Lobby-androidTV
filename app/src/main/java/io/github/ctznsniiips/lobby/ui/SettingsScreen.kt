@@ -211,12 +211,9 @@ private fun CategoryDetail(
             // Emby & Seerr: the connection plus everything the plugin keeps for this TV, grouped like the Samsung app.
             SettingsCategory.Media -> {
                 item {
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Column(Modifier.weight(1f)) {
-                            Text(tvName, fontSize = 18.sp, color = LobbyColors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text("Connected to $host", fontSize = 13.sp, color = LobbyColors.soft, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        }
-                        Button(onClick = actions.refreshRows) { Text("Refresh rows") }
+                    Column {
+                        Text(tvName, fontSize = 18.sp, color = LobbyColors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text("Connected to $host", fontSize = 13.sp, color = LobbyColors.soft, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
                 if (data == null) {
@@ -253,7 +250,12 @@ private fun CategoryDetail(
                         }
                     }
                 }
-                item { Button(onClick = actions.disconnect) { Text("Disconnect") } }
+                item {
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Button(onClick = actions.refreshRows) { Text("Refresh rows") }
+                        Button(onClick = actions.disconnect) { Text("Disconnect") }
+                    }
+                }
             }
         }
 
