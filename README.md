@@ -9,6 +9,16 @@ pairing flow (enter the server address, get a code, approve it in the plugin's a
 
 Android TV only. Not intended for phones or tablets.
 
+## Lobby: Emby/Jellyfin and Seerr on Home
+
+Lobby adds rows from your own Emby or Jellyfin server and Seerr to Home: Continue Watching, On Now, games for teams you follow, and Seerr's Trending and Popular lists. OK resumes or plays in the Emby/Jellyfin app, or requests a title in Seerr as the right person. The Watch layout puts a rotating featured title at the top (including your teams' games when they're about to start), with one row per band below and your apps in a dock along the bottom.
+
+Lobby ships a plugin for each server, built from the same design and talking the same TV-facing API:
+
+1. Install whichever plugin matches your server — [`emby-plugin/`](emby-plugin/README.md) for Emby, [`jellyfin-plugin/`](jellyfin-plugin/README.md) for Jellyfin — and set up Seerr and account links on its page.
+2. On the TV: Settings → Emby & Seerr → Connect, enter the server address and approve the code on the plugin page.
+3. Choose rows, order, teams and playback timing in Settings → Emby & Seerr. Those settings belong to the TV and are kept on the server.
+
 ## How playback works
 
 Lobby never plays media itself. Pressing a title calls `POST /Lobby/Play`; the plugin finds the official Jellyfin or
