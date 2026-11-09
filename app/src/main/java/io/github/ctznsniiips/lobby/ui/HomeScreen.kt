@@ -56,6 +56,10 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupProperties
 import androidx.palette.graphics.Palette
 import androidx.tv.material3.Border
 import androidx.tv.material3.CardDefaults
@@ -489,11 +493,11 @@ private fun Rail(
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         RailButton(RailIcon.Search, "Search", onSearch, Modifier.focusRequester(searchFocus))
-        RailButton(RailIcon.Art, "Screen saver", onScreenSaver)
-        if (onApps != null) RailButton(RailIcon.Apps, "Apps", onApps)
+        RailButton(RailIcon.Art, "Screensaver", onScreenSaver)
+        if (onApps != null) RailButton(RailIcon.Apps, "Go to apps", onApps)
         RailButton(
             RailIcon.Settings,
-            "Lobby settings",
+            "Lobby Settings",
             onSettings,
             Modifier.focusRequester(settingsFocus).then(
                 if (settingsDown != null) Modifier.focusProperties { down = settingsDown } else Modifier,
@@ -545,18 +549,38 @@ private fun RailButton(icon: RailIcon, label: String, onClick: () -> Unit, modif
     val interaction = remember { MutableInteractionSource() }
     val focused by interaction.collectIsFocusedAsState()
     val tint = if (focused) Color(0xFF0E1116) else Color(0xCCFFFFFF)
-    Surface(
-        onClick = onClick,
-        interactionSource = interaction,
-        shape = ClickableSurfaceDefaults.shape(androidx.compose.foundation.shape.CircleShape),
-        colors = ClickableSurfaceDefaults.colors(
-            containerColor = Color.Transparent,
-            focusedContainerColor = Color(0xFFF4F2EE),
-        ),
-        modifier = modifier.size(34.dp).semantics { contentDescription = label },
-    ) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Canvas(Modifier.size(15.dp)) { drawRailIcon(icon, tint) }
+    Box {
+        Surface(
+            onClick = onClick,
+            interactionSource = interaction,
+            shape = ClickableSurfaceDefaults.shape(androidx.compose.foundation.shape.CircleShape),
+            colors = ClickableSurfaceDefaults.colors(
+                containerColor = Color.Transparent,
+                focusedContainerColor = Color(0xFFF4F2EE),
+            ),
+            modifier = modifier.size(34.dp).semantics { contentDescription = label },
+        ) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Canvas(Modifier.size(15.dp)) { drawRailIcon(icon, tint) }
+            }
+        }
+        // On focus, a label pill appears to the right of the icon. A Popup lets it overflow the narrow rail
+        // without widening it or shifting the icons.
+        if (focused) {
+            val gap = with(LocalDensity.current) { 44.dp.roundToPx() }
+            Popup(alignment = Alignment.CenterStart, offset = IntOffset(gap, 0), properties = PopupProperties(focusable = false)) {
+                Text(
+                    label,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = LobbyColors.ink,
+                    maxLines = 1,
+                    modifier = Modifier
+                        .clip(androidx.compose.foundation.shape.RoundedCornerShape(50))
+                        .background(Color(0xF015181E))
+                        .padding(horizontal = 12.dp, vertical = 5.dp),
+                )
+            }
         }
     }
 }
