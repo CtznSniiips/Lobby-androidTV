@@ -59,6 +59,8 @@ class SettingsActions(
     val setInputHidden: (inputId: String, hidden: Boolean) -> Unit,
     val openSystemSettings: () -> Unit,
     val setHomeFont: (id: String) -> Unit,
+    val setBgMode: (mode: String) -> Unit,
+    val setWallpaper: (id: String) -> Unit,
     val refreshRows: () -> Unit,
     val disconnect: () -> Unit,
     val back: () -> Unit,

@@ -10,7 +10,14 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.layout.ContentScale
+import androidx.tv.material3.Border
+import androidx.tv.material3.CardDefaults
+import coil.compose.AsyncImage
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -39,6 +46,7 @@ import io.github.ctznsniiips.lobby.device.TvInput
 
 /** The settings sub-menus, matching the Samsung app's top-level groups (minus its Frame-specific appearance ones). */
 private enum class SettingsCategory(val title: String) {
+    Background("Background"),
     Typography("Typography"),
     Saver("Screen saver"),
     Apps("Apps on Home"),
@@ -64,6 +72,8 @@ fun SettingsScreen(
     tvName: String,
     host: String,
     homeFont: String,
+    bgMode: String,
+    wallpaper: String,
     message: String?,
     actions: SettingsActions,
     onMessageShown: () -> Unit,
@@ -76,8 +86,8 @@ fun SettingsScreen(
     Box(Modifier.fillMaxSize().background(LobbyColors.background)) {
         when {
             settings.teamsOpen -> TeamsPicker(settings, actions)
-            category == null -> CategoryList(settings, apps, inputs, hiddenApps, homeFont, actions) { category = it }
-            else -> CategoryDetail(category!!, settings, screenSaverMinutes, isDefaultHome, apps, inputs, hiddenApps, hiddenInputs, tvName, host, homeFont, actions) { category = null }
+            category == null -> CategoryList(settings, apps, inputs, hiddenApps, homeFont, bgMode, actions) { category = it }
+            else -> CategoryDetail(category!!, settings, screenSaverMinutes, isDefaultHome, apps, inputs, hiddenApps, hiddenInputs, tvName, host, homeFont, bgMode, wallpaper, actions) { category = null }
         }
         MessageToast(message, onMessageShown, Modifier.align(Alignment.BottomCenter))
     }
@@ -90,6 +100,7 @@ private fun CategoryList(
     inputs: List<TvInput>,
     hiddenApps: Set<String>,
     homeFont: String,
+    bgMode: String,
     actions: SettingsActions,
     onOpen: (SettingsCategory) -> Unit,
 ) {
@@ -120,6 +131,7 @@ private fun CategoryList(
         }
         items(shown, key = { it.name }) { cat ->
             val summary = when (cat) {
+                SettingsCategory.Background -> BackgroundModes.firstOrNull { it.first == bgMode }?.second ?: "Dark"
                 SettingsCategory.Typography -> FontChoices.firstOrNull { it.first == homeFont }?.second ?: "Manrope"
                 SettingsCategory.Saver -> "Screen saver and when it starts"
                 SettingsCategory.Apps -> "${apps.count { it.packageName !in hiddenApps }} of ${apps.size} apps shown"
@@ -159,6 +171,8 @@ private fun CategoryDetail(
     tvName: String,
     host: String,
     homeFont: String,
+    bgMode: String,
+    wallpaper: String,
     actions: SettingsActions,
     onBack: () -> Unit,
 ) {
@@ -195,6 +209,29 @@ private fun CategoryDetail(
             SettingsCategory.Inputs -> items(inputs, key = { it.id }) { input ->
                 ToggleLine(input.label, hidden = input.id in hiddenInputs, onLabel = "On Home", offLabel = "Add to Home") { hide ->
                     actions.setInputHidden(input.id, hide)
+                }
+            }
+            SettingsCategory.Background -> {
+                item {
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        BackgroundModes.forEach { (mode, name) ->
+                            Button(onClick = { actions.setBgMode(mode) }) {
+                                Text(name)
+                                if (mode == bgMode) Text("  •", color = LobbyColors.accent)
+                            }
+                        }
+                    }
+                }
+                if (bgMode == "photo") {
+                    item { SectionHeader("Wallpaper") }
+                    items(Wallpapers.chunked(3), key = { it.first().id }) { row ->
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            row.forEach { wp ->
+                                WallpaperTile(wp, selected = wp.id == wallpaper, modifier = Modifier.weight(1f)) { actions.setWallpaper(wp.id) }
+                            }
+                            repeat(3 - row.size) { Box(Modifier.weight(1f)) }
+                        }
+                    }
                 }
             }
             SettingsCategory.Typography -> items(FontChoices, key = { it.first }) { (id, name) ->
@@ -268,6 +305,28 @@ private fun CategoryDetail(
         }
 
         item { Box(Modifier.padding(top = 8.dp)) { Button(onClick = onBack) { Text("Back") } } }
+    }
+}
+
+/** A selectable wallpaper thumbnail with its name. */
+@Composable
+private fun WallpaperTile(wallpaper: Wallpaper, selected: Boolean, modifier: Modifier = Modifier, onSelect: () -> Unit) {
+    Card(
+        onClick = onSelect,
+        modifier = modifier,
+        border = CardDefaults.border(
+            border = if (selected) Border(BorderStroke(2.dp, LobbyColors.accent), shape = RoundedCornerShape(10.dp)) else Border.None,
+        ),
+    ) {
+        Column {
+            AsyncImage(
+                model = wallpaper.thumbUri,
+                contentDescription = wallpaper.name,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxWidth().height(96.dp),
+            )
+            Text(wallpaper.name, fontSize = 13.sp, color = LobbyColors.soft, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp))
+        }
     }
 }
 
