@@ -26,8 +26,9 @@ android {
         applicationId = "io.github.ctznsniiips.lobby"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        // Overridable from the release workflow with -PversionCode / -PversionName; defaults for local/CI debug builds.
+        versionCode = (project.findProperty("versionCode") as String?)?.toIntOrNull() ?: 1
+        versionName = (project.findProperty("versionName") as String?) ?: "0.1.0"
     }
 
     signingConfigs {
