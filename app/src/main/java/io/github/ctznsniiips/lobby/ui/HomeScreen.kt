@@ -744,7 +744,14 @@ private fun MediaCard(item: HomeItem, address: ServerAddress, poster: Boolean, t
     val progress = item.progressPercent?.takeIf { it > 0 }
     val sub = item.subtitle ?: item.meta?.takeIf { discover }
 
-    // Top-left badge: the Seerr/library status if the title has one; otherwise, in the Trending row only, its type.
+    // Top-left badge. For a game (program): "Live" in red when airing, else its start time. Otherwise the
+    // Seerr/library status if the title has one; or, in the Trending row only, its type.
+    val programBadge: Pair<String, Color>? = if (item.kind == "program") {
+        if (item.isAiring == true) "Live" to Color(0xFFC8372D)
+        else gameTimeText(item.startDate)?.let { it to Color(0xB80A0C0E) }
+    } else {
+        null
+    }
     val status = item.requestStatus?.takeIf { it != "none" }?.takeIf { discover }
     val typeBadge = if (trending && status == null && item.mediaType != null) {
         if (item.mediaType == "tv") "Series" else "Movie"
@@ -792,9 +799,10 @@ private fun MediaCard(item: HomeItem, address: ServerAddress, poster: Boolean, t
                     }
                 }
 
-                // Status or type badge, top-left.
+                // Status, program-time, or type badge, top-left.
                 val badgeMax = (width - 12).dp
                 when {
+                    programBadge != null -> CardBadge(programBadge.first, programBadge.second, badgeMax, Modifier.align(Alignment.TopStart))
                     status != null -> CardBadge(statusLabel(status), statusColor(status), badgeMax, Modifier.align(Alignment.TopStart))
                     typeBadge != null -> CardBadge(typeBadge, Color(0xB80A0C0E), badgeMax, Modifier.align(Alignment.TopStart))
                 }
@@ -835,6 +843,17 @@ private fun CardBadge(text: String, background: Color, maxWidth: Dp, modifier: M
             .background(background)
             .padding(horizontal = 5.dp, vertical = 1.5.dp),
     )
+}
+
+/** A program's start time formatted like the Samsung app ("7:00 pm"), in the device's zone. Null if unparseable. */
+private fun gameTimeText(iso: String?): String? {
+    if (iso.isNullOrBlank()) return null
+    val zone = java.time.ZoneId.systemDefault()
+    val time = runCatching { java.time.OffsetDateTime.parse(iso).atZoneSameInstant(zone) }.getOrNull()
+        ?: runCatching { java.time.Instant.parse(iso).atZone(zone) }.getOrNull()
+        ?: runCatching { java.time.LocalDateTime.parse(iso).atZone(zone) }.getOrNull()
+        ?: return null
+    return time.format(DateTimeFormatter.ofPattern("h:mm a")).lowercase()
 }
 
 /** Seerr/library status → label and colour, matching the Samsung app's badge set. */
