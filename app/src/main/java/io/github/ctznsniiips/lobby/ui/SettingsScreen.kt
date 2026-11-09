@@ -42,7 +42,7 @@ private enum class SettingsCategory(val title: String) {
     Saver("Screen saver"),
     Apps("Apps on Home"),
     Inputs("Inputs on Home"),
-    Media("Emby & Seerr"),
+    Media("Emby/Jellyfin & Seerr"),
     System("System"),
 }
 

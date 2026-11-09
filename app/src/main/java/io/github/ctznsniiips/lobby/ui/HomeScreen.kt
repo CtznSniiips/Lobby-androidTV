@@ -732,23 +732,33 @@ internal fun MediaRow(row: HomeRow, address: ServerAddress, onItem: (HomeItem) -
             // Small top gap keeps the title close to its cards; the bottom gap gives a focused card room to scale.
             contentPadding = androidx.compose.foundation.layout.PaddingValues(start = ROW_H_PAD, end = ROW_H_PAD, top = 3.dp, bottom = ROW_V_PAD),
         ) {
-            items(row.items.distinctBy { it.id }, key = { it.id }) { item -> MediaCard(item, address, poster, onItem, onFocused) }
+            items(row.items.distinctBy { it.id }, key = { it.id }) { item -> MediaCard(item, address, poster, row.id == "seerr-trending", onItem, onFocused) }
         }
     }
 }
 
 @Composable
-private fun MediaCard(item: HomeItem, address: ServerAddress, poster: Boolean, onItem: (HomeItem) -> Unit, onFocused: (HomeItem?) -> Unit) {
+private fun MediaCard(item: HomeItem, address: ServerAddress, poster: Boolean, trending: Boolean, onItem: (HomeItem) -> Unit, onFocused: (HomeItem?) -> Unit) {
     val width = if (poster) POSTER_W else LANDSCAPE_W
     val height = if (poster) POSTER_H else LANDSCAPE_H
     val art = address.imageUrl(if (poster) item.posterUrl ?: item.landscapeUrl else item.landscapeUrl ?: item.posterUrl, width = width * 2)
 
+    // Discover rows (Trending, Popular Movies, Popular Shows) use posters that already carry the title.
+    val discover = item.kind == "discover"
     val logo = address.imageUrl(item.logoUrl, width = 240)
     val interaction = remember { MutableInteractionSource() }
     val focused by interaction.collectIsFocusedAsState()
     val titleColor by animateColorAsState(if (focused) Color(0xFFF4F2EE) else Color(0x99F4F2EE), tween(140), label = "title")
     val progress = item.progressPercent?.takeIf { it > 0 }
-    val sub = item.subtitle ?: item.requestStatus?.takeIf { it != "none" }
+    val sub = item.subtitle ?: item.meta?.takeIf { discover }
+
+    // Top-left badge: the Seerr/library status if the title has one; otherwise, in the Trending row only, its type.
+    val status = item.requestStatus?.takeIf { it != "none" }?.takeIf { discover }
+    val typeBadge = if (trending && status == null && item.mediaType != null) {
+        if (item.mediaType == "tv") "Series" else "Movie"
+    } else {
+        null
+    }
 
     // Samsung behaviour: the show's logo sits bottom-left on the card (muted title if it has no logo); the detail
     // line shows below the card only while focused (a fixed slot is reserved so the row doesn't jump).
@@ -766,26 +776,36 @@ private fun MediaCard(item: HomeItem, address: ServerAddress, poster: Boolean, o
                 if (art != null) {
                     AsyncImage(model = art, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
                 }
-                Box(
-                    Modifier
-                        .align(Alignment.BottomStart)
-                        .fillMaxWidth()
-                        .background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xA6000000))))
-                        .padding(start = 8.dp, end = 8.dp, top = 24.dp, bottom = if (progress != null) 10.dp else 7.dp),
-                    contentAlignment = Alignment.BottomStart,
-                ) {
-                    if (logo != null) {
-                        AsyncImage(
-                            model = logo,
-                            contentDescription = item.title,
-                            contentScale = ContentScale.Fit,
-                            alignment = Alignment.BottomStart,
-                            modifier = Modifier.heightIn(max = 22.dp).widthIn(max = (width * 0.74f).dp),
-                        )
-                    } else {
-                        Text(item.title, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = titleColor, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                // The discovery rows show no on-card title (the poster already has it).
+                if (!discover) {
+                    Box(
+                        Modifier
+                            .align(Alignment.BottomStart)
+                            .fillMaxWidth()
+                            .background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xA6000000))))
+                            .padding(start = 8.dp, end = 8.dp, top = 24.dp, bottom = if (progress != null) 10.dp else 7.dp),
+                        contentAlignment = Alignment.BottomStart,
+                    ) {
+                        if (logo != null) {
+                            AsyncImage(
+                                model = logo,
+                                contentDescription = item.title,
+                                contentScale = ContentScale.Fit,
+                                alignment = Alignment.BottomStart,
+                                modifier = Modifier.heightIn(max = 22.dp).widthIn(max = (width * 0.74f).dp),
+                            )
+                        } else {
+                            Text(item.title, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = titleColor, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
                     }
                 }
+
+                // Status or type badge, top-left.
+                when {
+                    status != null -> CardBadge(statusLabel(status), statusColor(status), Modifier.align(Alignment.TopStart))
+                    typeBadge != null -> CardBadge(typeBadge, Color(0xB80A0C0E), Modifier.align(Alignment.TopStart))
+                }
+
                 progress?.let { percent ->
                     Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(4.dp).background(Color(0x55FFFFFF))) {
                         Box(Modifier.fillMaxWidth((percent / 100.0).toFloat().coerceIn(0f, 1f)).fillMaxHeight().background(LobbyColors.accent))
@@ -799,6 +819,40 @@ private fun MediaCard(item: HomeItem, address: ServerAddress, poster: Boolean, o
             }
         }
     }
+}
+
+/** A small rounded badge in the top-left of a card (status or type). */
+@Composable
+private fun CardBadge(text: String, background: Color, modifier: Modifier = Modifier) {
+    Text(
+        text,
+        fontSize = 9.sp,
+        fontWeight = FontWeight.Bold,
+        letterSpacing = 0.2.sp,
+        color = Color.White,
+        maxLines = 1,
+        modifier = modifier
+            .padding(start = 6.dp, top = 6.dp)
+            .clip(androidx.compose.foundation.shape.RoundedCornerShape(6.dp))
+            .background(background)
+            .padding(horizontal = 6.dp, vertical = 2.dp),
+    )
+}
+
+/** Seerr/library status → label and colour, matching the Samsung app's badge set. */
+private fun statusLabel(status: String): String = when (status) {
+    "available" -> "Available"
+    "partial" -> "Partly available"
+    "processing" -> "Processing"
+    "requested" -> "Requested"
+    else -> status.replaceFirstChar { it.uppercase() }
+}
+
+private fun statusColor(status: String): Color = when (status) {
+    "available" -> Color(0xEB207848)
+    "partial" -> Color(0xEB206082)
+    "processing", "requested" -> Color(0xEB785214)
+    else -> Color(0xB80A0C0E)
 }
 
 @Composable
