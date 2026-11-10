@@ -941,7 +941,7 @@ private fun AppDock(
                     modifier = Modifier
                         .requiredSize(with(density) { rootSize.width.toDp() }, with(density) { rootSize.height.toDp() })
                         .absoluteOffset { IntOffset(-panelPos.x.roundToInt(), -panelPos.y.roundToInt()) }
-                        .blur(50.dp),
+                        .blur(64.dp),
                 )
                 val veil = when (material) {
                     "frost" -> Color(0x380C0A08)
