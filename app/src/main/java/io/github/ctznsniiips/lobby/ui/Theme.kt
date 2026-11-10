@@ -78,6 +78,15 @@ val Wallpapers = listOf(
 /** The three Background modes, with display names. */
 val BackgroundModes = listOf("photo" to "Photo", "dark" to "Dark", "light" to "Light")
 
+/** The two Focus styles, with display names. */
+val FocusChoices = listOf("type" to "Type", "glass" to "Glass")
+
+/** The glass Materials, with display names. Only selectable over a Photo background. */
+val MaterialChoices = listOf("soft" to "Soft", "frost" to "Frost", "tint" to "Clear tint")
+
+/** Whether the glass Material affects anything: only over a Photo background. */
+fun materialApplies(bgMode: String): Boolean = bgMode == "photo"
+
 /** A background/text colour set. The theme swaps this for the chosen Background mode (dark, light, photo). */
 data class LobbyPalette(
     val background: Color,
@@ -128,6 +137,12 @@ fun paletteFor(bgMode: String): LobbyPalette = when (bgMode) {
  */
 object LobbyColors {
     var palette by mutableStateOf(DarkPalette)
+    /** The Focus style the theme sets from settings: "type" (solid fill) or "glass" (translucent plate). */
+    var focusStyle by mutableStateOf("type")
+    /** The glass Material the theme sets from settings: "soft", "frost" or "tint". */
+    var material by mutableStateOf("soft")
+    /** Whether the active Background is Photo (so a wallpaper sits behind the chrome). */
+    var photo by mutableStateOf(false)
     val accent = Color(0xFF6CB6FF)
     val error = Color(0xFFFF8A80)
     val background: Color get() = palette.background
@@ -137,11 +152,41 @@ object LobbyColors {
     val soft: Color get() = palette.soft
     val mute: Color get() = palette.mute
     val scrim: Color get() = palette.scrim
+
+    /**
+     * The translucent plate drawn behind a focused chrome element in Glass mode, matching Samsung's --plate:
+     * a bright white wash over a photo (or a cool dark wash for the tint material), and a faint neutral wash
+     * over the flat Dark/Light backgrounds.
+     */
+    val focusPlate: Color get() = when {
+        photo && material == "tint" -> Color(0x6B0E0C0A)
+        photo -> Color(0x4DFFFFFF)
+        palette.light -> Color(0x121D1A16)
+        else -> Color(0x1FF6F1E7)
+    }
+
+    /** The fill behind a focused chrome element: a solid ink block in Type mode, a translucent plate in Glass. */
+    val focusFill: Color get() = if (focusStyle == "glass") focusPlate else ink
+
+    /** The content colour on a focused chrome element: inverted on the solid Type fill, ink on the Glass plate. */
+    val focusContent: Color get() = if (focusStyle == "glass") ink else background
+
+    /** A faint neutral wash for the resting (unfocused) fill of chrome buttons, readable on any background. */
+    val chromeSubtle: Color get() = if (palette.light) Color(0x141D1A16) else Color(0x24F6F1E7)
 }
 
 @Composable
-fun LobbyTheme(font: String = "manrope", bgMode: String = "dark", content: @Composable () -> Unit) {
+fun LobbyTheme(
+    font: String = "manrope",
+    bgMode: String = "dark",
+    focusStyle: String = "type",
+    material: String = "soft",
+    content: @Composable () -> Unit,
+) {
     LobbyColors.palette = paletteFor(bgMode)
+    LobbyColors.focusStyle = focusStyle
+    LobbyColors.material = material
+    LobbyColors.photo = bgMode == "photo"
     val palette = LobbyColors.palette
     // Use a full light scheme in Light mode so every Material role (button fills, focus states, content colours)
     // is internally consistent and readable; dark/photo stay on the dark scheme.

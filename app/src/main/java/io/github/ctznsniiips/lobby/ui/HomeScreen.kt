@@ -180,7 +180,13 @@ fun HomeScreen(
         if (state.bgMode == "photo") {
             val wallpaper = remember(state.wallpaper) { Wallpapers.firstOrNull { it.id == state.wallpaper } ?: Wallpapers.first() }
             AsyncImage(model = wallpaper.fullUri, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-            Box(Modifier.fillMaxSize().background(Color(0x730B0D10)))
+            // Readability scrim, tuned by the Material: Frost adds a soft wash, Clear tint a cooler, deeper one.
+            val scrim = when (state.material) {
+                "frost" -> Color(0x660C0A08)
+                "tint" -> Color(0x80060A0E)
+                else -> Color(0x730B0D10)
+            }
+            Box(Modifier.fillMaxSize().background(scrim))
         }
 
         HeroBackdrop(heroItem, address)
@@ -420,10 +426,10 @@ private fun HeroButton(
         onClick = onClick,
         shape = ClickableSurfaceDefaults.shape(androidx.compose.foundation.shape.RoundedCornerShape(22.dp)),
         colors = ClickableSurfaceDefaults.colors(
-            containerColor = Color(0x24FFFFFF),
+            containerColor = LobbyColors.chromeSubtle,
             contentColor = LobbyColors.ink,
-            focusedContainerColor = Color(0xFFF4F2EE),
-            focusedContentColor = Color(0xFF0E1116),
+            focusedContainerColor = LobbyColors.focusFill,
+            focusedContentColor = LobbyColors.focusContent,
         ),
         modifier = Modifier
             .focusRequester(heroFocus)
@@ -544,7 +550,7 @@ private fun weatherIconRes(code: Int, day: Boolean): Int = when {
 private fun RailButton(icon: RailIcon, label: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val interaction = remember { MutableInteractionSource() }
     val focused by interaction.collectIsFocusedAsState()
-    val tint = if (focused) LobbyColors.background else LobbyColors.soft
+    val tint = if (focused) LobbyColors.focusContent else LobbyColors.soft
     Box {
         Surface(
             onClick = onClick,
@@ -552,7 +558,7 @@ private fun RailButton(icon: RailIcon, label: String, onClick: () -> Unit, modif
             shape = ClickableSurfaceDefaults.shape(androidx.compose.foundation.shape.CircleShape),
             colors = ClickableSurfaceDefaults.colors(
                 containerColor = Color.Transparent,
-                focusedContainerColor = LobbyColors.ink,
+                focusedContainerColor = LobbyColors.focusFill,
             ),
             modifier = modifier.size(34.dp).semantics { contentDescription = label },
         ) {
@@ -911,7 +917,9 @@ private fun AppDock(apps: List<DockApp>, onApp: (DockApp) -> Unit, firstFocus: F
                 shape = ClickableSurfaceDefaults.shape(androidx.compose.foundation.shape.RoundedCornerShape(16.dp)),
                 colors = ClickableSurfaceDefaults.colors(
                     containerColor = Color.Transparent,
-                    focusedContainerColor = Color(0x26FFFFFF),
+                    // The dock keeps a glass plate on focus in both Type and Glass modes (as in Samsung); over a
+                    // photo the Material tunes it, while on the flat Dark/Light bar a fixed wash stays readable.
+                    focusedContainerColor = if (LobbyColors.photo) LobbyColors.focusPlate else Color(0x26FFFFFF),
                 ),
                 modifier = Modifier.width(84.dp).then(if (i == 0) Modifier.focusRequester(firstFocus) else Modifier),
             ) {

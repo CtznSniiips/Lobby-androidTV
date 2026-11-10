@@ -48,6 +48,8 @@ class MainActivity : ComponentActivity() {
             setHomeFont = viewModel::setHomeFont,
             setBgMode = viewModel::setBgMode,
             setWallpaper = viewModel::setWallpaper,
+            setFocusStyle = viewModel::setFocusStyle,
+            setMaterial = viewModel::setMaterial,
             refreshRows = viewModel::refreshHome,
             disconnect = viewModel::disconnect,
             back = viewModel::closeSettings,
@@ -82,7 +84,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             val state by viewModel.state.collectAsStateWithLifecycle()
-            LobbyTheme(font = state.homeFont, bgMode = state.bgMode) {
+            LobbyTheme(font = state.homeFont, bgMode = state.bgMode, focusStyle = state.focusStyle, material = state.material) {
                 val paired = state.paired
                 Box(Modifier.fillMaxSize()) {
                 if (paired == null) {
@@ -117,6 +119,8 @@ class MainActivity : ComponentActivity() {
                         homeFont = state.homeFont,
                         bgMode = state.bgMode,
                         wallpaper = state.wallpaper,
+                        focusStyle = state.focusStyle,
+                        material = state.material,
                         message = state.message,
                         actions = settingsActions,
                         onMessageShown = viewModel::clearMessage,
