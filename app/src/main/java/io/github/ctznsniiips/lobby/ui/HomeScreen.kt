@@ -27,6 +27,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.foundation.layout.requiredSize
+import androidx.compose.foundation.layout.absoluteOffset
+import androidx.compose.ui.unit.IntSize
+import kotlin.math.roundToInt
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
@@ -175,10 +182,11 @@ fun HomeScreen(
     val heroArt = address.imageUrl(heroItem?.backdropUrl ?: heroItem?.landscapeUrl, width = 400)
     val accent = rememberAccentColor(heroArt)
 
-    Box(Modifier.fillMaxSize().background(LobbyColors.background)) {
+    var rootSize by remember { mutableStateOf(IntSize.Zero) }
+    val wallpaper = remember(state.wallpaper) { Wallpapers.firstOrNull { it.id == state.wallpaper } ?: Wallpapers.first() }
+    Box(Modifier.fillMaxSize().background(LobbyColors.background).onSizeChanged { rootSize = it }) {
         // Photo background mode: the chosen wallpaper fills the screen behind a readability scrim.
         if (state.bgMode == "photo") {
-            val wallpaper = remember(state.wallpaper) { Wallpapers.firstOrNull { it.id == state.wallpaper } ?: Wallpapers.first() }
             AsyncImage(model = wallpaper.fullUri, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
             // Readability scrim, tuned by the Material: Frost adds a soft wash, Clear tint a cooler, deeper one.
             val scrim = when (state.material) {
@@ -288,7 +296,7 @@ fun HomeScreen(
                     .align(Alignment.BottomCenter)
                     .padding(bottom = 8.dp)
                     .onFocusChanged { if (it.hasFocus) browsed = null },
-            ) { AppDock(state.apps, onApp, dockFocus) }
+            ) { AppDock(state.apps, onApp, dockFocus, glass = state.bgMode == "photo", wallpaperUri = wallpaper.fullUri, material = state.material, rootSize = rootSize) }
         }
 
         MessageToast(state.message, onMessageShown, Modifier.align(Alignment.BottomCenter))
@@ -901,15 +909,53 @@ private fun InputRow(inputs: List<TvInput>, onInput: (TvInput) -> Unit) {
 
 /** The app dock: a compact, centred rounded bar of launchable apps pinned at the bottom, like the Samsung app's. */
 @Composable
-private fun AppDock(apps: List<DockApp>, onApp: (DockApp) -> Unit, firstFocus: FocusRequester) {
+private fun AppDock(
+    apps: List<DockApp>,
+    onApp: (DockApp) -> Unit,
+    firstFocus: FocusRequester,
+    glass: Boolean,
+    wallpaperUri: String,
+    material: String,
+    rootSize: IntSize,
+) {
     val list = remember(apps) { apps.distinctBy { it.packageName } }
-    Row(
+    val shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp)
+    val density = LocalDensity.current
+    // Over a photo, the dock is a frosted window onto the wallpaper (Samsung's `.mat` layer): a blurred copy of the
+    // wallpaper, pixel-aligned to the background behind the dock and clipped to the bar, with a Material-tuned veil.
+    var panelPos by remember { mutableStateOf(Offset.Zero) }
+    Box(
         Modifier
-            .clip(androidx.compose.foundation.shape.RoundedCornerShape(24.dp))
-            .background(Color(0xD90F1319))
-            .padding(horizontal = 12.dp, vertical = 5.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
+            .clip(shape)
+            .then(if (glass) Modifier.onGloballyPositioned { panelPos = it.positionInRoot() } else Modifier),
     ) {
+        // Backdrop layer. matchParentSize keeps the oversized, blurred wallpaper copy from inflating the bar —
+        // only the tile Row below decides the dock's size.
+        Box(Modifier.matchParentSize().clip(shape)) {
+            if (glass && rootSize.width > 0) {
+                AsyncImage(
+                    model = wallpaperUri,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .requiredSize(with(density) { rootSize.width.toDp() }, with(density) { rootSize.height.toDp() })
+                        .absoluteOffset { IntOffset(-panelPos.x.roundToInt(), -panelPos.y.roundToInt()) }
+                        .blur(28.dp),
+                )
+                val veil = when (material) {
+                    "frost" -> Color(0x380C0A08)
+                    "tint" -> Color(0x5C0A1014)
+                    else -> Color(0x4D0B0D10)
+                }
+                Box(Modifier.matchParentSize().background(veil))
+            } else {
+                Box(Modifier.matchParentSize().background(Color(0xD90F1319)))
+            }
+        }
+        Row(
+            Modifier.padding(horizontal = 12.dp, vertical = 5.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
         list.forEachIndexed { i, app ->
             val bitmap = remember(app.packageName) { app.icon?.toBitmap(240, 135)?.asImageBitmap() }
             Surface(
@@ -949,6 +995,7 @@ private fun AppDock(apps: List<DockApp>, onApp: (DockApp) -> Unit, firstFocus: F
                     Text(app.label, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = LobbyColors.soft, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
+        }
         }
     }
 }
