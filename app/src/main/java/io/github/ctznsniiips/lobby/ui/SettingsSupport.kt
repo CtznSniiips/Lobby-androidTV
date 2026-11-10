@@ -61,6 +61,8 @@ class SettingsActions(
     val setHomeFont: (id: String) -> Unit,
     val setBgMode: (mode: String) -> Unit,
     val setWallpaper: (id: String) -> Unit,
+    val setFocusStyle: (id: String) -> Unit,
+    val setMaterial: (id: String) -> Unit,
     val refreshRows: () -> Unit,
     val disconnect: () -> Unit,
     val back: () -> Unit,

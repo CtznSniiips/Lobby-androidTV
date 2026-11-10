@@ -92,6 +92,9 @@ data class LobbyState(
     /** Background mode (dark, light, photo) and the chosen wallpaper for photo mode. */
     val bgMode: String = "dark",
     val wallpaper: String = "misty",
+    /** Focus style ("type" or "glass") and the glass Material ("soft", "frost", "tint"). */
+    val focusStyle: String = "type",
+    val material: String = "soft",
     /** Current weather shown next to the clock, when the plugin supplies a location. */
     val weather: WeatherNow? = null,
     /** One-line feedback after an action (play queued, requested, failed...). */
@@ -119,7 +122,7 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
     private val store = SessionStore(app)
     private val device = TvDevice(app)
 
-    private val _state = MutableStateFlow(LobbyState(lastAddress = store.lastOrigin().orEmpty(), screenSaverMinutes = store.screenSaverMinutes(), homePromptDismissed = store.homePromptDismissed(), hiddenApps = store.hiddenApps(), hiddenInputs = store.hiddenInputs(), homeFont = store.homeFont(), bgMode = store.bgMode(), wallpaper = store.wallpaper()))
+    private val _state = MutableStateFlow(LobbyState(lastAddress = store.lastOrigin().orEmpty(), screenSaverMinutes = store.screenSaverMinutes(), homePromptDismissed = store.homePromptDismissed(), hiddenApps = store.hiddenApps(), hiddenInputs = store.hiddenInputs(), homeFont = store.homeFont(), bgMode = store.bgMode(), wallpaper = store.wallpaper(), focusStyle = store.focusStyle(), material = store.material()))
     val state: StateFlow<LobbyState> = _state.asStateFlow()
 
     // Bumped on every remote key press; the idle watcher restarts its countdown when it changes.
@@ -281,6 +284,16 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
         store.setWallpaper(id)
         _state.update { it.copy(wallpaper = id, bgMode = "photo") }
         store.setBgMode("photo")
+    }
+
+    fun setFocusStyle(id: String) {
+        store.setFocusStyle(id)
+        _state.update { it.copy(focusStyle = id) }
+    }
+
+    fun setMaterial(id: String) {
+        store.setMaterial(id)
+        _state.update { it.copy(material = id) }
     }
 
     fun moveApp(packageName: String, delta: Int) {

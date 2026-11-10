@@ -47,6 +47,7 @@ import io.github.ctznsniiips.lobby.device.TvInput
 /** The settings sub-menus, matching the Samsung app's top-level groups (minus its Frame-specific appearance ones). */
 private enum class SettingsCategory(val title: String) {
     Background("Background"),
+    Focus("Focus"),
     Typography("Typography"),
     Saver("Screen saver"),
     Apps("Apps on Home"),
@@ -74,6 +75,8 @@ fun SettingsScreen(
     homeFont: String,
     bgMode: String,
     wallpaper: String,
+    focusStyle: String,
+    material: String,
     message: String?,
     actions: SettingsActions,
     onMessageShown: () -> Unit,
@@ -86,8 +89,8 @@ fun SettingsScreen(
     Box(Modifier.fillMaxSize().background(LobbyColors.background)) {
         when {
             settings.teamsOpen -> TeamsPicker(settings, actions)
-            category == null -> CategoryList(settings, apps, inputs, hiddenApps, homeFont, bgMode, actions) { category = it }
-            else -> CategoryDetail(category!!, settings, screenSaverMinutes, isDefaultHome, apps, inputs, hiddenApps, hiddenInputs, tvName, host, homeFont, bgMode, wallpaper, actions) { category = null }
+            category == null -> CategoryList(settings, apps, inputs, hiddenApps, homeFont, bgMode, focusStyle, material, actions) { category = it }
+            else -> CategoryDetail(category!!, settings, screenSaverMinutes, isDefaultHome, apps, inputs, hiddenApps, hiddenInputs, tvName, host, homeFont, bgMode, wallpaper, focusStyle, material, actions) { category = null }
         }
         MessageToast(message, onMessageShown, Modifier.align(Alignment.BottomCenter))
     }
@@ -101,6 +104,8 @@ private fun CategoryList(
     hiddenApps: Set<String>,
     homeFont: String,
     bgMode: String,
+    focusStyle: String,
+    material: String,
     actions: SettingsActions,
     onOpen: (SettingsCategory) -> Unit,
 ) {
@@ -132,6 +137,10 @@ private fun CategoryList(
         items(shown, key = { it.name }) { cat ->
             val summary = when (cat) {
                 SettingsCategory.Background -> BackgroundModes.firstOrNull { it.first == bgMode }?.second ?: "Dark"
+                SettingsCategory.Focus -> {
+                    val style = FocusChoices.firstOrNull { it.first == focusStyle }?.second ?: "Type"
+                    if (materialApplies(bgMode)) "$style · ${MaterialChoices.firstOrNull { it.first == material }?.second ?: "Soft"}" else style
+                }
                 SettingsCategory.Typography -> FontChoices.firstOrNull { it.first == homeFont }?.second ?: "Manrope"
                 SettingsCategory.Saver -> "Screen saver and when it starts"
                 SettingsCategory.Apps -> "${apps.count { it.packageName !in hiddenApps }} of ${apps.size} apps shown"
@@ -177,6 +186,8 @@ private fun CategoryDetail(
     homeFont: String,
     bgMode: String,
     wallpaper: String,
+    focusStyle: String,
+    material: String,
     actions: SettingsActions,
     onBack: () -> Unit,
 ) {
@@ -192,6 +203,7 @@ private fun CategoryDetail(
                 val hint = when (category) {
                     SettingsCategory.Apps -> "Which apps appear in the dock at the bottom of Home, and in what order."
                     SettingsCategory.Inputs -> "Which TV inputs appear on Home."
+                    SettingsCategory.Focus -> "How the highlight looks when you move around Home. Material tunes the glass over a photo background."
                     else -> null
                 }
                 if (hint != null) Text(hint, fontSize = 15.sp, color = LobbyColors.soft)
@@ -235,6 +247,40 @@ private fun CategoryDetail(
                             }
                             repeat(3 - row.size) { Box(Modifier.weight(1f)) }
                         }
+                    }
+                }
+            }
+            SettingsCategory.Focus -> {
+                item { SectionHeader("Focus style") }
+                item {
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        FocusChoices.forEach { (id, name) ->
+                            Button(onClick = { actions.setFocusStyle(id) }) {
+                                Text(name)
+                                if (id == focusStyle) Text("  •", color = LobbyColors.accent)
+                            }
+                        }
+                    }
+                }
+                item { SectionHeader("Material") }
+                if (materialApplies(bgMode)) {
+                    item {
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            MaterialChoices.forEach { (id, name) ->
+                                Button(onClick = { actions.setMaterial(id) }) {
+                                    Text(name)
+                                    if (id == material) Text("  •", color = LobbyColors.accent)
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    item {
+                        Text(
+                            "Material only applies over a Photo background. Choose Photo under Background to use it.",
+                            fontSize = 14.sp,
+                            color = LobbyColors.mute,
+                        )
                     }
                 }
             }

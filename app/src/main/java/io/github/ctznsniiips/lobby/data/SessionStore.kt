@@ -71,6 +71,20 @@ class SessionStore(context: Context) {
         prefs.edit().putString(KEY_WALLPAPER, id).apply()
     }
 
+    /** The Focus style: "type" (solid fill) or "glass" (translucent plate). */
+    fun focusStyle(): String = prefs.getString(KEY_FOCUS_STYLE, "type") ?: "type"
+
+    fun setFocusStyle(id: String) {
+        prefs.edit().putString(KEY_FOCUS_STYLE, id).apply()
+    }
+
+    /** The glass Material (only meaningful over a photo background): "soft", "frost" or "tint". */
+    fun material(): String = prefs.getString(KEY_MATERIAL, "soft") ?: "soft"
+
+    fun setMaterial(id: String) {
+        prefs.edit().putString(KEY_MATERIAL, id).apply()
+    }
+
     /** The user's preferred order of dock apps, by package name. Apps not listed keep their detected order after these. */
     fun appOrder(): List<String> = prefs.getString(KEY_APP_ORDER, null)?.split('\n')?.filter { it.isNotBlank() } ?: emptyList()
 
@@ -104,5 +118,7 @@ class SessionStore(context: Context) {
         const val KEY_HOME_FONT = "homeFont"
         const val KEY_BG_MODE = "bgMode"
         const val KEY_WALLPAPER = "wallpaper"
+        const val KEY_FOCUS_STYLE = "focusStyle"
+        const val KEY_MATERIAL = "material"
     }
 }
