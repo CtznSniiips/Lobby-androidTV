@@ -30,6 +30,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.absoluteOffset
 import androidx.compose.ui.unit.IntSize
