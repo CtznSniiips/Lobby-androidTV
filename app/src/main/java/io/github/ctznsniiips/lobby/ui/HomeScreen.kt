@@ -83,6 +83,9 @@ import coil.compose.AsyncImage
 import coil.imageLoader
 import coil.request.ImageRequest
 import coil.request.SuccessResult
+import coil.size.Size as CoilSize
+import coil.transform.Transformation
+import android.graphics.Bitmap
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import androidx.compose.animation.Crossfade
@@ -908,6 +911,23 @@ private fun InputRow(inputs: List<TvInput>, onInput: (TvInput) -> Unit) {
     }
 }
 
+/**
+ * Blurs a bitmap in software by shrinking it and scaling it back up with bilinear filtering. Baking the blur into
+ * the pixels (rather than Modifier.blur, which only works on API 31+) makes the frosted dock blur on every Android
+ * version, including older TV boxes.
+ */
+private class DownscaleBlur(private val factor: Int = 20) : Transformation {
+    override val cacheKey: String = "DownscaleBlur($factor)"
+    override suspend fun transform(input: Bitmap, size: CoilSize): Bitmap {
+        val w = (input.width / factor).coerceAtLeast(2)
+        val h = (input.height / factor).coerceAtLeast(2)
+        val small = Bitmap.createScaledBitmap(input, w, h, true)
+        val blurred = Bitmap.createScaledBitmap(small, input.width.coerceAtLeast(2), input.height.coerceAtLeast(2), true)
+        if (small != blurred) small.recycle()
+        return blurred
+    }
+}
+
 /** The app dock: a compact, centred rounded bar of launchable apps pinned at the bottom, like the Samsung app's. */
 @Composable
 private fun AppDock(
@@ -921,33 +941,23 @@ private fun AppDock(
 ) {
     val list = remember(apps) { apps.distinctBy { it.packageName } }
     val shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp)
-    val density = LocalDensity.current
     val context = LocalContext.current
     // A heavily downscaled decode of the wallpaper: scaled back up it reads as a soft blur on EVERY Android
     // version (Modifier.blur only blurs on API 31+), which is what makes the dock look like frosted glass.
+    // A software-blurred copy of the wallpaper, baked into the bitmap so it blurs on every Android version.
     val blurModel = remember(wallpaperUri) {
-        ImageRequest.Builder(context).data(wallpaperUri).size(64).allowHardware(false).build()
+        ImageRequest.Builder(context).data(wallpaperUri).transformations(DownscaleBlur(22)).allowHardware(false).build()
     }
-    // Over a photo, the dock is a frosted window onto the wallpaper (Samsung's `.mat` layer): a blurred copy of the
-    // wallpaper, pixel-aligned to the background behind the dock and clipped to the bar, with a Material-tuned veil.
-    var panelPos by remember { mutableStateOf(Offset.Zero) }
-    Box(
-        Modifier
-            .clip(shape)
-            .then(if (glass) Modifier.onGloballyPositioned { panelPos = it.positionInWindow() } else Modifier),
-    ) {
-        // Backdrop layer. matchParentSize keeps the oversized, blurred wallpaper copy from inflating the bar —
-        // only the tile Row below decides the dock's size.
+    Box(Modifier.clip(shape)) {
+        // Backdrop layer. matchParentSize keeps the blurred wallpaper from inflating the bar — only the tile Row
+        // below decides the dock's size. The blurred fill reads as frosted glass over the photo.
         Box(Modifier.matchParentSize().clip(shape)) {
-            if (glass && rootSize.width > 0) {
+            if (glass) {
                 AsyncImage(
                     model = blurModel,
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        .requiredSize(with(density) { rootSize.width.toDp() }, with(density) { rootSize.height.toDp() })
-                        .absoluteOffset { IntOffset(-panelPos.x.roundToInt(), -panelPos.y.roundToInt()) }
-                        .blur(18.dp),
+                    modifier = Modifier.matchParentSize(),
                 )
                 // Material-matched veil. Soft (Samsung's registered material) hides the dark veil entirely, so it
                 // reads as a *bright* frosted panel; Frost adds a light wash; Clear tint a cooler, deeper one. We
