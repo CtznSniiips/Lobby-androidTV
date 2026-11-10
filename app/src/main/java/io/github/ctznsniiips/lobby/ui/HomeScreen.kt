@@ -27,12 +27,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.positionInWindow
-import androidx.compose.foundation.layout.requiredSize
-import androidx.compose.foundation.layout.absoluteOffset
 import androidx.compose.ui.unit.IntSize
 import kotlin.math.roundToInt
 import androidx.compose.ui.focus.FocusRequester
@@ -86,6 +83,7 @@ import coil.request.SuccessResult
 import coil.size.Size as CoilSize
 import coil.transform.Transformation
 import android.graphics.Bitmap
+import androidx.compose.ui.graphics.ImageBitmap
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import androidx.compose.animation.Crossfade
@@ -723,6 +721,20 @@ private fun rememberAccentColor(url: String?): Color {
     return color
 }
 
+/** Loads a small, software-blurred copy of the wallpaper as an ImageBitmap, for drawing an aligned slice behind the dock. */
+@Composable
+private fun rememberBlurredWallpaper(uri: String): ImageBitmap? {
+    val context = LocalContext.current
+    var bmp by remember(uri) { mutableStateOf<ImageBitmap?>(null) }
+    LaunchedEffect(uri) {
+        val request = ImageRequest.Builder(context).data(uri).allowHardware(false)
+            .size(360).transformations(DownscaleBlur(10)).build()
+        val drawable = (context.imageLoader.execute(request) as? SuccessResult)?.drawable
+        bmp = (drawable as? BitmapDrawable)?.bitmap?.asImageBitmap()
+    }
+    return bmp
+}
+
 @Composable
 internal fun MediaRow(row: HomeRow, address: ServerAddress, onItem: (HomeItem) -> Unit, onFocused: (HomeItem?) -> Unit = {}) {
     val poster = row.layout == "poster"
@@ -944,21 +956,63 @@ private fun AppDock(
     val context = LocalContext.current
     // A heavily downscaled decode of the wallpaper: scaled back up it reads as a soft blur on EVERY Android
     // version (Modifier.blur only blurs on API 31+), which is what makes the dock look like frosted glass.
-    // A software-blurred copy of the wallpaper, baked into the bitmap so it blurs on every Android version.
+    // A fallback blurred fill (used until the aligned slice is ready), baked into the bitmap so it blurs everywhere.
     val blurModel = remember(wallpaperUri) {
         ImageRequest.Builder(context).data(wallpaperUri).transformations(DownscaleBlur(22)).allowHardware(false).build()
     }
-    Box(Modifier.clip(shape)) {
-        // Backdrop layer. matchParentSize keeps the blurred wallpaper from inflating the bar — only the tile Row
-        // below decides the dock's size. The blurred fill reads as frosted glass over the photo.
+    // The small blurred wallpaper copy whose aligned slice is drawn behind the dock for the true "window" look.
+    val blurredBmp = if (glass) rememberBlurredWallpaper(wallpaperUri) else null
+    var panelPos by remember { mutableStateOf(Offset.Zero) }
+    Box(
+        Modifier
+            .clip(shape)
+            .then(if (glass) Modifier.onGloballyPositioned { panelPos = it.positionInWindow() } else Modifier),
+    ) {
+        // Backdrop layer. matchParentSize keeps it from inflating the bar — only the tile Row below sizes the dock.
         Box(Modifier.matchParentSize().clip(shape)) {
             if (glass) {
-                AsyncImage(
-                    model = blurModel,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.matchParentSize(),
-                )
+                if (blurredBmp != null && rootSize.width > 0) {
+                    // Draw the exact slice of the (blurred) wallpaper that sits behind the dock, replicating the
+                    // background's ContentScale.Crop, so the frosted panel is a true window onto the wallpaper.
+                    Canvas(Modifier.matchParentSize()) {
+                        val cw = size.width
+                        val ch = size.height
+                        val sw = rootSize.width.toFloat()
+                        val sh = rootSize.height.toFloat()
+                        val iw = blurredBmp.width.toFloat()
+                        val ih = blurredBmp.height.toFloat()
+                        val imageAspect = iw / ih
+                        val screenAspect = sw / sh
+                        var visW = 1f
+                        var visH = 1f
+                        var left = 0f
+                        var top = 0f
+                        if (screenAspect >= imageAspect) { visH = imageAspect / screenAspect; top = (1f - visH) / 2f }
+                        else { visW = screenAspect / imageAspect; left = (1f - visW) / 2f }
+                        val fx = (panelPos.x / sw).coerceIn(0f, 1f)
+                        val fy = (panelPos.y / sh).coerceIn(0f, 1f)
+                        val fw = (cw / sw).coerceIn(0f, 1f)
+                        val fh = (ch / sh).coerceIn(0f, 1f)
+                        val srcL = (left + fx * visW) * iw
+                        val srcT = (top + fy * visH) * ih
+                        val srcW = (fw * visW * iw).coerceAtLeast(1f)
+                        val srcH = (fh * visH * ih).coerceAtLeast(1f)
+                        drawImage(
+                            image = blurredBmp,
+                            srcOffset = IntOffset(srcL.roundToInt(), srcT.roundToInt()),
+                            srcSize = IntSize(srcW.roundToInt(), srcH.roundToInt()),
+                            dstOffset = IntOffset.Zero,
+                            dstSize = IntSize(cw.roundToInt(), ch.roundToInt()),
+                        )
+                    }
+                } else {
+                    AsyncImage(
+                        model = blurModel,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.matchParentSize(),
+                    )
+                }
                 // Material-matched veil. Soft (Samsung's registered material) hides the dark veil entirely, so it
                 // reads as a *bright* frosted panel; Frost adds a light wash; Clear tint a cooler, deeper one. We
                 // keep a faint floor on Soft so light labels stay legible on bright wallpapers.
@@ -968,8 +1022,6 @@ private fun AppDock(
                     else -> Color(0x1A0B0D10)
                 }
                 Box(Modifier.matchParentSize().background(veil))
-                // A light sheen down from the top edge sells the frosted glass (Samsung's .mat::after inset highlight).
-                Box(Modifier.matchParentSize().background(Brush.verticalGradient(0f to Color(0x59FFFFFF), 0.18f to Color.Transparent)))
             } else {
                 Box(Modifier.matchParentSize().background(Color(0xD90F1319)))
             }
