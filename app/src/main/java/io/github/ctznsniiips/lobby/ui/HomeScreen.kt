@@ -922,6 +922,12 @@ private fun AppDock(
     val list = remember(apps) { apps.distinctBy { it.packageName } }
     val shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp)
     val density = LocalDensity.current
+    val context = LocalContext.current
+    // A heavily downscaled decode of the wallpaper: scaled back up it reads as a soft blur on EVERY Android
+    // version (Modifier.blur only blurs on API 31+), which is what makes the dock look like frosted glass.
+    val blurModel = remember(wallpaperUri) {
+        ImageRequest.Builder(context).data(wallpaperUri).size(120).allowHardware(false).build()
+    }
     // Over a photo, the dock is a frosted window onto the wallpaper (Samsung's `.mat` layer): a blurred copy of the
     // wallpaper, pixel-aligned to the background behind the dock and clipped to the bar, with a Material-tuned veil.
     var panelPos by remember { mutableStateOf(Offset.Zero) }
@@ -935,13 +941,13 @@ private fun AppDock(
         Box(Modifier.matchParentSize().clip(shape)) {
             if (glass && rootSize.width > 0) {
                 AsyncImage(
-                    model = wallpaperUri,
+                    model = blurModel,
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier
                         .requiredSize(with(density) { rootSize.width.toDp() }, with(density) { rootSize.height.toDp() })
                         .absoluteOffset { IntOffset(-panelPos.x.roundToInt(), -panelPos.y.roundToInt()) }
-                        .blur(64.dp),
+                        .blur(18.dp),
                 )
                 val veil = when (material) {
                     "frost" -> Color(0x380C0A08)
@@ -949,6 +955,8 @@ private fun AppDock(
                     else -> Color(0x4D0B0D10)
                 }
                 Box(Modifier.matchParentSize().background(veil))
+                // A faint light sheen along the top edge sells the glass (Samsung's .mat::after inset highlight).
+                Box(Modifier.matchParentSize().background(Brush.verticalGradient(0f to Color(0x40FFFFFF), 0.08f to Color.Transparent)))
             } else {
                 Box(Modifier.matchParentSize().background(Color(0xD90F1319)))
             }
