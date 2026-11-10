@@ -51,6 +51,10 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.input.key.Key
@@ -291,24 +295,25 @@ private fun HeroBackdrop(item: HomeItem?, address: ServerAddress) {
     // The image lives in the upper-right of the screen and dissolves into the page toward the left and the bottom,
     // the way the Samsung app frames it — the rows and hero text sit over flat background, not over the picture.
     Box(Modifier.fillMaxSize()) {
-        Box(Modifier.fillMaxWidth(0.68f).fillMaxHeight(0.66f).align(Alignment.TopEnd)) {
+        Box(
+            Modifier
+                .fillMaxWidth(0.68f)
+                .fillMaxHeight(0.66f)
+                .align(Alignment.TopEnd)
+                // Fade the image's own alpha at the left and bottom edges, so it melts into whatever is behind it
+                // (the page colour or a wallpaper) with no hard seam — works the same in dark, light and photo modes.
+                .graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)
+                .drawWithContent {
+                    drawContent()
+                    drawRect(Brush.horizontalGradient(0f to Color.Transparent, 0.45f to Color.White), blendMode = BlendMode.DstIn)
+                    drawRect(Brush.verticalGradient(0.55f to Color.White, 1f to Color.Transparent), blendMode = BlendMode.DstIn)
+                },
+        ) {
             Crossfade(targetState = art, animationSpec = tween(600), label = "backdrop") { url ->
                 if (url != null) {
                     AsyncImage(model = url, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
                 }
             }
-            // Fade the image out to the left so it blends into the dark text area.
-            Box(
-                Modifier.fillMaxSize().background(
-                    Brush.horizontalGradient(0f to LobbyColors.background, 0.42f to LobbyColors.background.copy(alpha = 0.55f), 1f to Color.Transparent),
-                ),
-            )
-            // And fade it down into the rows below.
-            Box(
-                Modifier.fillMaxSize().background(
-                    Brush.verticalGradient(0f to Color.Transparent, 0.55f to LobbyColors.background.copy(alpha = 0.6f), 1f to LobbyColors.background),
-                ),
-            )
         }
     }
 }

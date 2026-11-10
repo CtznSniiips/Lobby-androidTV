@@ -16,6 +16,7 @@ import androidx.tv.material3.LocalContentColor
 import androidx.tv.material3.LocalTextStyle
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.darkColorScheme
+import androidx.tv.material3.lightColorScheme
 import io.github.ctznsniiips.lobby.R
 
 /** The three selectable type families (the Samsung app's names), bundled as static weights in res/font. */
@@ -141,16 +142,31 @@ object LobbyColors {
 @Composable
 fun LobbyTheme(font: String = "manrope", bgMode: String = "dark", content: @Composable () -> Unit) {
     LobbyColors.palette = paletteFor(bgMode)
-    MaterialTheme(
-        colorScheme = darkColorScheme(
-            background = LobbyColors.background,
-            surface = LobbyColors.surface,
-            onSurface = LobbyColors.ink,
-            surfaceVariant = LobbyColors.card,
-            onSurfaceVariant = LobbyColors.soft,
+    val palette = LobbyColors.palette
+    // Use a full light scheme in Light mode so every Material role (button fills, focus states, content colours)
+    // is internally consistent and readable; dark/photo stay on the dark scheme.
+    val scheme = if (palette.light) {
+        lightColorScheme(
+            background = palette.background,
+            surface = palette.surface,
+            surfaceVariant = palette.card,
+            onBackground = palette.ink,
+            onSurface = palette.ink,
+            onSurfaceVariant = palette.soft,
             primary = LobbyColors.accent,
-        ),
-    ) {
+        )
+    } else {
+        darkColorScheme(
+            background = palette.background,
+            surface = palette.surface,
+            surfaceVariant = palette.card,
+            onBackground = palette.ink,
+            onSurface = palette.ink,
+            onSurfaceVariant = palette.soft,
+            primary = LobbyColors.accent,
+        )
+    }
+    MaterialTheme(colorScheme = scheme) {
         // Default every Text to the chosen family and to light ink via LocalContentColor — not via the text style's
         // own colour, which would override the dark-on-light content colour a focused Button/Surface sets for itself.
         CompositionLocalProvider(
