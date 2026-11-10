@@ -927,7 +927,7 @@ private fun AppDock(
     Box(
         Modifier
             .clip(shape)
-            .then(if (glass) Modifier.onGloballyPositioned { panelPos = it.positionInRoot() } else Modifier),
+            .then(if (glass) Modifier.onGloballyPositioned { panelPos = it.positionInWindow() } else Modifier),
     ) {
         // Backdrop layer. matchParentSize keeps the oversized, blurred wallpaper copy from inflating the bar —
         // only the tile Row below decides the dock's size.
