@@ -89,6 +89,8 @@ import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.BlurredEdgeTreatment
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.ui.text.TextStyle
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -575,19 +577,14 @@ private fun RailButton(icon: RailIcon, label: String, onClick: () -> Unit, modif
             shape = ClickableSurfaceDefaults.shape(androidx.compose.foundation.shape.CircleShape),
             colors = ClickableSurfaceDefaults.colors(
                 containerColor = Color.Transparent,
-                focusedContainerColor = LobbyColors.focusFill,
+                // In Glass mode the plate is the custom 3D selector below; in Type mode it's the solid fill.
+                focusedContainerColor = if (glassFocus) Color.Transparent else LobbyColors.focusFill,
             ),
-            // In Glass mode the free icons get the same frosted-glass selector as the dock: a soft light rim.
-            border = ClickableSurfaceDefaults.border(
-                focusedBorder = if (glassFocus) {
-                    Border(BorderStroke(1.dp, Color(0x5AFFFFFF)), shape = androidx.compose.foundation.shape.CircleShape)
-                } else {
-                    Border.None
-                },
-            ),
+            scale = ClickableSurfaceDefaults.scale(focusedScale = 1.08f),
             modifier = modifier.size(34.dp).semantics { contentDescription = label },
         ) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                if (focused && glassFocus) GlassSelector(androidx.compose.foundation.shape.CircleShape)
                 Canvas(Modifier.size(15.dp)) { drawRailIcon(icon, tint) }
             }
         }
@@ -956,6 +953,22 @@ private class DownscaleBlur(private val factor: Int = 20) : Transformation {
     }
 }
 
+/**
+ * A raised frosted-glass focus selector. A soft drop shadow lifts it off the surface, a top-lit gradient fill gives
+ * it a convex 3D feel, and a gradient rim (brighter at the top, fading down) softens the edge. Shared by the dock
+ * apps and, in Glass mode, the free rail icons.
+ */
+@Composable
+private fun BoxScope.GlassSelector(shape: Shape) {
+    Box(
+        Modifier.matchParentSize()
+            .shadow(6.dp, shape, clip = false)
+            .clip(shape)
+            .background(Brush.verticalGradient(listOf(Color(0x66FFFFFF), Color(0x2EFFFFFF))))
+            .border(1.dp, Brush.verticalGradient(listOf(Color(0x85FFFFFF), Color(0x1AFFFFFF))), shape),
+    )
+}
+
 /** The app dock: a compact, centred rounded bar of launchable apps pinned at the bottom, like the Samsung app's. */
 @Composable
 private fun AppDock(
@@ -978,7 +991,7 @@ private fun AppDock(
     }
     // How frosted each Material is, as a clean Gaussian radius: Clear tint stays sharp, Soft a gentle frost, Frost heavy.
     val blurRadius: Dp = when (material) {
-        "tint" -> 4.dp
+        "tint" -> 0.dp
         "frost" -> 42.dp
         else -> 24.dp
     }
@@ -1000,7 +1013,11 @@ private fun AppDock(
                 if (blurredBmp != null && rootSize.width > 0) {
                     // Draw the exact slice of the wallpaper that sits behind the dock, replicating the background's
                     // ContentScale.Crop, then apply a clean Gaussian blur — a true window onto the frosted wallpaper.
-                    Canvas(Modifier.matchParentSize().blur(blurRadius, BlurredEdgeTreatment.Unbounded)) {
+                    // Clear tint uses a 0dp radius (no blur): the wallpaper shows through sharp.
+                    Canvas(
+                        Modifier.matchParentSize()
+                            .then(if (blurRadius > 0.dp) Modifier.blur(blurRadius, BlurredEdgeTreatment.Unbounded) else Modifier),
+                    ) {
                         val cw = size.width
                         val ch = size.height
                         val sw = rootSize.width.toFloat()
@@ -1057,20 +1074,23 @@ private fun AppDock(
         ) {
         list.forEachIndexed { i, app ->
             val bitmap = remember(app.packageName) { app.icon?.toBitmap(240, 135)?.asImageBitmap() }
+            val tileInteraction = remember { MutableInteractionSource() }
+            val tileFocused by tileInteraction.collectIsFocusedAsState()
+            val tileShape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp)
             Surface(
                 onClick = { onApp(app) },
-                shape = ClickableSurfaceDefaults.shape(androidx.compose.foundation.shape.RoundedCornerShape(16.dp)),
+                interactionSource = tileInteraction,
+                shape = ClickableSurfaceDefaults.shape(tileShape),
                 colors = ClickableSurfaceDefaults.colors(
+                    // The focused plate is drawn as a custom 3D glass selector below, so the surface stays clear.
                     containerColor = Color.Transparent,
-                    // The focused app sits on a brighter frosted-glass plate with a soft rim (as in the reference
-                    // selector); over a photo the Material tunes it, while on the flat Dark/Light bar a wash stays.
-                    focusedContainerColor = if (LobbyColors.photo) Color(0x5CFFFFFF) else Color(0x33FFFFFF),
+                    focusedContainerColor = Color.Transparent,
                 ),
-                border = ClickableSurfaceDefaults.border(
-                    focusedBorder = Border(BorderStroke(1.dp, Color(0x5AFFFFFF)), shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp)),
-                ),
+                scale = ClickableSurfaceDefaults.scale(focusedScale = 1.06f),
                 modifier = Modifier.width(88.dp).then(if (i == 0) Modifier.focusRequester(firstFocus) else Modifier),
             ) {
+                Box(Modifier.fillMaxSize()) {
+                    if (tileFocused) GlassSelector(tileShape)
                 Column(
                     Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 8.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -1103,6 +1123,7 @@ private fun AppDock(
                         overflow = TextOverflow.Ellipsis,
                         style = TextStyle(shadow = Shadow(Color(0x99000000), blurRadius = 8f)),
                     )
+                }
                 }
             }
         }
