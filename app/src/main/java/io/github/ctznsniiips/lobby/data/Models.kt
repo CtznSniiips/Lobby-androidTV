@@ -220,6 +220,8 @@ data class TvSettingsResponse(
     @SerialName("PlayDelayMs") val playDelayMs: Int = 0,
     @SerialName("PlayTimeoutSeconds") val playTimeoutSeconds: Int = 45,
     @SerialName("SportsTeams") val sportsTeams: List<String> = emptyList(),
+    /** When true, Continue Watching and Next Up are shown as a single "Continue Watching" row. Default: separate. */
+    @SerialName("CombineContinueNextUp") val combineContinueNextUp: Boolean = false,
     /** False while the TV is still on the server defaults. */
     @SerialName("Customized") val customized: Boolean = false,
     @SerialName("Ranges") val ranges: Map<String, SettingRange> = emptyMap(),
@@ -235,6 +237,7 @@ data class SaveTvSettingsBody(
     @SerialName("PlayDelayMs") val playDelayMs: Int? = null,
     @SerialName("PlayTimeoutSeconds") val playTimeoutSeconds: Int? = null,
     @SerialName("SportsTeams") val sportsTeams: List<String>? = null,
+    @SerialName("CombineContinueNextUp") val combineContinueNextUp: Boolean? = null,
 )
 
 @Serializable

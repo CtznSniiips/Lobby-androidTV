@@ -95,6 +95,8 @@ data class LobbyState(
     /** Focus style ("type" or "glass") and the glass Material ("soft", "frost", "tint"). */
     val focusStyle: String = "type",
     val material: String = "soft",
+    /** When true, Home merges Continue Watching and Next Up into one row (a server TV setting, cached locally). */
+    val combineContinueNextUp: Boolean = false,
     /** Current weather shown next to the clock, when the plugin supplies a location. */
     val weather: WeatherNow? = null,
     /** One-line feedback after an action (play queued, requested, failed...). */
@@ -122,7 +124,7 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
     private val store = SessionStore(app)
     private val device = TvDevice(app)
 
-    private val _state = MutableStateFlow(LobbyState(lastAddress = store.lastOrigin().orEmpty(), screenSaverMinutes = store.screenSaverMinutes(), homePromptDismissed = store.homePromptDismissed(), hiddenApps = store.hiddenApps(), hiddenInputs = store.hiddenInputs(), homeFont = store.homeFont(), bgMode = store.bgMode(), wallpaper = store.wallpaper(), focusStyle = store.focusStyle(), material = store.material()))
+    private val _state = MutableStateFlow(LobbyState(lastAddress = store.lastOrigin().orEmpty(), screenSaverMinutes = store.screenSaverMinutes(), homePromptDismissed = store.homePromptDismissed(), hiddenApps = store.hiddenApps(), hiddenInputs = store.hiddenInputs(), homeFont = store.homeFont(), bgMode = store.bgMode(), wallpaper = store.wallpaper(), focusStyle = store.focusStyle(), material = store.material(), combineContinueNextUp = store.combineContinueNextUp()))
     val state: StateFlow<LobbyState> = _state.asStateFlow()
 
     // Bumped on every remote key press; the idle watcher restarts its countdown when it changes.
@@ -452,7 +454,12 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
         _state.update { it.copy(settings = SettingsState()) }
         viewModelScope.launch {
             runCatching { client.settings() }
-                .onSuccess { data -> updateSettings { it.copy(loading = false, data = data) } }
+                .onSuccess { data ->
+                    updateSettings { it.copy(loading = false, data = data) }
+                    // Cache the server's combine setting so Home applies it without reopening settings.
+                    store.setCombineContinueNextUp(data.combineContinueNextUp)
+                    _state.update { it.copy(combineContinueNextUp = data.combineContinueNextUp) }
+                }
                 .onFailure { e ->
                     if (e is CancellationException) throw e
                     updateSettings { it.copy(loading = false, error = describe(e, "Couldn't load settings.")) }
@@ -475,6 +482,13 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
             // Row order, visibility and limits change what Home shows.
             if (settingsChanged) refreshHome()
         }
+    }
+
+    /** Combine or separate the Continue Watching and Next Up rows (a server TV setting, cached for Home). */
+    fun setCombineContinueNextUp(value: Boolean) {
+        editSettings("combineContinue") { d -> d.copy(combineContinueNextUp = value) }
+        store.setCombineContinueNextUp(value)
+        _state.update { it.copy(combineContinueNextUp = value) }
     }
 
     fun toggleRow(id: String) = editSettings("rows") { d ->
@@ -563,6 +577,7 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
                 playDelayMs = if ("delay" in fields) data.playDelayMs else null,
                 playTimeoutSeconds = if ("timeout" in fields) data.playTimeoutSeconds else null,
                 sportsTeams = if ("teams" in fields) data.sportsTeams else null,
+                combineContinueNextUp = if ("combineContinue" in fields) data.combineContinueNextUp else null,
             )
             runCatching { client.saveSettings(body) }
                 .onSuccess { saved ->

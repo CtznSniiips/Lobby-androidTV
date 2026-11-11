@@ -342,6 +342,18 @@ private fun CategoryDetail(
                         val index = data.rows.indexOfFirst { it.id == row.id }
                         RowSettingLine(row, canMoveUp = index > 0, canMoveDown = index < data.rows.lastIndex, actions)
                     }
+                    item { SectionHeader("Continue Watching") }
+                    item {
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Column(Modifier.weight(1f)) {
+                                Text("Combine with Next Up", fontSize = 18.sp, color = LobbyColors.ink)
+                                Text("Show Continue Watching and Next Up as a single Continue Watching row.", fontSize = 13.sp, color = LobbyColors.soft, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            }
+                            Button(onClick = { actions.setCombineContinueNextUp(!data.combineContinueNextUp) }, modifier = Modifier.width(140.dp)) {
+                                Text(if (data.combineContinueNextUp) "Combined" else "Separate", textAlign = TextAlign.Center)
+                            }
+                        }
+                    }
                     item { SectionHeader("Rows") }
                     item { NumberLine(NumberSetting.RowLimit, data, actions) }
                     item {
