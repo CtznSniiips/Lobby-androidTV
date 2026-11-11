@@ -229,7 +229,8 @@ fun HomeScreen(
 
         // Content fills the width; the rail is an overlay, so the rows reach almost to the left edge while the
         // hero text and greeting are inset enough to clear it.
-        Column(Modifier.fillMaxSize().padding(end = 40.dp, top = 20.dp)) {
+        // Reserve the dock's band at the bottom so the rows end above it instead of rendering under it (as in Samsung).
+        Column(Modifier.fillMaxSize().padding(end = 40.dp, top = 20.dp, bottom = if (hasDock) 104.dp else 0.dp)) {
             Row(
                 Modifier.fillMaxWidth().padding(start = HERO_INSET),
                 verticalAlignment = Alignment.CenterVertically,
@@ -261,7 +262,7 @@ fun HomeScreen(
 
             LazyColumn(
                 modifier = Modifier.fillMaxSize().padding(start = ROWS_INSET),
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(top = 0.dp, bottom = if (hasDock) 112.dp else 28.dp),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(top = 0.dp, bottom = if (hasDock) 12.dp else 28.dp),
                 verticalArrangement = Arrangement.spacedBy(2.dp),
             ) {
                 if (showHomePrompt) {
