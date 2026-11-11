@@ -568,6 +568,7 @@ private fun RailButton(icon: RailIcon, label: String, onClick: () -> Unit, modif
     val focused by interaction.collectIsFocusedAsState()
     val tint = if (focused) LobbyColors.focusContent else LobbyColors.soft
     Box {
+        val glassFocus = LobbyColors.focusStyle == "glass"
         Surface(
             onClick = onClick,
             interactionSource = interaction,
@@ -575,6 +576,14 @@ private fun RailButton(icon: RailIcon, label: String, onClick: () -> Unit, modif
             colors = ClickableSurfaceDefaults.colors(
                 containerColor = Color.Transparent,
                 focusedContainerColor = LobbyColors.focusFill,
+            ),
+            // In Glass mode the free icons get the same frosted-glass selector as the dock: a soft light rim.
+            border = ClickableSurfaceDefaults.border(
+                focusedBorder = if (glassFocus) {
+                    Border(BorderStroke(1.dp, Color(0x5AFFFFFF)), shape = androidx.compose.foundation.shape.CircleShape)
+                } else {
+                    Border.None
+                },
             ),
             modifier = modifier.size(34.dp).semantics { contentDescription = label },
         ) {
@@ -969,7 +978,7 @@ private fun AppDock(
     }
     // How frosted each Material is, as a clean Gaussian radius: Clear tint stays sharp, Soft a gentle frost, Frost heavy.
     val blurRadius: Dp = when (material) {
-        "tint" -> 7.dp
+        "tint" -> 4.dp
         "frost" -> 42.dp
         else -> 24.dp
     }
@@ -1033,7 +1042,7 @@ private fun AppDock(
                 // Material-matched veil over the blurred wallpaper (dark neutral glass, as in the reference). Clear
                 // tint stays the most transparent; Soft a medium darkening; Frost the deepest, coolest frost.
                 val veil = when (material) {
-                    "frost" -> Color(0x8F101620)
+                    "frost" -> Color(0x52FFFFFF)
                     "tint" -> Color(0x470A0E14)
                     else -> Color(0x730B0D10)
                 }
@@ -1053,12 +1062,12 @@ private fun AppDock(
                 shape = ClickableSurfaceDefaults.shape(androidx.compose.foundation.shape.RoundedCornerShape(16.dp)),
                 colors = ClickableSurfaceDefaults.colors(
                     containerColor = Color.Transparent,
-                    // The focused app sits on a soft, lighter frosted plate (as in the reference dock); over a
-                    // photo the Material tunes it, while on the flat Dark/Light bar a fixed wash stays readable.
-                    focusedContainerColor = if (LobbyColors.photo) Color(0x4DFFFFFF) else Color(0x33FFFFFF),
+                    // The focused app sits on a brighter frosted-glass plate with a soft rim (as in the reference
+                    // selector); over a photo the Material tunes it, while on the flat Dark/Light bar a wash stays.
+                    focusedContainerColor = if (LobbyColors.photo) Color(0x5CFFFFFF) else Color(0x33FFFFFF),
                 ),
                 border = ClickableSurfaceDefaults.border(
-                    focusedBorder = Border(BorderStroke(1.dp, Color(0x40FFFFFF)), shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp)),
+                    focusedBorder = Border(BorderStroke(1.dp, Color(0x5AFFFFFF)), shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp)),
                 ),
                 modifier = Modifier.width(88.dp).then(if (i == 0) Modifier.focusRequester(firstFocus) else Modifier),
             ) {
