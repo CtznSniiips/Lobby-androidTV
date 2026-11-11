@@ -12,6 +12,14 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.border
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.layout.ContentScale
@@ -192,8 +200,13 @@ private fun CategoryDetail(
     onBack: () -> Unit,
 ) {
     val data = settings.data
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
+    // Appearance menus show a live preview of Home beside their choices, as in the Samsung version.
+    val showPreview = category == SettingsCategory.Background ||
+        category == SettingsCategory.Focus ||
+        category == SettingsCategory.Typography
+    Row(Modifier.fillMaxSize()) {
+      LazyColumn(
+        modifier = Modifier.weight(if (showPreview) 0.52f else 1f).fillMaxHeight(),
         contentPadding = PaddingValues(horizontal = 56.dp, vertical = 40.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
@@ -355,6 +368,95 @@ private fun CategoryDetail(
         }
 
         item { Box(Modifier.padding(top = 8.dp)) { Button(onClick = onBack) { Text("Back") } } }
+      }
+      if (showPreview) {
+          SettingsPreview(
+              bgMode = bgMode,
+              wallpaper = wallpaper,
+              homeFont = homeFont,
+              modifier = Modifier
+                  .weight(0.48f)
+                  .fillMaxHeight()
+                  .padding(end = 48.dp, top = 56.dp, bottom = 56.dp),
+          )
+      }
+    }
+}
+
+/** A compact, live preview of Home that reflects the current appearance settings (background, typography, focus,
+ *  material), shown beside each appearance menu like the Samsung version's previewer. */
+@Composable
+private fun SettingsPreview(bgMode: String, wallpaper: String, homeFont: String, modifier: Modifier = Modifier) {
+    val font = fontFamilyFor(homeFont)
+    val wp = remember(wallpaper) { Wallpapers.firstOrNull { it.id == wallpaper } ?: Wallpapers.first() }
+    val shape = RoundedCornerShape(18.dp)
+    Box(
+        modifier
+            .aspectRatio(16f / 10f)
+            .clip(shape)
+            .background(LobbyColors.background)
+            .border(1.dp, Color(0x1FFFFFFF), shape),
+    ) {
+        if (bgMode == "photo") {
+            AsyncImage(model = wp.fullUri, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+            Box(Modifier.fillMaxSize().background(Color(0x59000000)))
+        }
+        Column(
+            Modifier.fillMaxSize().padding(22.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text("Featured Title", fontFamily = font, fontWeight = FontWeight.Bold, fontSize = 24.sp, color = LobbyColors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text("The tagline appears here, set in your chosen typeface.", fontFamily = font, fontSize = 13.sp, color = LobbyColors.soft, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            // Focused Play button: a solid fill in Type mode, a translucent glass plate in Glass mode.
+            Row(Modifier.padding(top = 4.dp)) {
+                Box(
+                    Modifier
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(LobbyColors.focusFill)
+                        .then(if (LobbyColors.focusStyle == "glass") Modifier.border(1.dp, Color(0x55FFFFFF), RoundedCornerShape(10.dp)) else Modifier)
+                        .padding(horizontal = 18.dp, vertical = 8.dp),
+                ) {
+                    Text("Play", fontFamily = font, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = LobbyColors.focusContent)
+                }
+            }
+            Spacer(Modifier.weight(1f))
+            // A mini row; the middle card carries the focus ring (the card focus is the same in both modes).
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                repeat(3) { i ->
+                    Box(
+                        Modifier
+                            .weight(1f)
+                            .aspectRatio(1.5f)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(LobbyColors.card)
+                            .then(if (i == 1) Modifier.border(2.dp, Color(0xCCFFFFFF), RoundedCornerShape(8.dp)) else Modifier),
+                    )
+                }
+            }
+        }
+        // A mini dock; the focused tile shows the glass plate, which the Material tunes.
+        Row(
+            Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 16.dp)
+                .clip(RoundedCornerShape(14.dp))
+                .background(if (bgMode == "photo") Color(0x40101418) else LobbyColors.surface)
+                .border(1.dp, Color(0x24FFFFFF), RoundedCornerShape(14.dp))
+                .padding(horizontal = 10.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            repeat(4) { i ->
+                Box(
+                    Modifier
+                        .size(width = 30.dp, height = 20.dp)
+                        .clip(RoundedCornerShape(7.dp))
+                        .then(
+                            if (i == 1) Modifier.background(LobbyColors.focusPlate).border(1.dp, Color(0x66FFFFFF), RoundedCornerShape(7.dp))
+                            else Modifier.background(Color(0x2EFFFFFF)),
+                        ),
+                )
+            }
+        }
     }
 }
 
