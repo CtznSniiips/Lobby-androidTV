@@ -14,12 +14,14 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.requiredSize
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.border
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.layout.ContentScale
@@ -389,72 +391,101 @@ private fun CategoryDetail(
 private fun SettingsPreview(bgMode: String, wallpaper: String, homeFont: String, modifier: Modifier = Modifier) {
     val font = fontFamilyFor(homeFont)
     val wp = remember(wallpaper) { Wallpapers.firstOrNull { it.id == wallpaper } ?: Wallpapers.first() }
-    val shape = RoundedCornerShape(18.dp)
-    Box(
+    val shape = RoundedCornerShape(16.dp)
+    val circle = RoundedCornerShape(percent = 50)
+    // The mock is built at a fixed 1280x800 "home" design size, then scaled to fit the pane, so it mirrors the real
+    // home's proportions (rail, hero on the left, a labelled card row, the dock) regardless of the pane's size.
+    BoxWithConstraints(
         modifier
             .aspectRatio(16f / 10f)
             .clip(shape)
             .background(LobbyColors.background)
             .border(1.dp, Color(0x1FFFFFFF), shape),
     ) {
+        val scale = maxWidth.value / 1280f
         if (bgMode == "photo") {
             AsyncImage(model = wp.fullUri, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-            Box(Modifier.fillMaxSize().background(Color(0x59000000)))
+            Box(Modifier.fillMaxSize().background(Color(0x4D000000)))
         }
-        Column(
-            Modifier.fillMaxSize().padding(22.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+        Box(
+            Modifier
+                .requiredSize(1280.dp, 800.dp)
+                .graphicsLayer { scaleX = scale; scaleY = scale; transformOrigin = TransformOrigin(0f, 0f) },
         ) {
-            Text("Featured Title", fontFamily = font, fontWeight = FontWeight.Bold, fontSize = 24.sp, color = LobbyColors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text("The tagline appears here, set in your chosen typeface.", fontFamily = font, fontSize = 13.sp, color = LobbyColors.soft, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            // Focused Play button: a solid fill in Type mode, a translucent glass plate in Glass mode.
-            Row(Modifier.padding(top = 4.dp)) {
+            // Left rail of nav icons.
+            Column(
+                Modifier.align(Alignment.TopStart).padding(start = 40.dp, top = 150.dp),
+                verticalArrangement = Arrangement.spacedBy(20.dp),
+            ) {
+                repeat(4) { Box(Modifier.size(44.dp).clip(circle).background(Color(0x22FFFFFF))) }
+            }
+            // Clock + weather, top right.
+            Text(
+                "2:18 PM   61°",
+                modifier = Modifier.align(Alignment.TopEnd).padding(end = 56.dp, top = 56.dp),
+                fontFamily = font, fontSize = 26.sp, color = LobbyColors.ink,
+            )
+            // Hero: tagline heading, overview, and the Play button (showing the Focus style).
+            Column(
+                Modifier.align(Alignment.TopStart).padding(start = 150.dp, top = 120.dp).width(640.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                Text("Featured Title", fontFamily = font, fontWeight = FontWeight.Bold, fontSize = 60.sp, color = LobbyColors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(
+                    "The tagline and overview appear here, set in your chosen typeface so you can see how it reads.",
+                    fontFamily = font, fontSize = 26.sp, color = LobbyColors.soft, maxLines = 3, overflow = TextOverflow.Ellipsis,
+                )
                 Box(
                     Modifier
-                        .clip(RoundedCornerShape(10.dp))
+                        .padding(top = 10.dp)
+                        .clip(RoundedCornerShape(28.dp))
                         .background(LobbyColors.focusFill)
-                        .then(if (LobbyColors.focusStyle == "glass") Modifier.border(1.dp, Color(0x55FFFFFF), RoundedCornerShape(10.dp)) else Modifier)
-                        .padding(horizontal = 18.dp, vertical = 8.dp),
+                        .then(if (LobbyColors.focusStyle == "glass") Modifier.border(2.dp, Color(0x55FFFFFF), RoundedCornerShape(28.dp)) else Modifier)
+                        .padding(horizontal = 40.dp, vertical = 18.dp),
                 ) {
-                    Text("Play", fontFamily = font, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = LobbyColors.focusContent)
+                    Text("Play", fontFamily = font, fontWeight = FontWeight.SemiBold, fontSize = 26.sp, color = LobbyColors.focusContent)
                 }
             }
-            Spacer(Modifier.weight(1f))
-            // A mini row; the middle card carries the focus ring (the card focus is the same in both modes).
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                repeat(3) { i ->
+            // A labelled row of cards; the second card carries the focus ring.
+            Column(
+                Modifier.align(Alignment.BottomStart).padding(start = 150.dp, bottom = 170.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Text("Continue Watching", fontFamily = font, fontWeight = FontWeight.SemiBold, fontSize = 24.sp, color = LobbyColors.ink)
+                Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+                    repeat(5) { i ->
+                        Box(
+                            Modifier
+                                .size(width = 184.dp, height = 104.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(LobbyColors.card)
+                                .then(if (i == 1) Modifier.border(3.dp, Color(0xCCFFFFFF), RoundedCornerShape(12.dp)) else Modifier),
+                        )
+                    }
+                }
+            }
+            // The dock; the focused tile shows the glass plate, which the Material tunes.
+            Row(
+                Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 44.dp)
+                    .clip(RoundedCornerShape(22.dp))
+                    .background(if (bgMode == "photo") Color(0x40101418) else LobbyColors.surface)
+                    .border(1.dp, Color(0x24FFFFFF), RoundedCornerShape(22.dp))
+                    .padding(horizontal = 18.dp, vertical = 14.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                repeat(5) { i ->
                     Box(
                         Modifier
-                            .weight(1f)
-                            .aspectRatio(1.5f)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(LobbyColors.card)
-                            .then(if (i == 1) Modifier.border(2.dp, Color(0xCCFFFFFF), RoundedCornerShape(8.dp)) else Modifier),
+                            .size(width = 70.dp, height = 46.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .then(
+                                if (i == 2) Modifier.background(LobbyColors.focusPlate).border(1.dp, Color(0x66FFFFFF), RoundedCornerShape(12.dp))
+                                else Modifier.background(Color(0x2EFFFFFF)),
+                            ),
                     )
                 }
-            }
-        }
-        // A mini dock; the focused tile shows the glass plate, which the Material tunes.
-        Row(
-            Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = 16.dp)
-                .clip(RoundedCornerShape(14.dp))
-                .background(if (bgMode == "photo") Color(0x40101418) else LobbyColors.surface)
-                .border(1.dp, Color(0x24FFFFFF), RoundedCornerShape(14.dp))
-                .padding(horizontal = 10.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            repeat(4) { i ->
-                Box(
-                    Modifier
-                        .size(width = 30.dp, height = 20.dp)
-                        .clip(RoundedCornerShape(7.dp))
-                        .then(
-                            if (i == 1) Modifier.background(LobbyColors.focusPlate).border(1.dp, Color(0x66FFFFFF), RoundedCornerShape(7.dp))
-                            else Modifier.background(Color(0x2EFFFFFF)),
-                        ),
-                )
             }
         }
     }
