@@ -87,7 +87,6 @@ import androidx.compose.foundation.border
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.BlurredEdgeTreatment
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.text.TextStyle
