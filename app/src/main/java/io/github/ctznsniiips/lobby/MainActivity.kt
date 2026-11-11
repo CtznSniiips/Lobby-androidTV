@@ -107,6 +107,8 @@ class MainActivity : ComponentActivity() {
                 } else if (state.settings != null) {
                     BackHandler(onBack = viewModel::closeSettings)
                     SettingsScreen(
+                        homeState = state,
+                        address = paired.address,
                         settings = state.settings!!,
                         screenSaverMinutes = state.screenSaverMinutes,
                         isDefaultHome = state.isDefaultHome,

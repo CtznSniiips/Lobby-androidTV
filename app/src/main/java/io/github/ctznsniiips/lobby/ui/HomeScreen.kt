@@ -163,6 +163,7 @@ fun HomeScreen(
     onSettings: () -> Unit,
     onDisconnect: () -> Unit,
     onMessageShown: () -> Unit,
+    preview: Boolean = false,
 ) {
     val home = state.home
     val featured = remember(home) { home?.featured.orEmpty().distinctBy { it.id } }
@@ -176,16 +177,17 @@ fun HomeScreen(
     val hasDock = state.apps.isNotEmpty()
 
     // Rotate the featured titles while nothing in the rows is focused.
-    LaunchedEffect(featured, browsed) {
-        if (browsed == null && featured.size > 1) {
+    LaunchedEffect(featured, browsed, preview) {
+        if (!preview && browsed == null && featured.size > 1) {
             while (true) {
                 delay(ROTATE_MS)
                 featuredIndex = (featuredIndex + 1) % featured.size
             }
         }
     }
+    // In preview mode (the settings previewer) nothing grabs focus — the settings UI keeps it.
     LaunchedEffect(featured.isNotEmpty()) {
-        if (featured.isNotEmpty()) runCatching { heroFocus.requestFocus() }
+        if (!preview && featured.isNotEmpty()) runCatching { heroFocus.requestFocus() }
     }
 
     val settingsFocus = remember { FocusRequester() }
