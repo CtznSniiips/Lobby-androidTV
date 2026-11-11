@@ -83,6 +83,7 @@ import coil.request.SuccessResult
 import coil.size.Size as CoilSize
 import coil.transform.Transformation
 import android.graphics.Bitmap
+import androidx.compose.foundation.border
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.text.TextStyle
@@ -729,9 +730,9 @@ private fun rememberBlurredWallpaper(uri: String, factor: Int): ImageBitmap? {
     val context = LocalContext.current
     var bmp by remember(uri, factor) { mutableStateOf<ImageBitmap?>(null) }
     LaunchedEffect(uri, factor) {
-        // size 900 keeps enough detail for the "Clear" material; the factor sets how frosted each Material looks.
+        // A larger decode keeps enough detail for the "Clear" material; the factor sets how frosted each Material is.
         val request = ImageRequest.Builder(context).data(uri).allowHardware(false)
-            .size(900).transformations(DownscaleBlur(factor)).build()
+            .size(1080).transformations(DownscaleBlur(factor)).build()
         val drawable = (context.imageLoader.execute(request) as? SuccessResult)?.drawable
         bmp = (drawable as? BitmapDrawable)?.bitmap?.asImageBitmap()
     }
@@ -965,7 +966,7 @@ private fun AppDock(
     }
     // How frosted each Material is: Clear tint stays sharp and vivid, Soft a gentle frost, Frost a heavy one.
     val blurFactor = when (material) {
-        "tint" -> 3
+        "tint" -> 2
         "frost" -> 20
         else -> 10
     }
@@ -975,6 +976,7 @@ private fun AppDock(
     Box(
         Modifier
             .clip(shape)
+            .border(1.dp, Color(0x40FFFFFF), shape)
             .then(if (glass) Modifier.onGloballyPositioned { panelPos = it.positionInWindow() } else Modifier),
     ) {
         // Backdrop layer. matchParentSize keeps it from inflating the bar — only the tile Row below sizes the dock.
