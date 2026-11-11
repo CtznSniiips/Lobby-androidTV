@@ -159,8 +159,8 @@ object LobbyColors {
      * over the flat Dark/Light backgrounds.
      */
     val focusPlate: Color get() = when {
-        photo && material == "tint" -> Color(0x6B0E0C0A)
-        photo -> Color(0x4DFFFFFF)
+        photo && material == "tint" -> Color(0x730E0C0A)
+        photo -> Color(0x5CFFFFFF)
         palette.light -> Color(0x121D1A16)
         else -> Color(0x1FF6F1E7)
     }
