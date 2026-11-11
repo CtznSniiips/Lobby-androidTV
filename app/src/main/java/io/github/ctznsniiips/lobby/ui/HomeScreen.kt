@@ -85,6 +85,9 @@ import coil.transform.Transformation
 import android.graphics.Bitmap
 import androidx.compose.foundation.border
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.BlurredEdgeTreatment
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.text.TextStyle
@@ -727,13 +730,13 @@ private fun rememberAccentColor(url: String?): Color {
 
 /** Loads a small, software-blurred copy of the wallpaper as an ImageBitmap, for drawing an aligned slice behind the dock. */
 @Composable
-private fun rememberBlurredWallpaper(uri: String, factor: Int): ImageBitmap? {
+private fun rememberBlurredWallpaper(uri: String): ImageBitmap? {
     val context = LocalContext.current
-    var bmp by remember(uri, factor) { mutableStateOf<ImageBitmap?>(null) }
-    LaunchedEffect(uri, factor) {
-        // A larger decode keeps enough detail for the "Clear" material; the factor sets how frosted each Material is.
-        val request = ImageRequest.Builder(context).data(uri).allowHardware(false)
-            .size(1080).transformations(DownscaleBlur(factor)).build()
+    var bmp by remember(uri) { mutableStateOf<ImageBitmap?>(null) }
+    LaunchedEffect(uri) {
+        // A sharp, high-detail decode; the clean Gaussian blur is applied at draw time, so there's no downscale
+        // blockiness. The Material sets the blur radius.
+        val request = ImageRequest.Builder(context).data(uri).allowHardware(false).size(1280).build()
         val drawable = (context.imageLoader.execute(request) as? SuccessResult)?.drawable
         bmp = (drawable as? BitmapDrawable)?.bitmap?.asImageBitmap()
     }
@@ -957,7 +960,7 @@ private fun AppDock(
     rootSize: IntSize,
 ) {
     val list = remember(apps) { apps.distinctBy { it.packageName } }
-    val shape = androidx.compose.foundation.shape.RoundedCornerShape(30.dp)
+    val shape = androidx.compose.foundation.shape.RoundedCornerShape(22.dp)
     val context = LocalContext.current
     // A heavily downscaled decode of the wallpaper: scaled back up it reads as a soft blur on EVERY Android
     // version (Modifier.blur only blurs on API 31+), which is what makes the dock look like frosted glass.
@@ -965,14 +968,14 @@ private fun AppDock(
     val blurModel = remember(wallpaperUri) {
         ImageRequest.Builder(context).data(wallpaperUri).transformations(DownscaleBlur(22)).allowHardware(false).build()
     }
-    // How frosted each Material is: Clear tint stays sharp and vivid, Soft a gentle frost, Frost a heavy one.
-    val blurFactor = when (material) {
-        "tint" -> 2
-        "frost" -> 20
-        else -> 10
+    // How frosted each Material is, as a clean Gaussian radius: Clear tint stays sharp, Soft a gentle frost, Frost heavy.
+    val blurRadius: Dp = when (material) {
+        "tint" -> 7.dp
+        "frost" -> 42.dp
+        else -> 24.dp
     }
-    // The small blurred wallpaper copy whose aligned slice is drawn behind the dock for the true "window" look.
-    val blurredBmp = if (glass) rememberBlurredWallpaper(wallpaperUri, blurFactor) else null
+    // The sharp wallpaper copy whose aligned slice is drawn behind the dock for the true "window" look.
+    val blurredBmp = if (glass) rememberBlurredWallpaper(wallpaperUri) else null
     var panelPos by remember { mutableStateOf(Offset.Zero) }
     Box(
         Modifier
@@ -987,9 +990,9 @@ private fun AppDock(
         Box(Modifier.matchParentSize().clip(shape)) {
             if (glass) {
                 if (blurredBmp != null && rootSize.width > 0) {
-                    // Draw the exact slice of the (blurred) wallpaper that sits behind the dock, replicating the
-                    // background's ContentScale.Crop, so the frosted panel is a true window onto the wallpaper.
-                    Canvas(Modifier.matchParentSize()) {
+                    // Draw the exact slice of the wallpaper that sits behind the dock, replicating the background's
+                    // ContentScale.Crop, then apply a clean Gaussian blur — a true window onto the frosted wallpaper.
+                    Canvas(Modifier.matchParentSize().blur(blurRadius, BlurredEdgeTreatment.Unbounded)) {
                         val cw = size.width
                         val ch = size.height
                         val sw = rootSize.width.toFloat()
@@ -1031,9 +1034,9 @@ private fun AppDock(
                 // Material-matched veil over the blurred wallpaper (dark neutral glass, as in the reference). Clear
                 // tint stays the most transparent; Soft a medium darkening; Frost the deepest, coolest frost.
                 val veil = when (material) {
-                    "frost" -> Color(0x73101620)
-                    "tint" -> Color(0x380A0E14)
-                    else -> Color(0x5C0B0D10)
+                    "frost" -> Color(0x8F101620)
+                    "tint" -> Color(0x470A0E14)
+                    else -> Color(0x730B0D10)
                 }
                 Box(Modifier.matchParentSize().background(veil))
             } else {
@@ -1048,7 +1051,7 @@ private fun AppDock(
             val bitmap = remember(app.packageName) { app.icon?.toBitmap(240, 135)?.asImageBitmap() }
             Surface(
                 onClick = { onApp(app) },
-                shape = ClickableSurfaceDefaults.shape(androidx.compose.foundation.shape.RoundedCornerShape(20.dp)),
+                shape = ClickableSurfaceDefaults.shape(androidx.compose.foundation.shape.RoundedCornerShape(16.dp)),
                 colors = ClickableSurfaceDefaults.colors(
                     containerColor = Color.Transparent,
                     // The focused app sits on a soft, lighter frosted plate (as in the reference dock); over a
@@ -1056,7 +1059,7 @@ private fun AppDock(
                     focusedContainerColor = if (LobbyColors.photo) Color(0x4DFFFFFF) else Color(0x33FFFFFF),
                 ),
                 border = ClickableSurfaceDefaults.border(
-                    focusedBorder = Border(BorderStroke(1.dp, Color(0x40FFFFFF)), shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp)),
+                    focusedBorder = Border(BorderStroke(1.dp, Color(0x40FFFFFF)), shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp)),
                 ),
                 modifier = Modifier.width(88.dp).then(if (i == 0) Modifier.focusRequester(firstFocus) else Modifier),
             ) {
