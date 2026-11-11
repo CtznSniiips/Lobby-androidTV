@@ -22,6 +22,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.foundation.Image
+import androidx.core.graphics.drawable.toBitmap
+import io.github.ctznsniiips.lobby.data.ServerAddress
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.layout.ContentScale
@@ -73,6 +77,8 @@ private enum class SettingsCategory(val title: String) {
  */
 @Composable
 fun SettingsScreen(
+    homeState: LobbyState,
+    address: ServerAddress,
     settings: SettingsState,
     screenSaverMinutes: Int,
     isDefaultHome: Boolean,
@@ -100,7 +106,7 @@ fun SettingsScreen(
         when {
             settings.teamsOpen -> TeamsPicker(settings, actions)
             category == null -> CategoryList(settings, apps, inputs, hiddenApps, homeFont, bgMode, focusStyle, material, actions) { category = it }
-            else -> CategoryDetail(category!!, settings, screenSaverMinutes, isDefaultHome, apps, inputs, hiddenApps, hiddenInputs, tvName, host, homeFont, bgMode, wallpaper, focusStyle, material, actions) { category = null }
+            else -> CategoryDetail(category!!, homeState, address, settings, screenSaverMinutes, isDefaultHome, apps, inputs, hiddenApps, hiddenInputs, tvName, host, homeFont, bgMode, wallpaper, focusStyle, material, actions) { category = null }
         }
         MessageToast(message, onMessageShown, Modifier.align(Alignment.BottomCenter))
     }
@@ -184,6 +190,8 @@ private fun CategoryCard(title: String, summary: String, onClick: () -> Unit) {
 @Composable
 private fun CategoryDetail(
     category: SettingsCategory,
+    homeState: LobbyState,
+    address: ServerAddress,
     settings: SettingsState,
     screenSaverMinutes: Int,
     isDefaultHome: Boolean,
@@ -373,6 +381,8 @@ private fun CategoryDetail(
       }
       if (showPreview) {
           SettingsPreview(
+              homeState = homeState,
+              address = address,
               bgMode = bgMode,
               wallpaper = wallpaper,
               homeFont = homeFont,
@@ -385,16 +395,36 @@ private fun CategoryDetail(
     }
 }
 
-/** A compact, live preview of Home that reflects the current appearance settings (background, typography, focus,
- *  material), shown beside each appearance menu like the Samsung version's previewer. */
+/**
+ * A live preview of Home shown beside each appearance menu, like the Samsung version's previewer. It reproduces the
+ * real home layout (rail, hero, a row, the dock) at a fixed design size scaled to fit the pane, and fills it with
+ * the user's actual content — featured title and tagline, real row posters, real app icons — so it reads as their
+ * own home and reflects the current background, typeface, focus style and material.
+ */
 @Composable
-private fun SettingsPreview(bgMode: String, wallpaper: String, homeFont: String, modifier: Modifier = Modifier) {
+private fun SettingsPreview(
+    homeState: LobbyState,
+    address: ServerAddress,
+    bgMode: String,
+    wallpaper: String,
+    homeFont: String,
+    modifier: Modifier = Modifier,
+) {
     val font = fontFamilyFor(homeFont)
     val wp = remember(wallpaper) { Wallpapers.firstOrNull { it.id == wallpaper } ?: Wallpapers.first() }
     val shape = RoundedCornerShape(16.dp)
     val circle = RoundedCornerShape(percent = 50)
-    // The mock is built at a fixed 1280x800 "home" design size, then scaled to fit the pane, so it mirrors the real
-    // home's proportions (rail, hero on the left, a labelled card row, the dock) regardless of the pane's size.
+    val card12 = RoundedCornerShape(12.dp)
+    val hero = homeState.home?.featured?.firstOrNull()
+    val heading = hero?.tagline?.takeIf { it.isNotBlank() } ?: hero?.title?.takeIf { it.isNotBlank() } ?: "Featured Title"
+    val body = hero?.overview?.takeIf { it.isNotBlank() }
+        ?: "Your featured title's tagline and overview appear here, in your chosen typeface."
+    val row = homeState.home?.rows?.firstOrNull { it.items.isNotEmpty() }
+    val rowTitle = row?.title?.takeIf { it.isNotBlank() } ?: "Continue Watching"
+    val cards = remember(row) { row?.items?.distinctBy { it.id }?.take(5).orEmpty() }
+    val apps = remember(homeState.apps) { homeState.apps.distinctBy { it.packageName }.take(5) }
+    val heroLogo = address.imageUrl(hero?.logoUrl, width = 400)
+    // Built at a fixed 1280x800 "home" size, then scaled to fit the pane, so it mirrors the real home's proportions.
     BoxWithConstraints(
         modifier
             .aspectRatio(16f / 10f)
@@ -425,16 +455,13 @@ private fun SettingsPreview(bgMode: String, wallpaper: String, homeFont: String,
                 modifier = Modifier.align(Alignment.TopEnd).padding(end = 56.dp, top = 56.dp),
                 fontFamily = font, fontSize = 26.sp, color = LobbyColors.ink,
             )
-            // Hero: tagline heading, overview, and the Play button (showing the Focus style).
+            // Hero: the real tagline/overview and the Play button (showing the Focus style).
             Column(
                 Modifier.align(Alignment.TopStart).padding(start = 150.dp, top = 120.dp).width(640.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
-                Text("Featured Title", fontFamily = font, fontWeight = FontWeight.Bold, fontSize = 60.sp, color = LobbyColors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(
-                    "The tagline and overview appear here, set in your chosen typeface so you can see how it reads.",
-                    fontFamily = font, fontSize = 26.sp, color = LobbyColors.soft, maxLines = 3, overflow = TextOverflow.Ellipsis,
-                )
+                Text(heading, fontFamily = font, fontWeight = FontWeight.Bold, fontSize = 60.sp, color = LobbyColors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(body, fontFamily = font, fontSize = 26.sp, color = LobbyColors.soft, maxLines = 3, overflow = TextOverflow.Ellipsis)
                 Box(
                     Modifier
                         .padding(top = 10.dp)
@@ -446,25 +473,38 @@ private fun SettingsPreview(bgMode: String, wallpaper: String, homeFont: String,
                     Text("Play", fontFamily = font, fontWeight = FontWeight.SemiBold, fontSize = 26.sp, color = LobbyColors.focusContent)
                 }
             }
-            // A labelled row of cards; the second card carries the focus ring.
+            // The featured logo on the right, if there is one.
+            if (heroLogo != null) {
+                AsyncImage(
+                    model = heroLogo,
+                    contentDescription = null,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.align(Alignment.TopEnd).padding(end = 120.dp, top = 170.dp).size(width = 360.dp, height = 150.dp),
+                )
+            }
+            // A real row of posters; the second card carries the focus ring.
             Column(
                 Modifier.align(Alignment.BottomStart).padding(start = 150.dp, bottom = 170.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Text("Continue Watching", fontFamily = font, fontWeight = FontWeight.SemiBold, fontSize = 24.sp, color = LobbyColors.ink)
+                Text(rowTitle, fontFamily = font, fontWeight = FontWeight.SemiBold, fontSize = 24.sp, color = LobbyColors.ink)
                 Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
-                    repeat(5) { i ->
+                    val slots = if (cards.isNotEmpty()) cards.size else 5
+                    repeat(slots) { i ->
+                        val art = cards.getOrNull(i)?.let { address.imageUrl(it.landscapeUrl ?: it.posterUrl, width = 368) }
                         Box(
                             Modifier
                                 .size(width = 184.dp, height = 104.dp)
-                                .clip(RoundedCornerShape(12.dp))
+                                .clip(card12)
                                 .background(LobbyColors.card)
-                                .then(if (i == 1) Modifier.border(3.dp, Color(0xCCFFFFFF), RoundedCornerShape(12.dp)) else Modifier),
-                        )
+                                .then(if (i == 1) Modifier.border(3.dp, Color(0xCCFFFFFF), card12) else Modifier),
+                        ) {
+                            if (art != null) AsyncImage(model = art, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                        }
                     }
                 }
             }
-            // The dock; the focused tile shows the glass plate, which the Material tunes.
+            // The dock with the real app icons; the focused tile shows the glass plate, which the Material tunes.
             Row(
                 Modifier
                     .align(Alignment.BottomCenter)
@@ -475,16 +515,24 @@ private fun SettingsPreview(bgMode: String, wallpaper: String, homeFont: String,
                     .padding(horizontal = 18.dp, vertical = 14.dp),
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                repeat(5) { i ->
+                val slots = if (apps.isNotEmpty()) apps.size else 5
+                repeat(slots) { i ->
+                    val focused = i == (slots / 2)
+                    val bmp = apps.getOrNull(i)?.let { app -> app.icon?.toBitmap(240, 135)?.asImageBitmap() }
                     Box(
                         Modifier
                             .size(width = 70.dp, height = 46.dp)
                             .clip(RoundedCornerShape(12.dp))
                             .then(
-                                if (i == 2) Modifier.background(LobbyColors.focusPlate).border(1.dp, Color(0x66FFFFFF), RoundedCornerShape(12.dp))
+                                if (focused) Modifier.background(LobbyColors.focusPlate).border(1.dp, Color(0x66FFFFFF), RoundedCornerShape(12.dp))
                                 else Modifier.background(Color(0x2EFFFFFF)),
                             ),
-                    )
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        if (bmp != null) {
+                            Image(bitmap = bmp, contentDescription = null, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize().padding(6.dp))
+                        }
+                    }
                 }
             }
         }
