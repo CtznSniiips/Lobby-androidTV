@@ -991,7 +991,7 @@ private fun AppDock(
     }
     // How frosted each Material is, as a clean Gaussian radius: Clear tint stays sharp, Soft a gentle frost, Frost heavy.
     val blurRadius: Dp = when (material) {
-        "tint" -> 0.dp
+        "tint" -> 2.dp
         "frost" -> 42.dp
         else -> 24.dp
     }
@@ -1089,7 +1089,9 @@ private fun AppDock(
                 scale = ClickableSurfaceDefaults.scale(focusedScale = 1.06f),
                 modifier = Modifier.width(88.dp).then(if (i == 0) Modifier.focusRequester(firstFocus) else Modifier),
             ) {
-                Box(Modifier.fillMaxSize()) {
+                // fillMaxWidth (not fillMaxSize): in the wrap-height dock Row, fillMaxSize would stretch the tile to
+                // the whole screen. The Column sizes the height; the selector plate matches via matchParentSize.
+                Box(Modifier.fillMaxWidth()) {
                     if (tileFocused) GlassSelector(tileShape)
                 Column(
                     Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 8.dp),
