@@ -991,7 +991,7 @@ private fun AppDock(
     }
     // How frosted each Material is, as a clean Gaussian radius: Clear tint stays sharp, Soft a gentle frost, Frost heavy.
     val blurRadius: Dp = when (material) {
-        "tint" -> 2.dp
+        "tint" -> 1.dp
         "frost" -> 42.dp
         else -> 24.dp
     }
@@ -1069,7 +1069,7 @@ private fun AppDock(
             }
         }
         Row(
-            Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+            Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
         list.forEachIndexed { i, app ->
@@ -1094,16 +1094,16 @@ private fun AppDock(
                 Box(Modifier.fillMaxWidth()) {
                     if (tileFocused) GlassSelector(tileShape)
                 Column(
-                    Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 8.dp),
+                    Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 5.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(5.dp),
+                    verticalArrangement = Arrangement.spacedBy(3.dp),
                 ) {
                     // Fill a rounded tile with the banner so the icon's own corners are rounded off.
                     Box(
                         Modifier
-                            .width(60.dp)
-                            .height(34.dp)
-                            .clip(androidx.compose.foundation.shape.RoundedCornerShape(10.dp))
+                            .width(52.dp)
+                            .height(28.dp)
+                            .clip(androidx.compose.foundation.shape.RoundedCornerShape(9.dp))
                             .background(Color(0x22000000)),
                     ) {
                         if (bitmap != null) {
