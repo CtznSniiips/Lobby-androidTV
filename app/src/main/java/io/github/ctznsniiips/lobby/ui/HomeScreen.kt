@@ -277,7 +277,9 @@ fun HomeScreen(
                     }
                 }
 
-                home?.rows?.let { mergeContinueRows(it) }?.filter { it.items.isNotEmpty() }?.let { rows ->
+                home?.rows
+                    ?.let { if (state.combineContinueNextUp) mergeContinueRows(it) else it }
+                    ?.filter { it.items.isNotEmpty() }?.let { rows ->
                     items(rows, key = { it.id }) { row ->
                         MediaRow(row, address, onItem, onFocused = { browsed = it })
                     }

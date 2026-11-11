@@ -71,6 +71,13 @@ class SessionStore(context: Context) {
         prefs.edit().putString(KEY_WALLPAPER, id).apply()
     }
 
+    /** Cached copy of the server's "combine Continue Watching + Next Up" TV setting, so Home can apply it at launch. */
+    fun combineContinueNextUp(): Boolean = prefs.getBoolean(KEY_COMBINE_CONTINUE, false)
+
+    fun setCombineContinueNextUp(value: Boolean) {
+        prefs.edit().putBoolean(KEY_COMBINE_CONTINUE, value).apply()
+    }
+
     /** The Focus style: "type" (solid fill) or "glass" (translucent plate). */
     fun focusStyle(): String = prefs.getString(KEY_FOCUS_STYLE, "type") ?: "type"
 
@@ -120,5 +127,6 @@ class SessionStore(context: Context) {
         const val KEY_WALLPAPER = "wallpaper"
         const val KEY_FOCUS_STYLE = "focusStyle"
         const val KEY_MATERIAL = "material"
+        const val KEY_COMBINE_CONTINUE = "combineContinueNextUp"
     }
 }
