@@ -84,6 +84,7 @@ import coil.size.Size as CoilSize
 import coil.transform.Transformation
 import android.graphics.Bitmap
 import androidx.compose.foundation.border
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.text.TextStyle
@@ -975,8 +976,11 @@ private fun AppDock(
     var panelPos by remember { mutableStateOf(Offset.Zero) }
     Box(
         Modifier
+            // A soft drop shadow lets the bar float instead of reading as a hard cut-out.
+            .shadow(24.dp, shape, clip = false)
             .clip(shape)
-            .border(1.dp, Color(0x40FFFFFF), shape)
+            // A dim rim, softer than before, following the rounded shape.
+            .border(1.dp, Color(0x24FFFFFF), shape)
             .then(if (glass) Modifier.onGloballyPositioned { panelPos = it.positionInWindow() } else Modifier),
     ) {
         // Backdrop layer. matchParentSize keeps it from inflating the bar — only the tile Row below sizes the dock.
@@ -1027,9 +1031,9 @@ private fun AppDock(
                 // Material-matched veil over the blurred wallpaper (dark neutral glass, as in the reference). Clear
                 // tint stays the most transparent; Soft a medium darkening; Frost the deepest, coolest frost.
                 val veil = when (material) {
-                    "frost" -> Color(0x42101620)
-                    "tint" -> Color(0x1A0A0E14)
-                    else -> Color(0x2E0B0D10)
+                    "frost" -> Color(0x73101620)
+                    "tint" -> Color(0x380A0E14)
+                    else -> Color(0x5C0B0D10)
                 }
                 Box(Modifier.matchParentSize().background(veil))
             } else {
