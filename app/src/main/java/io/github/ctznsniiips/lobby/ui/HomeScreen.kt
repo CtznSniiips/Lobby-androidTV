@@ -84,6 +84,8 @@ import coil.size.Size as CoilSize
 import coil.transform.Transformation
 import android.graphics.Bitmap
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.text.TextStyle
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import androidx.compose.animation.Crossfade
@@ -723,12 +725,13 @@ private fun rememberAccentColor(url: String?): Color {
 
 /** Loads a small, software-blurred copy of the wallpaper as an ImageBitmap, for drawing an aligned slice behind the dock. */
 @Composable
-private fun rememberBlurredWallpaper(uri: String): ImageBitmap? {
+private fun rememberBlurredWallpaper(uri: String, factor: Int): ImageBitmap? {
     val context = LocalContext.current
-    var bmp by remember(uri) { mutableStateOf<ImageBitmap?>(null) }
-    LaunchedEffect(uri) {
+    var bmp by remember(uri, factor) { mutableStateOf<ImageBitmap?>(null) }
+    LaunchedEffect(uri, factor) {
+        // size 900 keeps enough detail for the "Clear" material; the factor sets how frosted each Material looks.
         val request = ImageRequest.Builder(context).data(uri).allowHardware(false)
-            .size(360).transformations(DownscaleBlur(10)).build()
+            .size(900).transformations(DownscaleBlur(factor)).build()
         val drawable = (context.imageLoader.execute(request) as? SuccessResult)?.drawable
         bmp = (drawable as? BitmapDrawable)?.bitmap?.asImageBitmap()
     }
@@ -952,7 +955,7 @@ private fun AppDock(
     rootSize: IntSize,
 ) {
     val list = remember(apps) { apps.distinctBy { it.packageName } }
-    val shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp)
+    val shape = androidx.compose.foundation.shape.RoundedCornerShape(30.dp)
     val context = LocalContext.current
     // A heavily downscaled decode of the wallpaper: scaled back up it reads as a soft blur on EVERY Android
     // version (Modifier.blur only blurs on API 31+), which is what makes the dock look like frosted glass.
@@ -960,8 +963,14 @@ private fun AppDock(
     val blurModel = remember(wallpaperUri) {
         ImageRequest.Builder(context).data(wallpaperUri).transformations(DownscaleBlur(22)).allowHardware(false).build()
     }
+    // How frosted each Material is: Clear tint stays sharp and vivid, Soft a gentle frost, Frost a heavy one.
+    val blurFactor = when (material) {
+        "tint" -> 3
+        "frost" -> 20
+        else -> 10
+    }
     // The small blurred wallpaper copy whose aligned slice is drawn behind the dock for the true "window" look.
-    val blurredBmp = if (glass) rememberBlurredWallpaper(wallpaperUri) else null
+    val blurredBmp = if (glass) rememberBlurredWallpaper(wallpaperUri, blurFactor) else null
     var panelPos by remember { mutableStateOf(Offset.Zero) }
     Box(
         Modifier
@@ -1013,13 +1022,12 @@ private fun AppDock(
                         modifier = Modifier.matchParentSize(),
                     )
                 }
-                // Material-matched veil. Soft (Samsung's registered material) hides the dark veil entirely, so it
-                // reads as a *bright* frosted panel; Frost adds a light wash; Clear tint a cooler, deeper one. We
-                // keep a faint floor on Soft so light labels stay legible on bright wallpapers.
+                // Material-matched veil over the blurred wallpaper (dark neutral glass, as in the reference). Clear
+                // tint stays the most transparent; Soft a medium darkening; Frost the deepest, coolest frost.
                 val veil = when (material) {
-                    "frost" -> Color(0x2E0C0A08)
-                    "tint" -> Color(0x5C0A1014)
-                    else -> Color(0x1A0B0D10)
+                    "frost" -> Color(0x42101620)
+                    "tint" -> Color(0x1A0A0E14)
+                    else -> Color(0x2E0B0D10)
                 }
                 Box(Modifier.matchParentSize().background(veil))
             } else {
@@ -1027,26 +1035,29 @@ private fun AppDock(
             }
         }
         Row(
-            Modifier.padding(horizontal = 12.dp, vertical = 5.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
         list.forEachIndexed { i, app ->
             val bitmap = remember(app.packageName) { app.icon?.toBitmap(240, 135)?.asImageBitmap() }
             Surface(
                 onClick = { onApp(app) },
-                shape = ClickableSurfaceDefaults.shape(androidx.compose.foundation.shape.RoundedCornerShape(16.dp)),
+                shape = ClickableSurfaceDefaults.shape(androidx.compose.foundation.shape.RoundedCornerShape(20.dp)),
                 colors = ClickableSurfaceDefaults.colors(
                     containerColor = Color.Transparent,
-                    // The dock keeps a glass plate on focus in both Type and Glass modes (as in Samsung); over a
+                    // The focused app sits on a soft, lighter frosted plate (as in the reference dock); over a
                     // photo the Material tunes it, while on the flat Dark/Light bar a fixed wash stays readable.
-                    focusedContainerColor = if (LobbyColors.photo) LobbyColors.focusPlate else Color(0x26FFFFFF),
+                    focusedContainerColor = if (LobbyColors.photo) Color(0x4DFFFFFF) else Color(0x33FFFFFF),
                 ),
-                modifier = Modifier.width(84.dp).then(if (i == 0) Modifier.focusRequester(firstFocus) else Modifier),
+                border = ClickableSurfaceDefaults.border(
+                    focusedBorder = Border(BorderStroke(1.dp, Color(0x40FFFFFF)), shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp)),
+                ),
+                modifier = Modifier.width(88.dp).then(if (i == 0) Modifier.focusRequester(firstFocus) else Modifier),
             ) {
                 Column(
-                    Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 5.dp),
+                    Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 8.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(3.dp),
+                    verticalArrangement = Arrangement.spacedBy(5.dp),
                 ) {
                     // Fill a rounded tile with the banner so the icon's own corners are rounded off.
                     Box(
@@ -1065,8 +1076,16 @@ private fun AppDock(
                             )
                         }
                     }
-                    // Matches Samsung's .wapp-name: SemiBold, soft ink.
-                    Text(app.label, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = LobbyColors.soft, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    // Matches Samsung's .wapp-name: SemiBold, soft ink. A soft shadow keeps it legible on bright frost.
+                    Text(
+                        app.label,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = LobbyColors.ink,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        style = TextStyle(shadow = Shadow(Color(0x99000000), blurRadius = 8f)),
+                    )
                 }
             }
         }
