@@ -86,8 +86,6 @@ import android.graphics.Bitmap
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.draw.blur
-import androidx.compose.ui.draw.BlurredEdgeTreatment
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import androidx.compose.animation.Crossfade
@@ -727,12 +725,13 @@ private fun rememberAccentColor(url: String?): Color {
 
 /** Loads a small, software-blurred copy of the wallpaper as an ImageBitmap, for drawing an aligned slice behind the dock. */
 @Composable
-private fun rememberBlurredWallpaper(uri: String): ImageBitmap? {
+private fun rememberBlurredWallpaper(uri: String, factor: Int): ImageBitmap? {
     val context = LocalContext.current
-    var bmp by remember(uri) { mutableStateOf<ImageBitmap?>(null) }
-    LaunchedEffect(uri) {
+    var bmp by remember(uri, factor) { mutableStateOf<ImageBitmap?>(null) }
+    LaunchedEffect(uri, factor) {
+        // size 900 keeps enough detail for the "Clear" material; the factor sets how frosted each Material looks.
         val request = ImageRequest.Builder(context).data(uri).allowHardware(false)
-            .size(420).transformations(DownscaleBlur(14)).build()
+            .size(900).transformations(DownscaleBlur(factor)).build()
         val drawable = (context.imageLoader.execute(request) as? SuccessResult)?.drawable
         bmp = (drawable as? BitmapDrawable)?.bitmap?.asImageBitmap()
     }
@@ -964,8 +963,14 @@ private fun AppDock(
     val blurModel = remember(wallpaperUri) {
         ImageRequest.Builder(context).data(wallpaperUri).transformations(DownscaleBlur(22)).allowHardware(false).build()
     }
+    // How frosted each Material is: Clear tint stays sharp and vivid, Soft a gentle frost, Frost a heavy one.
+    val blurFactor = when (material) {
+        "tint" -> 3
+        "frost" -> 20
+        else -> 10
+    }
     // The small blurred wallpaper copy whose aligned slice is drawn behind the dock for the true "window" look.
-    val blurredBmp = if (glass) rememberBlurredWallpaper(wallpaperUri) else null
+    val blurredBmp = if (glass) rememberBlurredWallpaper(wallpaperUri, blurFactor) else null
     var panelPos by remember { mutableStateOf(Offset.Zero) }
     Box(
         Modifier
@@ -978,7 +983,7 @@ private fun AppDock(
                 if (blurredBmp != null && rootSize.width > 0) {
                     // Draw the exact slice of the (blurred) wallpaper that sits behind the dock, replicating the
                     // background's ContentScale.Crop, so the frosted panel is a true window onto the wallpaper.
-                    Canvas(Modifier.matchParentSize().blur(18.dp, BlurredEdgeTreatment.Unbounded)) {
+                    Canvas(Modifier.matchParentSize()) {
                         val cw = size.width
                         val ch = size.height
                         val sw = rootSize.width.toFloat()
@@ -1017,12 +1022,12 @@ private fun AppDock(
                         modifier = Modifier.matchParentSize(),
                     )
                 }
-                // Material-matched frost. Soft is a milky white wash for the bright frosted-glass look; Frost is a
-                // brighter milkier wash; Clear tint a cooler, deeper darkening.
+                // Material-matched veil over the blurred wallpaper (dark neutral glass, as in the reference). Clear
+                // tint stays the most transparent; Soft a medium darkening; Frost the deepest, coolest frost.
                 val veil = when (material) {
-                    "frost" -> Color(0x30FFFFFF)
-                    "tint" -> Color(0x5C0A1014)
-                    else -> Color(0x1AFFFFFF)
+                    "frost" -> Color(0x42101620)
+                    "tint" -> Color(0x1A0A0E14)
+                    else -> Color(0x2E0B0D10)
                 }
                 Box(Modifier.matchParentSize().background(veil))
             } else {
