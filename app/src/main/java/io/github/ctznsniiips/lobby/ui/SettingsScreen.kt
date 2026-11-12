@@ -524,15 +524,21 @@ private fun SettingsPreview(
                 Column {
                     Text(title, fontFamily = font, fontWeight = FontWeight.SemiBold, fontSize = 9.sp, lineHeight = 10.sp, color = LobbyColors.ink)
                     val rc = r?.items?.distinctBy { it.id }?.take(5).orEmpty()
+                    // Always five equal slots so every card is the same size across both rows;
+                    // rows with fewer items leave the trailing slots empty.
+                    val count = if (rc.isNotEmpty()) rc.size else 5
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        val slots = if (rc.isNotEmpty()) rc.size else 5
-                        repeat(slots) { i ->
-                            val art = rc.getOrNull(i)?.let { address.imageUrl(it.landscapeUrl ?: it.posterUrl, width = 220) }
-                            Box(
-                                Modifier.weight(1f).aspectRatio(1.72f).clip(card12).background(LobbyColors.card)
-                                    .then(if (ri == 0 && i == 1) Modifier.border(1.dp, Color(0xCCFFFFFF), card12) else Modifier),
-                            ) {
-                                if (art != null) AsyncImage(model = art, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                        repeat(5) { i ->
+                            if (i < count) {
+                                val art = rc.getOrNull(i)?.let { address.imageUrl(it.landscapeUrl ?: it.posterUrl, width = 220) }
+                                Box(
+                                    Modifier.weight(1f).aspectRatio(1.72f).clip(card12).background(LobbyColors.card)
+                                        .then(if (ri == 0 && i == 1) Modifier.border(1.dp, Color(0xCCFFFFFF), card12) else Modifier),
+                                ) {
+                                    if (art != null) AsyncImage(model = art, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                                }
+                            } else {
+                                Spacer(Modifier.weight(1f))
                             }
                         }
                     }
