@@ -583,7 +583,8 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
                 .onSuccess { saved ->
                     settingsChanged = true
                     // Take the server's clamped values, unless the user has already changed something else since.
-                    if (dirty.isEmpty()) updateSettings { it.copy(data = saved) }
+                    // Keep the locally-cached combine setting: older plugins don't persist it and would echo false.
+                    if (dirty.isEmpty()) updateSettings { it.copy(data = saved.copy(combineContinueNextUp = store.combineContinueNextUp())) }
                 }
                 .onFailure { e ->
                     dirty.addAll(fields)
