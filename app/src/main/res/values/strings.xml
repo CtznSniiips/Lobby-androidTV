@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Lobby</string>
+    <string name="home_override_label">Lobby Home button</string>
+    <string name="home_override_description">Lets the remote\'s Home button return to Lobby on TVs that keep it wired to the stock launcher. When on, pressing Home brings Lobby to the front instead of the system home screen.</string>
 </resources>

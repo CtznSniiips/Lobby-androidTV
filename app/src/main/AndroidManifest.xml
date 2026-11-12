@@ -57,5 +57,20 @@
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
+
+        <!-- Optional Home-button override: recaptures the Home button on devices that keep it wired to the stock
+             launcher even after Lobby is chosen as home. The user enables it under Settings -> Accessibility. -->
+        <service
+            android:name=".HomeOverrideService"
+            android:exported="true"
+            android:label="@string/home_override_label"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/home_override_service" />
+        </service>
     </application>
 </manifest>

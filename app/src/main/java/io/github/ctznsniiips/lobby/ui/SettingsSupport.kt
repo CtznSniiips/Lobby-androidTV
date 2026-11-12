@@ -58,6 +58,7 @@ class SettingsActions(
     val moveApp: (packageName: String, delta: Int) -> Unit,
     val setInputHidden: (inputId: String, hidden: Boolean) -> Unit,
     val openSystemSettings: () -> Unit,
+    val openAccessibilitySettings: () -> Unit,
     val setHomeFont: (id: String) -> Unit,
     val setBgMode: (mode: String) -> Unit,
     val setWallpaper: (id: String) -> Unit,
