@@ -233,7 +233,7 @@ fun HomeScreen(
         // Content fills the width; the rail is an overlay, so the rows reach almost to the left edge while the
         // hero text and greeting are inset enough to clear it.
         // Reserve the dock's band at the bottom so the rows end above it instead of rendering under it (as in Samsung).
-        Column(Modifier.fillMaxSize().padding(end = 40.dp, top = 20.dp, bottom = if (hasDock) 104.dp else 0.dp)) {
+        Column(Modifier.fillMaxSize().padding(end = 40.dp, top = 20.dp, bottom = if (hasDock) 86.dp else 0.dp)) {
             Row(
                 Modifier.fillMaxWidth().padding(start = HERO_INSET),
                 verticalAlignment = Alignment.CenterVertically,
@@ -278,7 +278,6 @@ fun HomeScreen(
                 val idx = rowList.indexOfFirst { it.id == focusedRowId }
                 if (idx >= 0) rowsScope.launch { rowsState.animateScrollToItem(preItems + idx) }
             }
-            Spacer(Modifier.height(20.dp))
             Box(
                 Modifier
                     .fillMaxSize()
