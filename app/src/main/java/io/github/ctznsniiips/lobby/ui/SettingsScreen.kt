@@ -3,6 +3,7 @@
 package io.github.ctznsniiips.lobby.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -466,9 +467,9 @@ private fun SettingsPreview(
     val font = fontFamilyFor(homeFont)
     val wp = remember(wallpaper) { Wallpapers.firstOrNull { it.id == wallpaper } ?: Wallpapers.first() }
     val shape = RoundedCornerShape(16.dp)
-    val circle = RoundedCornerShape(percent = 50)
     val card12 = RoundedCornerShape(10.dp)
     val hero = homeState.home?.featured?.firstOrNull()
+    val featuredCount = homeState.home?.featured?.size ?: 0
     val heading = hero?.tagline?.takeIf { it.isNotBlank() } ?: hero?.title?.takeIf { it.isNotBlank() } ?: "Featured Title"
     val body = hero?.overview?.takeIf { it.isNotBlank() }
         ?: "Your featured title's tagline and overview appear here, in your chosen typeface."
@@ -553,6 +554,23 @@ private fun SettingsPreview(
                 modifier = Modifier.align(Alignment.TopEnd).padding(end = 24.dp, top = 30.dp).size(width = 82.dp, height = 36.dp),
             )
         }
+        // Hero pager dots, one per featured item, mirroring the real home's bottom-right indicator.
+        if (!isDock && featuredCount > 1) {
+            Row(
+                Modifier.align(Alignment.TopEnd).padding(end = 26.dp, top = 74.dp),
+                horizontalArrangement = Arrangement.spacedBy(3.dp),
+            ) {
+                repeat(featuredCount.coerceAtMost(8)) { i ->
+                    Box(
+                        Modifier
+                            .height(3.dp)
+                            .width(if (i == 0) 12.dp else 3.dp)
+                            .clip(RoundedCornerShape(2.dp))
+                            .background(if (i == 0) Color.White else Color(0x66FFFFFF)),
+                    )
+                }
+            }
+        }
         // Two real poster rows near the bottom; the second card of the first row carries the focus ring.
         val previewRows = remember(homeState.home) { homeState.home?.rows?.filter { it.items.isNotEmpty() }?.take(2).orEmpty() }
         Column(
@@ -618,12 +636,14 @@ private fun SettingsPreview(
                 }
             }
         } else {
-            // Dock / Watch: left rail of nav icons, in the upper-left like the real home.
+            // Dock / Watch: left rail of the real nav icons (search, screensaver, apps, settings).
             Column(
                 Modifier.align(Alignment.TopStart).padding(start = 14.dp, top = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(9.dp),
             ) {
-                repeat(4) { Box(Modifier.size(11.dp).clip(circle).background(Color(0x26FFFFFF))) }
+                listOf(RailIcon.Search, RailIcon.Art, RailIcon.Apps, RailIcon.Settings).forEach { icon ->
+                    Canvas(Modifier.size(12.dp)) { drawRailIcon(icon, Color(0xCCFFFFFF)) }
+                }
             }
         }
         // The dock, pinned bottom-centre (Dock and Watch; List shows the app list instead). The frosted veil follows
