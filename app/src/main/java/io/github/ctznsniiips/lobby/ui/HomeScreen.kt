@@ -1072,24 +1072,36 @@ private class DownscaleBlur(private val factor: Int = 20) : Transformation {
 private fun BoxScope.GlassSelector(shape: Shape) {
     Box(
         Modifier.matchParentSize()
-            .shadow(6.dp, shape, clip = false)
+            .shadow(5.dp, shape, clip = false)
             .clip(shape)
-            .background(Brush.verticalGradient(listOf(Color(0x66FFFFFF), Color(0x2EFFFFFF))))
-            .border(1.dp, Brush.verticalGradient(listOf(Color(0x85FFFFFF), Color(0x1AFFFFFF))), shape),
+            // Samsung --plate: a gentle top-lit gradient (.30 → .16 → .22).
+            .background(Brush.verticalGradient(0f to Color(0x4DFFFFFF), 0.58f to Color(0x29FFFFFF), 1f to Color(0x38FFFFFF)))
+            // Samsung --plate-edge: only a top inner hairline (.34), not a full bright rim.
+            .border(1.dp, Brush.verticalGradient(0f to Color(0x57FFFFFF), 0.12f to Color.Transparent), shape),
     )
 }
 
 /**
- * A subtle focus selector for the dark (non-photo) dock: a soft plate only slightly lighter than the background
- * with a faint rim, like the Samsung dock's understated highlight — no glass, no shadow.
+ * The subtle focus selector for the dark (non-photo) dock, matching the Samsung --plate: a soft 8% warm-white plate
+ * with a 1px top-lit hairline (--plate-edge) for a gentle 3D feel — no glass, no full rim, no shadow.
  */
 @Composable
 private fun BoxScope.SubtleSelector(shape: Shape) {
     Box(
         Modifier.matchParentSize()
             .clip(shape)
-            .background(Color(0x24FFFFFF))
-            .border(1.dp, Color(0x1AFFFFFF), shape),
+            .background(Color(0x14F6F1E7))
+            .border(1.dp, Brush.verticalGradient(0f to Color(0x1AFFFAF0), 0.16f to Color.Transparent), shape),
+    )
+}
+
+/** The focus selector for a Light background: a faint dark plate (Samsung --plate for bg-light), with no edge. */
+@Composable
+private fun BoxScope.LightSelector(shape: Shape) {
+    Box(
+        Modifier.matchParentSize()
+            .clip(shape)
+            .background(Color(0x121D1A16)),
     )
 }
 
@@ -1106,7 +1118,8 @@ private fun AppDock(
     appDisplay: String = "both",
 ) {
     val list = remember(apps) { apps.distinctBy { it.packageName } }
-    val shape = androidx.compose.foundation.shape.RoundedCornerShape(22.dp)
+    val shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp)
+    val light = LobbyColors.palette.light
     val context = LocalContext.current
     // A heavily downscaled decode of the wallpaper: scaled back up it reads as a soft blur on EVERY Android
     // version (Modifier.blur only blurs on API 31+), which is what makes the dock look like frosted glass.
@@ -1123,18 +1136,26 @@ private fun AppDock(
     // The sharp wallpaper copy whose aligned slice is drawn behind the dock for the true "window" look.
     val blurredBmp = if (glass) rememberBlurredWallpaper(wallpaperUri) else null
     var panelPos by remember { mutableStateOf(Offset.Zero) }
+    // Samsung tokens: a near-weightless bar whose only edge is a soft top hairline (no prominent outer border or
+    // shadow). The fill follows the tone — dark bluish glass, a light translucent white on a Light background.
+    val barFill = when {
+        glass -> Color.Transparent
+        light -> Color(0xB3FFFFFF)
+        else -> Color(0xCC1E2128)
+    }
+    val topLine = if (light) Color(0x1F1C1A17) else Color(0x3DFFFFFF)
+    val faintRim = if (light) Color(0x0A1C1A17) else Color(0x0AFFFFFF)
     Box(
         Modifier
-            // Over a photo the dock is a frosted bar. On a dark background it's a subtle soft bar like the Samsung
-            // dock — a faint translucent plate and dim rim — not the bright, obvious Android bar.
-            .shadow(if (glass) 24.dp else 12.dp, shape, clip = false)
+            .shadow(if (glass) 16.dp else 6.dp, shape, clip = false)
             .clip(shape)
-            .border(1.dp, if (glass) Color(0x24FFFFFF) else Color(0x1FFFFFFF), shape)
+            // Mostly a top-lit hairline, fading to almost nothing around the sides — not a full bright rim.
+            .border(1.dp, Brush.verticalGradient(0f to topLine, 0.12f to faintRim), shape)
             .then(if (glass) Modifier.onGloballyPositioned { panelPos = it.positionInWindow() } else Modifier),
     ) {
-        // Backdrop layer. Over a photo it's the frosted-glass window; on a dark background a subtle translucent plate.
+        // Backdrop layer. Over a photo it's the frosted-glass window; otherwise a subtle toned plate.
         if (!glass) {
-            Box(Modifier.matchParentSize().clip(shape).background(Color(0x99171A21)))
+            Box(Modifier.matchParentSize().clip(shape).background(barFill))
         }
         if (glass) {
             Box(Modifier.matchParentSize().clip(shape)) {
@@ -1202,7 +1223,7 @@ private fun AppDock(
             val bitmap = remember(app.packageName) { app.icon?.toBitmap(240, 135)?.asImageBitmap() }
             val tileInteraction = remember { MutableInteractionSource() }
             val tileFocused by tileInteraction.collectIsFocusedAsState()
-            val tileShape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp)
+            val tileShape = androidx.compose.foundation.shape.RoundedCornerShape(10.dp)
             Surface(
                 onClick = { onApp(app) },
                 interactionSource = tileInteraction,
@@ -1218,7 +1239,13 @@ private fun AppDock(
                 // fillMaxWidth (not fillMaxSize): in the wrap-height dock Row, fillMaxSize would stretch the tile to
                 // the whole screen. The Column sizes the height; the selector plate matches via matchParentSize.
                 Box(Modifier.fillMaxWidth()) {
-                    if (tileFocused) { if (glass) GlassSelector(tileShape) else SubtleSelector(tileShape) }
+                    if (tileFocused) {
+                        when {
+                            glass -> GlassSelector(tileShape)
+                            light -> LightSelector(tileShape)
+                            else -> SubtleSelector(tileShape)
+                        }
+                    }
                 Column(
                     Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 5.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -1275,6 +1302,8 @@ private fun AppList(
     appDisplay: String,
 ) {
     val list = remember(apps) { apps.distinctBy { it.packageName } }
+    val glass = LobbyColors.photo
+    val light = LobbyColors.palette.light
     LazyColumn(
         modifier = Modifier.width(228.dp).fillMaxHeight(),
         verticalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterVertically),
@@ -1284,7 +1313,7 @@ private fun AppList(
             val bitmap = remember(app.packageName) { app.icon?.toBitmap(240, 135)?.asImageBitmap() }
             val tileInteraction = remember { MutableInteractionSource() }
             val tileFocused by tileInteraction.collectIsFocusedAsState()
-            val rowShape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp)
+            val rowShape = androidx.compose.foundation.shape.RoundedCornerShape(10.dp)
             Surface(
                 onClick = { onApp(app) },
                 interactionSource = tileInteraction,
@@ -1297,7 +1326,13 @@ private fun AppList(
                 modifier = Modifier.fillMaxWidth().then(if (i == 0) Modifier.focusRequester(firstFocus) else Modifier),
             ) {
                 Box(Modifier.fillMaxWidth()) {
-                    if (tileFocused) GlassSelector(rowShape)
+                    if (tileFocused) {
+                        when {
+                            glass -> GlassSelector(rowShape)
+                            light -> LightSelector(rowShape)
+                            else -> SubtleSelector(rowShape)
+                        }
+                    }
                     Row(
                         Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,

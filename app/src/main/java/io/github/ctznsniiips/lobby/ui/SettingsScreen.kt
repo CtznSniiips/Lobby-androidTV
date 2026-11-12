@@ -691,15 +691,23 @@ private fun SettingsPreview(
         // the Material, the focused tile shows the glass plate, and the tiles follow App display
         // (icon only / name only / both). Watch and Dock both keep the bottom dock; List does not.
         if (!isList) {
-            // Over a photo the dock is a frosted bar whose veil follows the Material. On a dark background it's a
-            // subtle soft bar like the Samsung dock, with a soft, light focus plate.
+            // Samsung tokens: a near-weightless bar (light on Light, dark on Dark, frosted over a photo) with only a
+            // soft top hairline, and a toned 3D-ish focus plate.
             val photo = bgMode == "photo"
-            val dockShape = RoundedCornerShape(9.dp)
+            val light = bgMode == "light"
+            val dockShape = RoundedCornerShape(6.dp)
+            val tileShape = RoundedCornerShape(5.dp)
             val dockVeil = when (LobbyColors.material) {
                 "frost" -> Color(0x59FFFFFF)
                 "tint" -> Color(0x800A1016)
                 else -> Color(0x730B0D10)
             }
+            val barFill = when {
+                photo -> dockVeil
+                light -> Color(0xB3FFFFFF)
+                else -> Color(0xCC1E2128)
+            }
+            val topLine = if (light) Color(0x1F1C1A17) else Color(0x33FFFFFF)
             val tileW = 30.dp
             val iconH = 20.dp
             Row(
@@ -707,7 +715,8 @@ private fun SettingsPreview(
                     .align(Alignment.BottomCenter)
                     .padding(bottom = 10.dp)
                     .clip(dockShape)
-                    .then(if (photo) Modifier.background(dockVeil).border(1.dp, Color(0x24FFFFFF), dockShape) else Modifier.background(Color(0x99171A21)).border(1.dp, Color(0x1FFFFFFF), dockShape))
+                    .background(barFill)
+                    .border(1.dp, Brush.verticalGradient(0f to topLine, 0.12f to Color.Transparent), dockShape)
                     .padding(horizontal = 9.dp, vertical = 5.dp),
                 horizontalArrangement = Arrangement.spacedBy(9.dp),
             ) {
@@ -717,13 +726,14 @@ private fun SettingsPreview(
                     val name = apps.getOrNull(i)?.label ?: "App"
                     val focused = i == slots / 2
                     val tilePlate = when {
-                        focused && photo -> Modifier.background(LobbyColors.focusPlate).border(1.dp, Color(0x66FFFFFF), RoundedCornerShape(7.dp))
-                        focused -> Modifier.background(Color(0x24FFFFFF)).border(1.dp, Color(0x1AFFFFFF), RoundedCornerShape(7.dp))
+                        focused && photo -> Modifier.background(Brush.verticalGradient(0f to Color(0x4DFFFFFF), 0.58f to Color(0x29FFFFFF), 1f to Color(0x38FFFFFF))).border(1.dp, Brush.verticalGradient(0f to Color(0x57FFFFFF), 0.2f to Color.Transparent), tileShape)
+                        focused && light -> Modifier.background(Color(0x121D1A16))
+                        focused -> Modifier.background(Color(0x14F6F1E7)).border(1.dp, Brush.verticalGradient(0f to Color(0x1AFFFAF0), 0.25f to Color.Transparent), tileShape)
                         photo -> Modifier.background(Color(0x2EFFFFFF))
                         else -> Modifier
                     }
                     Column(
-                        Modifier.width(tileW).clip(RoundedCornerShape(7.dp))
+                        Modifier.width(tileW).clip(tileShape)
                             .then(tilePlate)
                             .padding(3.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
