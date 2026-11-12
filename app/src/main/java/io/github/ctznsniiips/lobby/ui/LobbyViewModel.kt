@@ -117,6 +117,7 @@ data class LobbyState(
     val screenSaverMinutes: Int = 0,
     /** Whether the remote's Home button opens Lobby. Starts true so the prompt doesn't flash before the first check. */
     val isDefaultHome: Boolean = true,
+    val homeOverrideEnabled: Boolean = false,
     /** "Not now" was chosen on the Home prompt (the Lobby settings entry stays available). */
     val homePromptDismissed: Boolean = false,
     /** True while the make-Lobby-your-home-screen guide is open. */
@@ -408,8 +409,11 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Re-checks whether Lobby is the home app; called on start-up and whenever the app comes back to the front. */
     fun refreshHomeStatus() {
-        val isDefault = device.isDefaultHome()
-        _state.update { it.copy(isDefaultHome = isDefault) }
+        _state.update { it.copy(isDefaultHome = device.isDefaultHome(), homeOverrideEnabled = device.isHomeOverrideEnabled()) }
+    }
+
+    fun openAccessibilitySettings() {
+        if (!device.openAccessibilitySettings()) say("Couldn't open Accessibility settings.")
     }
 
     fun openHomeSetup() = _state.update { it.copy(homeSetup = true) }

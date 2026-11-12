@@ -45,6 +45,7 @@ class MainActivity : ComponentActivity() {
             moveApp = viewModel::moveApp,
             setInputHidden = viewModel::setInputHidden,
             openSystemSettings = viewModel::openSystemSettings,
+            openAccessibilitySettings = viewModel::openAccessibilitySettings,
             setHomeFont = viewModel::setHomeFont,
             setBgMode = viewModel::setBgMode,
             setWallpaper = viewModel::setWallpaper,

@@ -1,6 +1,7 @@
 package io.github.ctznsniiips.lobby.device
 
 import android.app.role.RoleManager
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -101,6 +102,19 @@ class TvDevice(private val context: Context) {
 
     /** Android's "default home app" picker, where the TV has one. */
     fun openHomeSettings(): Boolean = start(Intent(Settings.ACTION_HOME_SETTINGS))
+
+    /** Whether Lobby's Home-button override accessibility service is currently enabled. */
+    fun isHomeOverrideEnabled(): Boolean {
+        val ours = ComponentName(context.packageName, "${context.packageName}.HomeOverrideService")
+        val enabled = Settings.Secure.getString(
+            context.contentResolver,
+            Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
+        ).orEmpty()
+        return enabled.split(':').mapNotNull { ComponentName.unflattenFromString(it) }.any { it == ours }
+    }
+
+    /** Android's Accessibility settings, where the user turns the Home-button override on or off. */
+    fun openAccessibilitySettings(): Boolean = start(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
 
     /** Where the user chooses the screen saver and Android's own "When to start" delay. */
     fun openScreenSaverSettings(): Boolean = start(Intent(Settings.ACTION_DREAM_SETTINGS)) || openSystemSettings()

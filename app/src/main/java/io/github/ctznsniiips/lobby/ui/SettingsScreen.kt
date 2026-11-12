@@ -368,6 +368,23 @@ private fun CategoryDetail(
                         Button(onClick = actions.openSystemSettings) { Text("TV settings") }
                     }
                 }
+                item { SectionHeader("Home button override") }
+                item {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            "On some TVs the Home button keeps opening the stock launcher even after you pick Lobby. This override makes Home return to Lobby anyway.",
+                            fontSize = 14.sp, color = LobbyColors.soft,
+                        )
+                        Text(
+                            if (homeState.homeOverrideEnabled) "On — the Home button returns to Lobby." else "Off — turn on “Lobby Home button” under Accessibility.",
+                            fontSize = 15.sp,
+                            color = if (homeState.homeOverrideEnabled) LobbyColors.accent else LobbyColors.ink,
+                        )
+                        Button(onClick = actions.openAccessibilitySettings) {
+                            Text(if (homeState.homeOverrideEnabled) "Accessibility settings" else "Turn on in Accessibility settings")
+                        }
+                    }
+                }
             }
             // Emby & Seerr: the connection plus everything the plugin keeps for this TV, grouped like the Samsung app.
             SettingsCategory.Media -> {
