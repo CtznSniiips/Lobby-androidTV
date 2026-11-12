@@ -680,15 +680,14 @@ private fun SettingsPreview(
         // the Material, the focused tile shows the glass plate, and the tiles follow App display
         // (icon only / name only / both). Watch and Dock both keep the bottom dock; List does not.
         if (!isList) {
+            // Over a photo the dock is a frosted bar whose veil follows the Material. On a dark background it stays
+            // bare like the Samsung dock — no bar, no border — with a soft, light focus plate.
+            val photo = bgMode == "photo"
             val dockShape = RoundedCornerShape(9.dp)
-            val dockVeil = if (bgMode == "photo") {
-                when (LobbyColors.material) {
-                    "frost" -> Color(0x59FFFFFF)
-                    "tint" -> Color(0x800A1016)
-                    else -> Color(0x730B0D10)
-                }
-            } else {
-                LobbyColors.surface
+            val dockVeil = when (LobbyColors.material) {
+                "frost" -> Color(0x59FFFFFF)
+                "tint" -> Color(0x800A1016)
+                else -> Color(0x730B0D10)
             }
             val tileW = 30.dp
             val iconH = 20.dp
@@ -697,8 +696,7 @@ private fun SettingsPreview(
                     .align(Alignment.BottomCenter)
                     .padding(bottom = 10.dp)
                     .clip(dockShape)
-                    .background(dockVeil)
-                    .border(1.dp, Color(0x24FFFFFF), dockShape)
+                    .then(if (photo) Modifier.background(dockVeil).border(1.dp, Color(0x24FFFFFF), dockShape) else Modifier)
                     .padding(horizontal = 9.dp, vertical = 5.dp),
                 horizontalArrangement = Arrangement.spacedBy(9.dp),
             ) {
@@ -707,12 +705,15 @@ private fun SettingsPreview(
                     val bmp = apps.getOrNull(i)?.let { app -> app.icon?.toBitmap(240, 135)?.asImageBitmap() }
                     val name = apps.getOrNull(i)?.label ?: "App"
                     val focused = i == slots / 2
+                    val tilePlate = when {
+                        focused && photo -> Modifier.background(LobbyColors.focusPlate).border(1.dp, Color(0x66FFFFFF), RoundedCornerShape(7.dp))
+                        focused -> Modifier.background(Color(0x24FFFFFF)).border(1.dp, Color(0x1AFFFFFF), RoundedCornerShape(7.dp))
+                        photo -> Modifier.background(Color(0x2EFFFFFF))
+                        else -> Modifier
+                    }
                     Column(
                         Modifier.width(tileW).clip(RoundedCornerShape(7.dp))
-                            .then(
-                                if (focused) Modifier.background(LobbyColors.focusPlate).border(1.dp, Color(0x66FFFFFF), RoundedCornerShape(7.dp))
-                                else Modifier.background(Color(0x2EFFFFFF)),
-                            )
+                            .then(tilePlate)
                             .padding(3.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(2.dp),
