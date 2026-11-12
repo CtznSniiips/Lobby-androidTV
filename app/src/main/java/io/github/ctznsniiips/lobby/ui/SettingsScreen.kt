@@ -438,9 +438,6 @@ private fun SettingsPreview(
     val heading = hero?.tagline?.takeIf { it.isNotBlank() } ?: hero?.title?.takeIf { it.isNotBlank() } ?: "Featured Title"
     val body = hero?.overview?.takeIf { it.isNotBlank() }
         ?: "Your featured title's tagline and overview appear here, in your chosen typeface."
-    val row = homeState.home?.rows?.firstOrNull { it.items.isNotEmpty() }
-    val rowTitle = row?.title?.takeIf { it.isNotBlank() } ?: "Continue Watching"
-    val cards = remember(row) { row?.items?.distinctBy { it.id }?.take(5).orEmpty() }
     val apps = remember(homeState.apps) { homeState.apps.distinctBy { it.packageName }.take(5) }
     val heroArt = address.imageUrl(hero?.backdropUrl ?: hero?.landscapeUrl, width = 800)
     val heroLogo = address.imageUrl(hero?.logoUrl, width = 300)
@@ -514,19 +511,28 @@ private fun SettingsPreview(
                 modifier = Modifier.align(Alignment.TopEnd).padding(end = 24.dp, top = 30.dp).size(width = 82.dp, height = 36.dp),
             )
         }
-        // A real poster row near the bottom; the second card carries the focus ring.
-        Column(Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(start = 40.dp, end = 16.dp, bottom = 50.dp)) {
-            Text(rowTitle, fontFamily = font, fontWeight = FontWeight.SemiBold, fontSize = 9.sp, color = LobbyColors.ink)
-            Spacer(Modifier.height(4.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                val slots = if (cards.isNotEmpty()) cards.size else 4
-                repeat(slots) { i ->
-                    val art = cards.getOrNull(i)?.let { address.imageUrl(it.landscapeUrl ?: it.posterUrl, width = 240) }
-                    Box(
-                        Modifier.weight(1f).aspectRatio(1.6f).clip(card12).background(LobbyColors.card)
-                            .then(if (i == 1) Modifier.border(2.dp, Color(0xCCFFFFFF), card12) else Modifier),
-                    ) {
-                        if (art != null) AsyncImage(model = art, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+        // Two real poster rows near the bottom; the second card of the first row carries the focus ring.
+        val previewRows = remember(homeState.home) { homeState.home?.rows?.filter { it.items.isNotEmpty() }?.take(2).orEmpty() }
+        Column(
+            Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(start = 40.dp, end = 16.dp, bottom = 48.dp),
+            verticalArrangement = Arrangement.spacedBy(5.dp),
+        ) {
+            val shown = if (previewRows.isNotEmpty()) previewRows else listOf(null, null)
+            shown.forEachIndexed { ri, r ->
+                val title = r?.title?.takeIf { it.isNotBlank() } ?: if (ri == 0) "Continue Watching" else "Next Up"
+                Text(title, fontFamily = font, fontWeight = FontWeight.SemiBold, fontSize = 9.sp, color = LobbyColors.ink)
+                Spacer(Modifier.height(3.dp))
+                val rc = r?.items?.distinctBy { it.id }?.take(5).orEmpty()
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    val slots = if (rc.isNotEmpty()) rc.size else 5
+                    repeat(slots) { i ->
+                        val art = rc.getOrNull(i)?.let { address.imageUrl(it.landscapeUrl ?: it.posterUrl, width = 220) }
+                        Box(
+                            Modifier.weight(1f).aspectRatio(1.72f).clip(card12).background(LobbyColors.card)
+                                .then(if (ri == 0 && i == 1) Modifier.border(2.dp, Color(0xCCFFFFFF), card12) else Modifier),
+                        ) {
+                            if (art != null) AsyncImage(model = art, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                        }
                     }
                 }
             }
@@ -538,29 +544,39 @@ private fun SettingsPreview(
         ) {
             repeat(4) { Box(Modifier.size(15.dp).clip(circle).background(Color(0x26FFFFFF))) }
         }
-        // The dock, pinned bottom-centre; the focused tile shows the glass plate the Material tunes.
+        // The dock, pinned bottom-centre; the frosted veil follows the Material, and the focused tile shows the glass plate the Material tunes.
+        val dockShape = RoundedCornerShape(9.dp)
+        val dockVeil = if (bgMode == "photo") {
+            when (LobbyColors.material) {
+                "frost" -> Color(0x59FFFFFF)
+                "tint" -> Color(0x800A1016)
+                else -> Color(0x730B0D10)
+            }
+        } else {
+            LobbyColors.surface
+        }
         Row(
             Modifier
                 .align(Alignment.BottomCenter)
                 .padding(bottom = 10.dp)
-                .clip(RoundedCornerShape(11.dp))
-                .background(if (bgMode == "photo") Color(0x40101418) else LobbyColors.surface)
-                .border(1.dp, Color(0x24FFFFFF), RoundedCornerShape(11.dp))
-                .padding(horizontal = 10.dp, vertical = 6.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                .clip(dockShape)
+                .background(dockVeil)
+                .border(1.dp, Color(0x24FFFFFF), dockShape)
+                .padding(horizontal = 9.dp, vertical = 5.dp),
+            horizontalArrangement = Arrangement.spacedBy(9.dp),
         ) {
             val slots = if (apps.isNotEmpty()) apps.size else 5
             repeat(slots) { i ->
                 val bmp = apps.getOrNull(i)?.let { app -> app.icon?.toBitmap(240, 135)?.asImageBitmap() }
                 Box(
-                    Modifier.size(width = 36.dp, height = 24.dp).clip(RoundedCornerShape(8.dp))
+                    Modifier.size(width = 30.dp, height = 20.dp).clip(RoundedCornerShape(7.dp))
                         .then(
-                            if (i == slots / 2) Modifier.background(LobbyColors.focusPlate).border(1.dp, Color(0x66FFFFFF), RoundedCornerShape(8.dp))
+                            if (i == slots / 2) Modifier.background(LobbyColors.focusPlate).border(1.dp, Color(0x66FFFFFF), RoundedCornerShape(7.dp))
                             else Modifier.background(Color(0x2EFFFFFF)),
                         ),
                     contentAlignment = Alignment.Center,
                 ) {
-                    if (bmp != null) Image(bitmap = bmp, contentDescription = null, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize().padding(3.dp))
+                    if (bmp != null) Image(bitmap = bmp, contentDescription = null, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize().padding(2.5.dp))
                 }
             }
         }
