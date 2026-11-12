@@ -143,6 +143,8 @@ private val ROW_V_PAD = 10.dp
 // The hero text and greeting are inset to clear the floating rail; the rows start much further left.
 private val HERO_INSET = 76.dp
 private val ROWS_INSET = 16.dp
+/** Width reserved on the left for the vertical app list in the List layout (rail + list + a gap). */
+private val APP_LIST_WIDTH = 300.dp
 
 /**
  * Home, laid out like the Samsung app: the focused (or featured) title's backdrop fills the screen, a slim rail of
@@ -177,7 +179,13 @@ fun HomeScreen(
     val searchFocus = remember { FocusRequester() }
     val heroFocus = remember { FocusRequester() }
     val dockFocus = remember { FocusRequester() }
-    val hasDock = state.apps.isNotEmpty()
+    val hasApps = state.apps.isNotEmpty()
+    // Watch is the full layout led by the hero; Dock drops the hero for an open top; List puts the apps
+    // in a vertical list down the left. Watch and Dock both keep the bottom app dock.
+    val isList = state.homeLayout == "list"
+    val isDock = state.homeLayout == "dock"
+    val hasBottomDock = hasApps && !isList
+    val hasAppList = hasApps && isList
 
     // Rotate the featured titles while nothing in the rows is focused.
     LaunchedEffect(featured, browsed, preview) {
@@ -189,8 +197,14 @@ fun HomeScreen(
         }
     }
     // In preview mode (the settings previewer) nothing grabs focus — the settings UI keeps it.
-    LaunchedEffect(featured.isNotEmpty()) {
-        if (!preview && featured.isNotEmpty()) runCatching { heroFocus.requestFocus() }
+    // Dock and List have no hero to focus, so initial focus goes to the app dock (or app list) instead.
+    LaunchedEffect(featured.isNotEmpty(), state.homeLayout, hasApps) {
+        if (preview) return@LaunchedEffect
+        if (!isDock && !isList && featured.isNotEmpty()) {
+            runCatching { heroFocus.requestFocus() }
+        } else if (hasApps) {
+            runCatching { dockFocus.requestFocus() }
+        }
     }
 
     val settingsFocus = remember { FocusRequester() }
@@ -212,10 +226,11 @@ fun HomeScreen(
             Box(Modifier.fillMaxSize().background(scrim))
         }
 
-        HeroBackdrop(heroItem, address)
+        // Dock drops the hero entirely, so there's no backdrop art or colour wash — just open space up top.
+        if (!isDock) HeroBackdrop(heroItem, address)
 
         // A soft wash of the hero image's dominant colour, kept to the upper-left so it doesn't bleed into the rows.
-        if (accent != Color.Transparent) {
+        if (!isDock && accent != Color.Transparent) {
             Box(
                 Modifier.fillMaxSize().drawBehind {
                     drawRect(
@@ -233,7 +248,7 @@ fun HomeScreen(
         // Content fills the width; the rail is an overlay, so the rows reach almost to the left edge while the
         // hero text and greeting are inset enough to clear it.
         // Reserve the dock's band at the bottom so the rows end above it instead of rendering under it (as in Samsung).
-        Column(Modifier.fillMaxSize().padding(end = 40.dp, top = 20.dp, bottom = if (hasDock) 86.dp else 0.dp)) {
+        Column(Modifier.fillMaxSize().padding(start = if (hasAppList) APP_LIST_WIDTH else 0.dp, end = 40.dp, top = 20.dp, bottom = if (hasBottomDock) 86.dp else 0.dp)) {
             Row(
                 Modifier.fillMaxWidth().padding(start = HERO_INSET),
                 verticalAlignment = Alignment.CenterVertically,
@@ -244,24 +259,29 @@ fun HomeScreen(
                 state.weather?.let { WeatherChip(it, Modifier.padding(start = 18.dp)) }
             }
 
-            Hero(
-                item = heroItem,
-                address = address,
-                count = featured.size,
-                index = featuredIndex,
-                onItem = onItem,
-                searchFocus = searchFocus,
-                heroFocus = heroFocus,
-                onCycle = { delta ->
-                    if (featured.size <= 1) false
-                    else if (delta < 0 && featuredIndex == 0) false // let focus fall left to the rail
-                    else {
-                        featuredIndex = (featuredIndex + delta + featured.size) % featured.size
-                        true
-                    }
-                },
-                modifier = Modifier.fillMaxWidth().padding(start = HERO_INSET).height(164.dp),
-            )
+            // Dock keeps the hero's vertical band empty so the rows stay put and the top reads as open space.
+            if (isDock) {
+                Spacer(Modifier.height(164.dp))
+            } else {
+                Hero(
+                    item = heroItem,
+                    address = address,
+                    count = featured.size,
+                    index = featuredIndex,
+                    onItem = onItem,
+                    searchFocus = searchFocus,
+                    heroFocus = heroFocus,
+                    onCycle = { delta ->
+                        if (featured.size <= 1) false
+                        else if (delta < 0 && featuredIndex == 0) false // let focus fall left to the rail
+                        else {
+                            featuredIndex = (featuredIndex + delta + featured.size) % featured.size
+                            true
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth().padding(start = HERO_INSET).height(164.dp),
+                )
+            }
 
             // The rows sit a little lower, in a band that fades softly at the top and bottom. The focused row is
             // pinned to a fixed spot, so moving down carries the previous row fully out of view and lifts the next
@@ -298,7 +318,7 @@ fun HomeScreen(
                 LazyColumn(
                     state = rowsState,
                     modifier = Modifier.fillMaxSize().padding(start = ROWS_INSET),
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(top = 8.dp, bottom = if (hasDock) 12.dp else 28.dp),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(top = 8.dp, bottom = if (hasBottomDock) 12.dp else 28.dp),
                     verticalArrangement = Arrangement.spacedBy(2.dp),
                 ) {
                     if (showHomePrompt) {
@@ -331,22 +351,32 @@ fun HomeScreen(
         Rail(
             onSearch = onSearch,
             onScreenSaver = onScreenSaver,
-            onApps = if (hasDock) ({ runCatching { dockFocus.requestFocus() } }) else null,
+            onApps = if (hasApps) ({ runCatching { dockFocus.requestFocus() } }) else null,
             onSettings = onLobbySettings,
             searchFocus = searchFocus,
             settingsFocus = settingsFocus,
-            settingsDown = if (hasDock) dockFocus else null,
+            settingsDown = if (hasApps) dockFocus else null,
             modifier = Modifier.align(Alignment.TopStart),
         )
 
-        // The app dock stays pinned along the bottom, centred, over the rows.
-        if (hasDock) {
+        // List layout: the apps run down the left as a vertical list, to the right of the rail.
+        if (hasAppList) {
+            Box(
+                Modifier
+                    .align(Alignment.TopStart)
+                    .padding(start = 64.dp, top = 24.dp, bottom = 16.dp)
+                    .onFocusChanged { if (it.hasFocus) browsed = null },
+            ) { AppList(state.apps, onApp, dockFocus, appDisplay = state.appDisplay) }
+        }
+
+        // The app dock stays pinned along the bottom, centred, over the rows (Dock and Watch).
+        if (hasBottomDock) {
             Box(
                 Modifier
                     .align(Alignment.BottomCenter)
                     .padding(bottom = 8.dp)
                     .onFocusChanged { if (it.hasFocus) browsed = null },
-            ) { AppDock(state.apps, onApp, dockFocus, glass = state.bgMode == "photo", wallpaperUri = wallpaper.fullUri, material = state.material, rootSize = rootSize) }
+            ) { AppDock(state.apps, onApp, dockFocus, glass = state.bgMode == "photo", wallpaperUri = wallpaper.fullUri, material = state.material, rootSize = rootSize, appDisplay = state.appDisplay) }
         }
 
         MessageToast(state.message, onMessageShown, Modifier.align(Alignment.BottomCenter))
@@ -1019,6 +1049,7 @@ private fun AppDock(
     wallpaperUri: String,
     material: String,
     rootSize: IntSize,
+    appDisplay: String = "both",
 ) {
     val list = remember(apps) { apps.distinctBy { it.packageName } }
     val shape = androidx.compose.foundation.shape.RoundedCornerShape(22.dp)
@@ -1139,36 +1170,111 @@ private fun AppDock(
                     verticalArrangement = Arrangement.spacedBy(3.dp),
                 ) {
                     // Fill a rounded tile with the banner so the icon's own corners are rounded off.
-                    Box(
-                        Modifier
-                            .width(52.dp)
-                            .height(28.dp)
-                            .clip(androidx.compose.foundation.shape.RoundedCornerShape(9.dp))
-                            .background(Color(0x22000000)),
-                    ) {
-                        if (bitmap != null) {
-                            Image(
-                                bitmap = bitmap,
-                                contentDescription = app.label,
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier.fillMaxSize(),
-                            )
+                    if (appDisplay != "text") {
+                        Box(
+                            Modifier
+                                .width(52.dp)
+                                .height(28.dp)
+                                .clip(androidx.compose.foundation.shape.RoundedCornerShape(9.dp))
+                                .background(Color(0x22000000)),
+                        ) {
+                            if (bitmap != null) {
+                                Image(
+                                    bitmap = bitmap,
+                                    contentDescription = app.label,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize(),
+                                )
+                            }
                         }
                     }
                     // Matches Samsung's .wapp-name: SemiBold, soft ink. A soft shadow keeps it legible on bright frost.
-                    Text(
-                        app.label,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = LobbyColors.ink,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        style = TextStyle(shadow = Shadow(Color(0x99000000), blurRadius = 8f)),
-                    )
+                    if (appDisplay != "icons") {
+                        Text(
+                            app.label,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = LobbyColors.ink,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            style = TextStyle(shadow = Shadow(Color(0x99000000), blurRadius = 8f)),
+                        )
+                    }
                 }
                 }
             }
         }
+        }
+    }
+}
+
+/**
+ * The List layout's vertical app list down the left: each app is a focusable row with an icon and/or name,
+ * following the App display setting. The focused row shows the same glass selector as the dock.
+ */
+@Composable
+private fun AppList(
+    apps: List<DockApp>,
+    onApp: (DockApp) -> Unit,
+    firstFocus: FocusRequester,
+    appDisplay: String,
+) {
+    val list = remember(apps) { apps.distinctBy { it.packageName } }
+    LazyColumn(
+        modifier = Modifier.width(228.dp).fillMaxHeight(),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        items(list, key = { it.packageName }) { app ->
+            val i = list.indexOf(app)
+            val bitmap = remember(app.packageName) { app.icon?.toBitmap(240, 135)?.asImageBitmap() }
+            val tileInteraction = remember { MutableInteractionSource() }
+            val tileFocused by tileInteraction.collectIsFocusedAsState()
+            val rowShape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp)
+            Surface(
+                onClick = { onApp(app) },
+                interactionSource = tileInteraction,
+                shape = ClickableSurfaceDefaults.shape(rowShape),
+                colors = ClickableSurfaceDefaults.colors(
+                    containerColor = Color.Transparent,
+                    focusedContainerColor = Color.Transparent,
+                ),
+                scale = ClickableSurfaceDefaults.scale(focusedScale = 1.03f),
+                modifier = Modifier.fillMaxWidth().then(if (i == 0) Modifier.focusRequester(firstFocus) else Modifier),
+            ) {
+                Box(Modifier.fillMaxWidth()) {
+                    if (tileFocused) GlassSelector(rowShape)
+                    Row(
+                        Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        if (appDisplay != "text") {
+                            Box(
+                                Modifier
+                                    .width(52.dp)
+                                    .height(28.dp)
+                                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(9.dp))
+                                    .background(Color(0x22000000)),
+                            ) {
+                                if (bitmap != null) {
+                                    Image(bitmap = bitmap, contentDescription = app.label, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                                }
+                            }
+                        }
+                        if (appDisplay != "icons") {
+                            Text(
+                                app.label,
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = LobbyColors.ink,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                style = TextStyle(shadow = Shadow(Color(0x99000000), blurRadius = 8f)),
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
 }

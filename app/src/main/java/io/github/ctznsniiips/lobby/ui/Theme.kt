@@ -84,6 +84,12 @@ val FocusChoices = listOf("type" to "Type", "glass" to "Glass")
 /** The glass Materials, with display names. Only selectable over a Photo background. */
 val MaterialChoices = listOf("soft" to "Soft", "frost" to "Frost", "tint" to "Clear tint")
 
+/** The three Home layouts, with display names. */
+val LayoutChoices = listOf("list" to "List", "dock" to "Dock", "watch" to "Watch")
+
+/** How apps are shown on Home, with display names. */
+val AppDisplayChoices = listOf("icons" to "Icons", "both" to "Icons and text", "text" to "Text")
+
 /** Whether the glass Material affects anything: only over a Photo background. */
 fun materialApplies(bgMode: String): Boolean = bgMode == "photo"
 

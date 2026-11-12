@@ -63,6 +63,8 @@ class SettingsActions(
     val setWallpaper: (id: String) -> Unit,
     val setFocusStyle: (id: String) -> Unit,
     val setMaterial: (id: String) -> Unit,
+    val setHomeLayout: (id: String) -> Unit,
+    val setAppDisplay: (id: String) -> Unit,
     val setCombineContinueNextUp: (value: Boolean) -> Unit,
     val refreshRows: () -> Unit,
     val disconnect: () -> Unit,

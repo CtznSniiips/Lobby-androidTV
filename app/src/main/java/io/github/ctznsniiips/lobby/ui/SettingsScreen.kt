@@ -68,6 +68,7 @@ import io.github.ctznsniiips.lobby.device.TvInput
 /** The settings sub-menus, matching the Samsung app's top-level groups (minus its Frame-specific appearance ones). */
 private enum class SettingsCategory(val title: String) {
     Background("Background"),
+    Layout("Layout"),
     Focus("Focus"),
     Typography("Typography"),
     Saver("Screen saver"),
@@ -112,7 +113,7 @@ fun SettingsScreen(
     Box(Modifier.fillMaxSize().background(LobbyColors.background)) {
         when {
             settings.teamsOpen -> TeamsPicker(settings, actions)
-            category == null -> CategoryList(settings, apps, inputs, hiddenApps, homeFont, bgMode, focusStyle, material, actions) { category = it }
+            category == null -> CategoryList(settings, apps, inputs, hiddenApps, homeFont, bgMode, focusStyle, material, homeState.homeLayout, homeState.appDisplay, actions) { category = it }
             else -> CategoryDetail(category!!, homeState, address, settings, screenSaverMinutes, isDefaultHome, apps, inputs, hiddenApps, hiddenInputs, tvName, host, homeFont, bgMode, wallpaper, focusStyle, material, actions) { category = null }
         }
         MessageToast(message, onMessageShown, Modifier.align(Alignment.BottomCenter))
@@ -129,6 +130,8 @@ private fun CategoryList(
     bgMode: String,
     focusStyle: String,
     material: String,
+    homeLayout: String,
+    appDisplay: String,
     actions: SettingsActions,
     onOpen: (SettingsCategory) -> Unit,
 ) {
@@ -160,6 +163,11 @@ private fun CategoryList(
         items(shown, key = { it.name }) { cat ->
             val summary = when (cat) {
                 SettingsCategory.Background -> BackgroundModes.firstOrNull { it.first == bgMode }?.second ?: "Dark"
+                SettingsCategory.Layout -> {
+                    val name = LayoutChoices.firstOrNull { it.first == homeLayout }?.second ?: "Watch"
+                    val display = AppDisplayChoices.firstOrNull { it.first == appDisplay }?.second ?: "Icons and text"
+                    "$name · $display"
+                }
                 SettingsCategory.Focus -> {
                     val style = FocusChoices.firstOrNull { it.first == focusStyle }?.second ?: "Type"
                     if (materialApplies(bgMode)) "$style · ${MaterialChoices.firstOrNull { it.first == material }?.second ?: "Soft"}" else style
@@ -219,6 +227,7 @@ private fun CategoryDetail(
     val data = settings.data
     // Appearance menus show a live preview of Home beside their choices, as in the Samsung version.
     val showPreview = category == SettingsCategory.Background ||
+        category == SettingsCategory.Layout ||
         category == SettingsCategory.Focus ||
         category == SettingsCategory.Typography
     Row(Modifier.fillMaxSize()) {
@@ -234,6 +243,7 @@ private fun CategoryDetail(
                     SettingsCategory.Apps -> "Which apps appear in the dock at the bottom of Home, and in what order."
                     SettingsCategory.Inputs -> "Which TV inputs appear on Home."
                     SettingsCategory.Focus -> "How the highlight looks when you move around Home. Material tunes the glass over a photo background."
+                    SettingsCategory.Layout -> "How Home is arranged, and how your apps are labelled. Watch leads with the hero; Dock drops it for an open top; List runs your apps down the left."
                     else -> null
                 }
                 if (hint != null) Text(hint, fontSize = 15.sp, color = LobbyColors.soft)
@@ -276,6 +286,30 @@ private fun CategoryDetail(
                                 WallpaperTile(wp, selected = wp.id == wallpaper, modifier = Modifier.weight(1f)) { actions.setWallpaper(wp.id) }
                             }
                             repeat(3 - row.size) { Box(Modifier.weight(1f)) }
+                        }
+                    }
+                }
+            }
+            SettingsCategory.Layout -> {
+                item { SectionHeader("Home layout") }
+                item {
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        LayoutChoices.forEach { (id, name) ->
+                            Button(onClick = { actions.setHomeLayout(id) }) {
+                                Text(name)
+                                if (id == homeState.homeLayout) Text("  •", color = LobbyColors.accent)
+                            }
+                        }
+                    }
+                }
+                item { SectionHeader("App display") }
+                item {
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        AppDisplayChoices.forEach { (id, name) ->
+                            Button(onClick = { actions.setAppDisplay(id) }) {
+                                Text(name)
+                                if (id == homeState.appDisplay) Text("  •", color = LobbyColors.accent)
+                            }
                         }
                     }
                 }
@@ -442,6 +476,10 @@ private fun SettingsPreview(
     val heroArt = address.imageUrl(hero?.backdropUrl ?: hero?.landscapeUrl, width = 800)
     val heroLogo = address.imageUrl(hero?.logoUrl, width = 300)
     val accent = rememberAccentColor(heroArt)
+    // Watch = hero + rows + dock; Dock = no hero, open top; List = left app list.
+    val isList = homeState.homeLayout == "list"
+    val isDock = homeState.homeLayout == "dock"
+    val appDisplay = homeState.appDisplay
     Box(
         modifier
             .aspectRatio(16f / 9f)
@@ -454,7 +492,8 @@ private fun SettingsPreview(
             Box(Modifier.fillMaxSize().background(Color(0x4D000000)))
         }
         // Hero backdrop art, upper-right, dissolving toward the left and bottom (mirrors the real HeroBackdrop).
-        if (heroArt != null) {
+        // Dock drops the hero entirely, leaving an open top.
+        if (!isDock && heroArt != null) {
             Box(
                 Modifier
                     .fillMaxWidth(0.62f)
@@ -471,7 +510,7 @@ private fun SettingsPreview(
             }
         }
         // Hero theme-colour wash, kept to the upper-left (mirrors the real home's accent glow).
-        if (accent != Color.Transparent) {
+        if (!isDock && accent != Color.Transparent) {
             Box(
                 Modifier.fillMaxSize().drawBehind {
                     drawRect(
@@ -485,25 +524,28 @@ private fun SettingsPreview(
                 },
             )
         }
-        // Hero text + the featured logo.
-        Column(Modifier.fillMaxWidth(0.58f).align(Alignment.TopStart).padding(start = 44.dp, end = 8.dp, top = 12.dp)) {
-            Text("Good afternoon", fontFamily = font, fontSize = 8.sp, color = LobbyColors.soft)
-            Spacer(Modifier.height(2.dp))
-            Text(heading, fontFamily = font, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = LobbyColors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Spacer(Modifier.height(2.dp))
-            Text(body, fontFamily = font, fontSize = 7.sp, color = LobbyColors.soft, maxLines = 2, overflow = TextOverflow.Ellipsis, lineHeight = 9.sp)
-            Spacer(Modifier.height(6.dp))
-            Box(
-                Modifier
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(LobbyColors.focusFill)
-                    .then(if (LobbyColors.focusStyle == "glass") Modifier.border(1.dp, Color(0x55FFFFFF), RoundedCornerShape(10.dp)) else Modifier)
-                    .padding(horizontal = 11.dp, vertical = 4.dp),
-            ) {
-                Text("Play", fontFamily = font, fontWeight = FontWeight.SemiBold, fontSize = 8.sp, color = LobbyColors.focusContent)
+        // Hero text + the featured logo; in List the left column holds the app list, so the hero indents past it.
+        // Dock has no hero.
+        if (!isDock) {
+            Column(Modifier.fillMaxWidth(if (isList) 0.5f else 0.58f).align(Alignment.TopStart).padding(start = if (isList) 108.dp else 44.dp, end = 8.dp, top = 12.dp)) {
+                Text("Good afternoon", fontFamily = font, fontSize = 8.sp, color = LobbyColors.soft)
+                Spacer(Modifier.height(2.dp))
+                Text(heading, fontFamily = font, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = LobbyColors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Spacer(Modifier.height(2.dp))
+                Text(body, fontFamily = font, fontSize = 7.sp, color = LobbyColors.soft, maxLines = 2, overflow = TextOverflow.Ellipsis, lineHeight = 9.sp)
+                Spacer(Modifier.height(6.dp))
+                Box(
+                    Modifier
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(LobbyColors.focusFill)
+                        .then(if (LobbyColors.focusStyle == "glass") Modifier.border(1.dp, Color(0x55FFFFFF), RoundedCornerShape(10.dp)) else Modifier)
+                        .padding(horizontal = 11.dp, vertical = 4.dp),
+                ) {
+                    Text("Play", fontFamily = font, fontWeight = FontWeight.SemiBold, fontSize = 8.sp, color = LobbyColors.focusContent)
+                }
             }
         }
-        if (heroLogo != null) {
+        if (!isDock && heroLogo != null) {
             AsyncImage(
                 model = heroLogo,
                 contentDescription = null,
@@ -514,7 +556,9 @@ private fun SettingsPreview(
         // Two real poster rows near the bottom; the second card of the first row carries the focus ring.
         val previewRows = remember(homeState.home) { homeState.home?.rows?.filter { it.items.isNotEmpty() }?.take(2).orEmpty() }
         Column(
-            Modifier.align(Alignment.BottomStart).fillMaxWidth(0.72f).padding(start = 24.dp, bottom = 42.dp),
+            Modifier.align(Alignment.BottomStart)
+                .fillMaxWidth(if (isList) 0.68f else 0.72f)
+                .padding(start = if (isList) 108.dp else 24.dp, bottom = if (isList) 14.dp else 42.dp),
             verticalArrangement = Arrangement.spacedBy(7.dp),
         ) {
             val shown = if (previewRows.isNotEmpty()) previewRows else listOf(null, null)
@@ -545,46 +589,93 @@ private fun SettingsPreview(
                 }
             }
         }
-        // Left rail of nav icons, in the upper-left like the real home.
-        Column(
-            Modifier.align(Alignment.TopStart).padding(start = 14.dp, top = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            repeat(4) { Box(Modifier.size(11.dp).clip(circle).background(Color(0x26FFFFFF))) }
-        }
-        // The dock, pinned bottom-centre; the frosted veil follows the Material, and the focused tile shows the glass plate the Material tunes.
-        val dockShape = RoundedCornerShape(9.dp)
-        val dockVeil = if (bgMode == "photo") {
-            when (LobbyColors.material) {
-                "frost" -> Color(0x59FFFFFF)
-                "tint" -> Color(0x800A1016)
-                else -> Color(0x730B0D10)
+        if (isList) {
+            // List layout: a vertical app list down the left, following App display (icons / name / both).
+            Column(
+                Modifier.align(Alignment.TopStart).fillMaxHeight().width(100.dp).padding(start = 12.dp, top = 14.dp, bottom = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(5.dp),
+            ) {
+                val slots = if (apps.isNotEmpty()) apps.size else 5
+                repeat(slots.coerceAtMost(6)) { i ->
+                    val bmp = apps.getOrNull(i)?.let { app -> app.icon?.toBitmap(240, 135)?.asImageBitmap() }
+                    val name = apps.getOrNull(i)?.label ?: "App"
+                    Row(
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(7.dp))
+                            .then(if (i == 0) Modifier.background(LobbyColors.focusPlate).border(1.dp, Color(0x55FFFFFF), RoundedCornerShape(7.dp)) else Modifier)
+                            .padding(horizontal = 5.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(5.dp),
+                    ) {
+                        if (appDisplay != "text") {
+                            Box(Modifier.size(width = 24.dp, height = 16.dp).clip(RoundedCornerShape(5.dp)).background(Color(0x2EFFFFFF)), contentAlignment = Alignment.Center) {
+                                if (bmp != null) Image(bitmap = bmp, contentDescription = null, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize().padding(2.dp))
+                            }
+                        }
+                        if (appDisplay != "icons") {
+                            Text(name, fontFamily = font, fontSize = 6.sp, color = LobbyColors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                    }
+                }
             }
         } else {
-            LobbyColors.surface
+            // Dock / Watch: left rail of nav icons, in the upper-left like the real home.
+            Column(
+                Modifier.align(Alignment.TopStart).padding(start = 14.dp, top = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                repeat(4) { Box(Modifier.size(11.dp).clip(circle).background(Color(0x26FFFFFF))) }
+            }
         }
-        Row(
-            Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = 10.dp)
-                .clip(dockShape)
-                .background(dockVeil)
-                .border(1.dp, Color(0x24FFFFFF), dockShape)
-                .padding(horizontal = 9.dp, vertical = 5.dp),
-            horizontalArrangement = Arrangement.spacedBy(9.dp),
-        ) {
-            val slots = if (apps.isNotEmpty()) apps.size else 5
-            repeat(slots) { i ->
-                val bmp = apps.getOrNull(i)?.let { app -> app.icon?.toBitmap(240, 135)?.asImageBitmap() }
-                Box(
-                    Modifier.size(width = 30.dp, height = 20.dp).clip(RoundedCornerShape(7.dp))
-                        .then(
-                            if (i == slots / 2) Modifier.background(LobbyColors.focusPlate).border(1.dp, Color(0x66FFFFFF), RoundedCornerShape(7.dp))
-                            else Modifier.background(Color(0x2EFFFFFF)),
-                        ),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    if (bmp != null) Image(bitmap = bmp, contentDescription = null, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize().padding(2.5.dp))
+        // The dock, pinned bottom-centre (Dock and Watch; List shows the app list instead). The frosted veil follows
+        // the Material, the focused tile shows the glass plate, and the tiles follow App display
+        // (icon only / name only / both). Watch and Dock both keep the bottom dock; List does not.
+        if (!isList) {
+            val dockShape = RoundedCornerShape(9.dp)
+            val dockVeil = if (bgMode == "photo") {
+                when (LobbyColors.material) {
+                    "frost" -> Color(0x59FFFFFF)
+                    "tint" -> Color(0x800A1016)
+                    else -> Color(0x730B0D10)
+                }
+            } else {
+                LobbyColors.surface
+            }
+            val tileW = 30.dp
+            val iconH = 20.dp
+            Row(
+                Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 10.dp)
+                    .clip(dockShape)
+                    .background(dockVeil)
+                    .border(1.dp, Color(0x24FFFFFF), dockShape)
+                    .padding(horizontal = 9.dp, vertical = 5.dp),
+                horizontalArrangement = Arrangement.spacedBy(9.dp),
+            ) {
+                val slots = if (apps.isNotEmpty()) apps.size else 5
+                repeat(slots) { i ->
+                    val bmp = apps.getOrNull(i)?.let { app -> app.icon?.toBitmap(240, 135)?.asImageBitmap() }
+                    val name = apps.getOrNull(i)?.label ?: "App"
+                    val focused = i == slots / 2
+                    Column(
+                        Modifier.width(tileW).clip(RoundedCornerShape(7.dp))
+                            .then(
+                                if (focused) Modifier.background(LobbyColors.focusPlate).border(1.dp, Color(0x66FFFFFF), RoundedCornerShape(7.dp))
+                                else Modifier.background(Color(0x2EFFFFFF)),
+                            )
+                            .padding(3.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(2.dp),
+                    ) {
+                        if (appDisplay != "text") {
+                            Box(Modifier.fillMaxWidth().height(iconH).clip(RoundedCornerShape(5.dp)), contentAlignment = Alignment.Center) {
+                                if (bmp != null) Image(bitmap = bmp, contentDescription = null, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize())
+                            }
+                        }
+                        if (appDisplay != "icons") {
+                            Text(name, fontFamily = font, fontSize = 5.sp, color = LobbyColors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                    }
                 }
             }
         }

@@ -50,6 +50,8 @@ class MainActivity : ComponentActivity() {
             setWallpaper = viewModel::setWallpaper,
             setFocusStyle = viewModel::setFocusStyle,
             setMaterial = viewModel::setMaterial,
+            setHomeLayout = viewModel::setHomeLayout,
+            setAppDisplay = viewModel::setAppDisplay,
             setCombineContinueNextUp = viewModel::setCombineContinueNextUp,
             refreshRows = viewModel::refreshHome,
             disconnect = viewModel::disconnect,
