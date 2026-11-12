@@ -29,6 +29,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.unit.IntSize
 import kotlin.math.roundToInt
@@ -260,34 +263,67 @@ fun HomeScreen(
                 modifier = Modifier.fillMaxWidth().padding(start = HERO_INSET).height(164.dp),
             )
 
-            LazyColumn(
-                modifier = Modifier.fillMaxSize().padding(start = ROWS_INSET),
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(top = 0.dp, bottom = if (hasDock) 12.dp else 28.dp),
-                verticalArrangement = Arrangement.spacedBy(2.dp),
+            // The rows sit a little lower, in a band that fades softly at the top and bottom. The focused row is
+            // pinned to a fixed spot, so moving down carries the previous row fully out of view and lifts the next
+            // one into the same place (as in the Samsung version).
+            val rowList = home?.rows
+                ?.let { if (state.combineContinueNextUp) mergeContinueRows(it) else it }
+                ?.filter { it.items.isNotEmpty() }
+                .orEmpty()
+            val rowsState = rememberLazyListState()
+            val rowsScope = rememberCoroutineScope()
+            var focusedRowId by remember { mutableStateOf<String?>(null) }
+            val preItems = (if (showHomePrompt) 1 else 0) + (if (state.homeError != null) 1 else 0)
+            LaunchedEffect(focusedRowId, rowList.size) {
+                val idx = rowList.indexOfFirst { it.id == focusedRowId }
+                if (idx >= 0) rowsScope.launch { rowsState.animateScrollToItem(preItems + idx) }
+            }
+            Spacer(Modifier.height(20.dp))
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)
+                    .drawWithContent {
+                        drawContent()
+                        drawRect(
+                            Brush.verticalGradient(
+                                0f to Color.Transparent,
+                                0.10f to Color.White,
+                                0.88f to Color.White,
+                                1f to Color.Transparent,
+                            ),
+                            blendMode = BlendMode.DstIn,
+                        )
+                    },
             ) {
-                if (showHomePrompt) {
-                    item { HomePrompt(onHomeSetup, onHomePromptDismiss) }
-                }
+                LazyColumn(
+                    state = rowsState,
+                    modifier = Modifier.fillMaxSize().padding(start = ROWS_INSET),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(top = 8.dp, bottom = if (hasDock) 12.dp else 28.dp),
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                ) {
+                    if (showHomePrompt) {
+                        item { HomePrompt(onHomeSetup, onHomePromptDismiss) }
+                    }
 
-                state.homeError?.let { error ->
-                    item {
-                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Text(error, color = LobbyColors.error)
-                            Button(onClick = onRefresh) { Text("Try again") }
+                    state.homeError?.let { error ->
+                        item {
+                            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                Text(error, color = LobbyColors.error)
+                                Button(onClick = onRefresh) { Text("Try again") }
+                            }
                         }
                     }
-                }
 
-                home?.rows
-                    ?.let { if (state.combineContinueNextUp) mergeContinueRows(it) else it }
-                    ?.filter { it.items.isNotEmpty() }?.let { rows ->
-                    items(rows, key = { it.id }) { row ->
-                        MediaRow(row, address, onItem, onFocused = { browsed = it })
+                    items(rowList, key = { it.id }) { row ->
+                        Box(Modifier.onFocusChanged { if (it.hasFocus) focusedRowId = row.id }) {
+                            MediaRow(row, address, onItem, onFocused = { browsed = it })
+                        }
                     }
-                }
 
-                if (state.inputs.isNotEmpty()) {
-                    item { Box(Modifier.onFocusChanged { if (it.hasFocus) browsed = null }) { InputRow(state.inputs, onInput) } }
+                    if (state.inputs.isNotEmpty()) {
+                        item { Box(Modifier.onFocusChanged { if (it.hasFocus) browsed = null }) { InputRow(state.inputs, onInput) } }
+                    }
                 }
             }
         }

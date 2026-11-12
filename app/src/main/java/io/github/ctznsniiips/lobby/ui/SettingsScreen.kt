@@ -349,8 +349,8 @@ private fun CategoryDetail(
                                 Text("Combine with Next Up", fontSize = 18.sp, color = LobbyColors.ink)
                                 Text("Show Continue Watching and Next Up as a single Continue Watching row.", fontSize = 13.sp, color = LobbyColors.soft, maxLines = 2, overflow = TextOverflow.Ellipsis)
                             }
-                            Button(onClick = { actions.setCombineContinueNextUp(!data.combineContinueNextUp) }, modifier = Modifier.width(140.dp)) {
-                                Text(if (data.combineContinueNextUp) "Combined" else "Separate", textAlign = TextAlign.Center)
+                            Button(onClick = { actions.setCombineContinueNextUp(!data.combineContinueNextUp) }) {
+                                Text(if (data.combineContinueNextUp) "Combined" else "Separate")
                             }
                         }
                     }
