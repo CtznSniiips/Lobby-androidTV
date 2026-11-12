@@ -584,9 +584,14 @@ private fun SettingsPreview(
                 .orEmpty()
         }
         Column(
-            Modifier.align(Alignment.BottomStart)
+            // List has no hero or dock, so its rows top-anchor just under the clock and fill downward.
+            Modifier.align(if (isList) Alignment.TopStart else Alignment.BottomStart)
                 .fillMaxWidth(if (isDock) 0.82f else 0.72f)
-                .padding(start = if (isList) 108.dp else 24.dp, bottom = if (isList) 14.dp else 42.dp),
+                .padding(
+                    start = if (isList) 108.dp else 24.dp,
+                    top = if (isList) 36.dp else 0.dp,
+                    bottom = if (isList) 0.dp else 42.dp,
+                ),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             val shown = if (previewRows.isNotEmpty()) previewRows else List(rowCount) { null }
@@ -635,7 +640,13 @@ private fun SettingsPreview(
                         horizontalArrangement = Arrangement.spacedBy(5.dp),
                     ) {
                         if (appDisplay != "text") {
-                            Box(Modifier.size(width = 24.dp, height = 16.dp).clip(RoundedCornerShape(5.dp)).background(Color(0x2EFFFFFF)), contentAlignment = Alignment.Center) {
+                            // With no name the icon grows to fill the row; with a name it stays a small banner.
+                            Box(
+                                Modifier
+                                    .then(if (appDisplay == "icons") Modifier.fillMaxWidth().height(28.dp) else Modifier.size(width = 24.dp, height = 16.dp))
+                                    .clip(RoundedCornerShape(5.dp)).background(Color(0x2EFFFFFF)),
+                                contentAlignment = Alignment.Center,
+                            ) {
                                 if (bmp != null) Image(bitmap = bmp, contentDescription = null, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize().padding(2.dp))
                             }
                         }
@@ -680,8 +691,8 @@ private fun SettingsPreview(
         // the Material, the focused tile shows the glass plate, and the tiles follow App display
         // (icon only / name only / both). Watch and Dock both keep the bottom dock; List does not.
         if (!isList) {
-            // Over a photo the dock is a frosted bar whose veil follows the Material. On a dark background it stays
-            // bare like the Samsung dock — no bar, no border — with a soft, light focus plate.
+            // Over a photo the dock is a frosted bar whose veil follows the Material. On a dark background it's a
+            // subtle soft bar like the Samsung dock, with a soft, light focus plate.
             val photo = bgMode == "photo"
             val dockShape = RoundedCornerShape(9.dp)
             val dockVeil = when (LobbyColors.material) {
@@ -696,7 +707,7 @@ private fun SettingsPreview(
                     .align(Alignment.BottomCenter)
                     .padding(bottom = 10.dp)
                     .clip(dockShape)
-                    .then(if (photo) Modifier.background(dockVeil).border(1.dp, Color(0x24FFFFFF), dockShape) else Modifier)
+                    .then(if (photo) Modifier.background(dockVeil).border(1.dp, Color(0x24FFFFFF), dockShape) else Modifier.background(Color(0x99171A21)).border(1.dp, Color(0x1FFFFFFF), dockShape))
                     .padding(horizontal = 9.dp, vertical = 5.dp),
                 horizontalArrangement = Arrangement.spacedBy(9.dp),
             ) {
