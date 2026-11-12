@@ -51,6 +51,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -590,7 +591,7 @@ private fun SettingsPreview(
                 .padding(
                     start = if (isList) 108.dp else 24.dp,
                     top = if (isList) 36.dp else 0.dp,
-                    bottom = if (isList) 0.dp else 42.dp,
+                    bottom = if (isList) 0.dp else 40.dp,
                 ),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
@@ -669,14 +670,7 @@ private fun SettingsPreview(
                     Canvas(Modifier.size(12.dp)) { drawRailIcon(icon, Color(0xCCFFFFFF)) }
                 }
             }
-            Row(
-                Modifier.align(Alignment.TopStart).padding(start = 14.dp, top = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                Text("9:41", fontFamily = font, fontWeight = FontWeight.SemiBold, fontSize = 9.sp, color = LobbyColors.ink)
-                Text("72°", fontFamily = font, fontSize = 8.sp, color = LobbyColors.soft)
-            }
+            PreviewClock(homeState.weather?.text, font, Modifier.align(Alignment.TopStart).padding(start = 14.dp, top = 12.dp))
         } else {
             Column(
                 Modifier.align(Alignment.TopStart).padding(start = 14.dp, top = 16.dp),
@@ -686,6 +680,8 @@ private fun SettingsPreview(
                     Canvas(Modifier.size(12.dp)) { drawRailIcon(icon, Color(0xCCFFFFFF)) }
                 }
             }
+            // Watch shows the clock top-right, mirroring the real home's top bar.
+            PreviewClock(homeState.weather?.text, font, Modifier.align(Alignment.TopEnd).padding(end = 14.dp, top = 12.dp))
         }
         // The dock, pinned bottom-centre (Dock and Watch; List shows the app list instead). The frosted veil follows
         // the Material, the focused tile shows the glass plate, and the tiles follow App display
@@ -709,15 +705,15 @@ private fun SettingsPreview(
             }
             val topLine = if (light) Color(0x1F1C1A17) else Color(0x33FFFFFF)
             val tileW = 30.dp
-            val iconH = 20.dp
+            val iconH = 14.dp
             Row(
                 Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(bottom = 10.dp)
+                    .padding(bottom = 8.dp)
                     .clip(dockShape)
                     .background(barFill)
                     .border(1.dp, Brush.verticalGradient(0f to topLine, 0.12f to Color.Transparent), dockShape)
-                    .padding(horizontal = 9.dp, vertical = 5.dp),
+                    .padding(horizontal = 9.dp, vertical = 3.dp),
                 horizontalArrangement = Arrangement.spacedBy(9.dp),
             ) {
                 val slots = if (apps.isNotEmpty()) apps.size else 5
@@ -735,9 +731,9 @@ private fun SettingsPreview(
                     Column(
                         Modifier.width(tileW).clip(tileShape)
                             .then(tilePlate)
-                            .padding(3.dp),
+                            .padding(horizontal = 3.dp, vertical = 2.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(2.dp),
+                        verticalArrangement = Arrangement.spacedBy(1.dp),
                     ) {
                         if (appDisplay != "text") {
                             Box(Modifier.fillMaxWidth().height(iconH).clip(RoundedCornerShape(5.dp)), contentAlignment = Alignment.Center) {
@@ -751,6 +747,17 @@ private fun SettingsPreview(
                 }
             }
         }
+    }
+}
+
+/** The previewer's date/time, with the weather only when the plugin has actually supplied it. */
+@Composable
+private fun PreviewClock(weatherText: String?, font: FontFamily, modifier: Modifier) {
+    val now = remember { java.time.LocalDateTime.now() }
+    val text = remember(now) { now.format(java.time.format.DateTimeFormatter.ofPattern("EEE, MMM d   h:mm a")) }
+    Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(text, fontFamily = font, fontWeight = FontWeight.SemiBold, fontSize = 8.sp, color = LobbyColors.ink)
+        if (weatherText != null) Text(weatherText, fontFamily = font, fontSize = 8.sp, color = LobbyColors.soft)
     }
 }
 
