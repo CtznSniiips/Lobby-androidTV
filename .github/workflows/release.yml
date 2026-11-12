@@ -8,8 +8,8 @@ on:
         description: "Version name, e.g. 0.1.0 (the tag becomes v<version>)"
         required: true
       version_code:
-        description: "Android versionCode — a whole number that must increase every release so updates install"
-        required: true
+        description: "Android versionCode — leave blank to auto-increment from the number of previous releases"
+        required: false
       prerelease:
         description: "Mark as a pre-release"
         type: boolean
@@ -23,6 +23,24 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Full history + tags so the versionCode can be derived from the existing release tags.
+          fetch-depth: 0
+
+      - name: Resolve versionCode
+        id: vc
+        run: |
+          manual="${{ inputs.version_code }}"
+          if [ -n "$manual" ]; then
+            code="$manual"
+            echo "Using the versionCode you entered: $code"
+          else
+            # Auto-increment: one more than the number of v* release tags already published.
+            prev=$(git tag -l 'v*' | wc -l | tr -d ' ')
+            code=$((prev + 1))
+            echo "Auto versionCode: $code (there are $prev previous release tag(s))"
+          fi
+          echo "code=$code" >> "$GITHUB_OUTPUT"
 
       - uses: actions/setup-java@v4
         with:
@@ -52,7 +70,7 @@ jobs:
           EOF
 
       - name: Build release APK
-        run: ./gradlew assembleRelease -PversionName=${{ inputs.version }} -PversionCode=${{ inputs.version_code }} --stacktrace
+        run: ./gradlew assembleRelease -PversionName=${{ inputs.version }} -PversionCode=${{ steps.vc.outputs.code }} --stacktrace
 
       - name: Rename APK
         id: apk
