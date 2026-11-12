@@ -1075,6 +1075,20 @@ private fun BoxScope.GlassSelector(shape: Shape) {
     )
 }
 
+/**
+ * A subtle focus selector for the dark (non-photo) dock: a soft plate only slightly lighter than the background
+ * with a faint rim, like the Samsung dock's understated highlight — no glass, no shadow.
+ */
+@Composable
+private fun BoxScope.SubtleSelector(shape: Shape) {
+    Box(
+        Modifier.matchParentSize()
+            .clip(shape)
+            .background(Color(0x24FFFFFF))
+            .border(1.dp, Color(0x1AFFFFFF), shape),
+    )
+}
+
 /** The app dock: a compact, centred rounded bar of launchable apps pinned at the bottom, like the Samsung app's. */
 @Composable
 private fun AppDock(
@@ -1107,16 +1121,16 @@ private fun AppDock(
     var panelPos by remember { mutableStateOf(Offset.Zero) }
     Box(
         Modifier
-            // A soft drop shadow lets the bar float instead of reading as a hard cut-out.
-            .shadow(24.dp, shape, clip = false)
+            // Over a photo the dock is a frosted bar: a soft shadow and dim rim let it float. On a dark background
+            // it stays bare like the Samsung dock — no bar, no border, no shadow — so the tiles sit on the page.
+            .then(if (glass) Modifier.shadow(24.dp, shape, clip = false) else Modifier)
             .clip(shape)
-            // A dim rim, softer than before, following the rounded shape.
-            .border(1.dp, Color(0x24FFFFFF), shape)
+            .then(if (glass) Modifier.border(1.dp, Color(0x24FFFFFF), shape) else Modifier)
             .then(if (glass) Modifier.onGloballyPositioned { panelPos = it.positionInWindow() } else Modifier),
     ) {
-        // Backdrop layer. matchParentSize keeps it from inflating the bar — only the tile Row below sizes the dock.
-        Box(Modifier.matchParentSize().clip(shape)) {
-            if (glass) {
+        // Backdrop layer, only over a photo. matchParentSize keeps it from inflating the bar.
+        if (glass) {
+            Box(Modifier.matchParentSize().clip(shape)) {
                 if (blurredBmp != null && rootSize.width > 0) {
                     // Draw the exact slice of the wallpaper that sits behind the dock, replicating the background's
                     // ContentScale.Crop, then apply a clean Gaussian blur — a true window onto the frosted wallpaper.
@@ -1171,8 +1185,6 @@ private fun AppDock(
                     else -> Color(0x730B0D10)
                 }
                 Box(Modifier.matchParentSize().background(veil))
-            } else {
-                Box(Modifier.matchParentSize().background(Color(0xD90F1319)))
             }
         }
         Row(
@@ -1199,7 +1211,7 @@ private fun AppDock(
                 // fillMaxWidth (not fillMaxSize): in the wrap-height dock Row, fillMaxSize would stretch the tile to
                 // the whole screen. The Column sizes the height; the selector plate matches via matchParentSize.
                 Box(Modifier.fillMaxWidth()) {
-                    if (tileFocused) GlassSelector(tileShape)
+                    if (tileFocused) { if (glass) GlassSelector(tileShape) else SubtleSelector(tileShape) }
                 Column(
                     Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 5.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
