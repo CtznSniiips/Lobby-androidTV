@@ -465,15 +465,21 @@ private fun Hero(
                     alignment = Alignment.BottomEnd,
                     modifier = Modifier.align(Alignment.CenterEnd).padding(end = 24.dp).heightIn(max = 96.dp).widthIn(max = 300.dp),
                 )
+                // Matches Samsung's .wa-title: big display-weight text, right-aligned, wrapping up to three lines
+                // and clipping (never an ellipsis), in a wide box so a full title like "The Lord of the Rings:" sits
+                // on its own line instead of breaking mid-phrase.
                 !item.tagline.isNullOrBlank() -> Text(
                     item.title,
-                    fontSize = 32.sp,
-                    fontWeight = FontWeight.Bold,
+                    fontSize = 36.sp,
+                    lineHeight = 40.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    letterSpacing = (-0.8).sp,
                     color = Color.White,
                     textAlign = TextAlign.End,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.align(Alignment.CenterEnd).padding(end = 24.dp).widthIn(max = 300.dp),
+                    maxLines = 3,
+                    overflow = TextOverflow.Clip,
+                    style = TextStyle(shadow = Shadow(Color(0x8C000000), blurRadius = 22f)),
+                    modifier = Modifier.align(Alignment.CenterEnd).padding(end = 24.dp).widthIn(max = 380.dp),
                 )
             }
 
