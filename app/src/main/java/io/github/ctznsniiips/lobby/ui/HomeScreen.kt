@@ -351,7 +351,7 @@ fun HomeScreen(
 
         // The rail of utilities. Watch keeps it vertical on the left; Dock and List move it to a horizontal
         // strip in the top-right and put the date/time/weather in the top-left.
-        val onApps = if (hasApps) ({ runCatching { dockFocus.requestFocus() } }) else null
+        val onApps: (() -> Unit)? = if (hasApps) ({ runCatching { dockFocus.requestFocus() } }) else null
         if (heroLess) {
             Rail(
                 onSearch = onSearch,
