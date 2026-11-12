@@ -575,7 +575,7 @@ private fun ClockText() {
     Text(text, fontSize = 16.sp, color = LobbyColors.ink)
 }
 
-private enum class RailIcon { Search, Art, Apps, Settings }
+internal enum class RailIcon { Search, Art, Apps, Settings }
 
 /** The slim left rail: search, screen saver, apps, Lobby settings. */
 @Composable
@@ -679,7 +679,7 @@ private fun RailButton(icon: RailIcon, label: String, onClick: () -> Unit, modif
     }
 }
 
-private fun DrawScope.drawRailIcon(icon: RailIcon, tint: Color) {
+internal fun DrawScope.drawRailIcon(icon: RailIcon, tint: Color) {
     val w = size.width
     val stroke = Stroke(width = w * 0.09f, cap = StrokeCap.Round, join = StrokeJoin.Round)
     when (icon) {
