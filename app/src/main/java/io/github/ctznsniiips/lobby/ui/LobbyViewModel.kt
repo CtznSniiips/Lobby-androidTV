@@ -95,6 +95,9 @@ data class LobbyState(
     /** Focus style ("type" or "glass") and the glass Material ("soft", "frost", "tint"). */
     val focusStyle: String = "type",
     val material: String = "soft",
+    /** Home layout ("list", "dock", "watch") and how apps are shown ("icons", "both", "text"). */
+    val homeLayout: String = "dock",
+    val appDisplay: String = "both",
     /** When true, Home merges Continue Watching and Next Up into one row (a server TV setting, cached locally). */
     val combineContinueNextUp: Boolean = false,
     /** Current weather shown next to the clock, when the plugin supplies a location. */
@@ -124,7 +127,7 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
     private val store = SessionStore(app)
     private val device = TvDevice(app)
 
-    private val _state = MutableStateFlow(LobbyState(lastAddress = store.lastOrigin().orEmpty(), screenSaverMinutes = store.screenSaverMinutes(), homePromptDismissed = store.homePromptDismissed(), hiddenApps = store.hiddenApps(), hiddenInputs = store.hiddenInputs(), homeFont = store.homeFont(), bgMode = store.bgMode(), wallpaper = store.wallpaper(), focusStyle = store.focusStyle(), material = store.material(), combineContinueNextUp = store.combineContinueNextUp()))
+    private val _state = MutableStateFlow(LobbyState(lastAddress = store.lastOrigin().orEmpty(), screenSaverMinutes = store.screenSaverMinutes(), homePromptDismissed = store.homePromptDismissed(), hiddenApps = store.hiddenApps(), hiddenInputs = store.hiddenInputs(), homeFont = store.homeFont(), bgMode = store.bgMode(), wallpaper = store.wallpaper(), focusStyle = store.focusStyle(), material = store.material(), homeLayout = store.homeLayout(), appDisplay = store.appDisplay(), combineContinueNextUp = store.combineContinueNextUp()))
     val state: StateFlow<LobbyState> = _state.asStateFlow()
 
     // Bumped on every remote key press; the idle watcher restarts its countdown when it changes.
@@ -296,6 +299,16 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
     fun setMaterial(id: String) {
         store.setMaterial(id)
         _state.update { it.copy(material = id) }
+    }
+
+    fun setHomeLayout(id: String) {
+        store.setHomeLayout(id)
+        _state.update { it.copy(homeLayout = id) }
+    }
+
+    fun setAppDisplay(id: String) {
+        store.setAppDisplay(id)
+        _state.update { it.copy(appDisplay = id) }
     }
 
     fun moveApp(packageName: String, delta: Int) {

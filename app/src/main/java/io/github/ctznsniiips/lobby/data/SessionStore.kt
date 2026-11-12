@@ -92,6 +92,20 @@ class SessionStore(context: Context) {
         prefs.edit().putString(KEY_MATERIAL, id).apply()
     }
 
+    /** The Home layout: "list" (left app list), "dock" (bottom dock) or "watch" (media-forward). */
+    fun homeLayout(): String = prefs.getString(KEY_HOME_LAYOUT, "dock") ?: "dock"
+
+    fun setHomeLayout(id: String) {
+        prefs.edit().putString(KEY_HOME_LAYOUT, id).apply()
+    }
+
+    /** How apps are shown in the dock/list: "icons", "both" (icon and name) or "text". */
+    fun appDisplay(): String = prefs.getString(KEY_APP_DISPLAY, "both") ?: "both"
+
+    fun setAppDisplay(id: String) {
+        prefs.edit().putString(KEY_APP_DISPLAY, id).apply()
+    }
+
     /** The user's preferred order of dock apps, by package name. Apps not listed keep their detected order after these. */
     fun appOrder(): List<String> = prefs.getString(KEY_APP_ORDER, null)?.split('\n')?.filter { it.isNotBlank() } ?: emptyList()
 
@@ -127,6 +141,8 @@ class SessionStore(context: Context) {
         const val KEY_WALLPAPER = "wallpaper"
         const val KEY_FOCUS_STYLE = "focusStyle"
         const val KEY_MATERIAL = "material"
+        const val KEY_HOME_LAYOUT = "homeLayout"
+        const val KEY_APP_DISPLAY = "appDisplay"
         const val KEY_COMBINE_CONTINUE = "combineContinueNextUp"
     }
 }
