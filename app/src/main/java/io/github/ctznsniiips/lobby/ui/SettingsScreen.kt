@@ -515,23 +515,25 @@ private fun SettingsPreview(
         val previewRows = remember(homeState.home) { homeState.home?.rows?.filter { it.items.isNotEmpty() }?.take(2).orEmpty() }
         Column(
             Modifier.align(Alignment.BottomStart).fillMaxWidth(0.72f).padding(start = 24.dp, bottom = 42.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
+            verticalArrangement = Arrangement.spacedBy(7.dp),
         ) {
             val shown = if (previewRows.isNotEmpty()) previewRows else listOf(null, null)
             shown.forEachIndexed { ri, r ->
                 val title = r?.title?.takeIf { it.isNotBlank() } ?: if (ri == 0) "Continue Watching" else "Next Up"
-                Text(title, fontFamily = font, fontWeight = FontWeight.SemiBold, fontSize = 9.sp, color = LobbyColors.ink)
-                Spacer(Modifier.height(1.dp))
-                val rc = r?.items?.distinctBy { it.id }?.take(5).orEmpty()
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    val slots = if (rc.isNotEmpty()) rc.size else 5
-                    repeat(slots) { i ->
-                        val art = rc.getOrNull(i)?.let { address.imageUrl(it.landscapeUrl ?: it.posterUrl, width = 220) }
-                        Box(
-                            Modifier.weight(1f).aspectRatio(1.72f).clip(card12).background(LobbyColors.card)
-                                .then(if (ri == 0 && i == 1) Modifier.border(2.dp, Color(0xCCFFFFFF), card12) else Modifier),
-                        ) {
-                            if (art != null) AsyncImage(model = art, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                // Title hugs its own row of cards; the outer spacing separates the two groups.
+                Column {
+                    Text(title, fontFamily = font, fontWeight = FontWeight.SemiBold, fontSize = 9.sp, lineHeight = 10.sp, color = LobbyColors.ink)
+                    val rc = r?.items?.distinctBy { it.id }?.take(5).orEmpty()
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        val slots = if (rc.isNotEmpty()) rc.size else 5
+                        repeat(slots) { i ->
+                            val art = rc.getOrNull(i)?.let { address.imageUrl(it.landscapeUrl ?: it.posterUrl, width = 220) }
+                            Box(
+                                Modifier.weight(1f).aspectRatio(1.72f).clip(card12).background(LobbyColors.card)
+                                    .then(if (ri == 0 && i == 1) Modifier.border(1.dp, Color(0xCCFFFFFF), card12) else Modifier),
+                            ) {
+                                if (art != null) AsyncImage(model = art, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                            }
                         }
                     }
                 }
@@ -540,9 +542,9 @@ private fun SettingsPreview(
         // Left rail of nav icons, in the upper-left like the real home.
         Column(
             Modifier.align(Alignment.TopStart).padding(start = 14.dp, top = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(11.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            repeat(4) { Box(Modifier.size(15.dp).clip(circle).background(Color(0x26FFFFFF))) }
+            repeat(4) { Box(Modifier.size(11.dp).clip(circle).background(Color(0x26FFFFFF))) }
         }
         // The dock, pinned bottom-centre; the frosted veil follows the Material, and the focused tile shows the glass plate the Material tunes.
         val dockShape = RoundedCornerShape(9.dp)
