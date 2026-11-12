@@ -25,6 +25,12 @@ import androidx.core.graphics.drawable.toBitmap
 import androidx.compose.foundation.Image
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.TransformOrigin
 import io.github.ctznsniiips.lobby.data.ServerAddress
 import androidx.compose.foundation.layout.height
@@ -410,9 +416,9 @@ private fun CategoryDetail(
 
 /**
  * A live preview of Home shown beside each appearance menu, like the Samsung version's previewer. It lays the home
- * out responsively to fill the pane (hero, rail, a row, the dock) and fills it with the user's real content — the
- * featured title/tagline and logo, the first real row's posters, and the real app icons — so it mirrors their home
- * and reflects the current background, typeface, focus style and material as they change settings.
+ * out responsively to fill the pane — hero backdrop art and theme-colour wash, hero text, left rail, a poster row
+ * and the dock — filled with the user's real content, so it mirrors their home and reflects the current background,
+ * typeface, focus style and material as they change settings.
  */
 @Composable
 private fun SettingsPreview(
@@ -436,10 +442,12 @@ private fun SettingsPreview(
     val rowTitle = row?.title?.takeIf { it.isNotBlank() } ?: "Continue Watching"
     val cards = remember(row) { row?.items?.distinctBy { it.id }?.take(5).orEmpty() }
     val apps = remember(homeState.apps) { homeState.apps.distinctBy { it.packageName }.take(5) }
+    val heroArt = address.imageUrl(hero?.backdropUrl ?: hero?.landscapeUrl, width = 800)
     val heroLogo = address.imageUrl(hero?.logoUrl, width = 300)
+    val accent = rememberAccentColor(heroArt)
     Box(
         modifier
-            .aspectRatio(16f / 10f)
+            .aspectRatio(16f / 9f)
             .clip(shape)
             .background(LobbyColors.background)
             .border(1.dp, Color(0x1FFFFFFF), shape),
@@ -448,34 +456,64 @@ private fun SettingsPreview(
             AsyncImage(model = wp.fullUri, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
             Box(Modifier.fillMaxSize().background(Color(0x4D000000)))
         }
-        // Main content, inset on the left so it clears the rail.
-        Column(Modifier.fillMaxSize().padding(start = 46.dp, end = 16.dp, top = 12.dp, bottom = 12.dp)) {
-            Row(Modifier.fillMaxWidth()) {
-                Spacer(Modifier.weight(1f))
-                Text("2:18  61°", fontFamily = font, fontSize = 9.sp, color = LobbyColors.soft)
+        // Hero backdrop art, upper-right, dissolving toward the left and bottom (mirrors the real HeroBackdrop).
+        if (heroArt != null) {
+            Box(
+                Modifier
+                    .fillMaxWidth(0.62f)
+                    .fillMaxHeight(0.64f)
+                    .align(Alignment.TopEnd)
+                    .graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)
+                    .drawWithContent {
+                        drawContent()
+                        drawRect(Brush.horizontalGradient(0f to Color.Transparent, 0.45f to Color.White), blendMode = BlendMode.DstIn)
+                        drawRect(Brush.verticalGradient(0.55f to Color.White, 1f to Color.Transparent), blendMode = BlendMode.DstIn)
+                    },
+            ) {
+                AsyncImage(model = heroArt, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
             }
+        }
+        // Hero theme-colour wash, kept to the upper-left (mirrors the real home's accent glow).
+        if (accent != Color.Transparent) {
+            Box(
+                Modifier.fillMaxSize().drawBehind {
+                    drawRect(
+                        Brush.radialGradient(
+                            0f to accent.copy(alpha = 0.30f),
+                            0.55f to Color.Transparent,
+                            center = Offset(size.width * 0.16f, size.height * 0.26f),
+                            radius = size.width * 0.42f,
+                        ),
+                    )
+                },
+            )
+        }
+        // Hero text + the featured logo.
+        Column(Modifier.fillMaxWidth(0.62f).align(Alignment.TopStart).padding(start = 46.dp, end = 8.dp, top = 24.dp)) {
+            Text(heading, fontFamily = font, fontWeight = FontWeight.Bold, fontSize = 22.sp, color = LobbyColors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Spacer(Modifier.height(3.dp))
+            Text(body, fontFamily = font, fontSize = 9.sp, color = LobbyColors.soft, maxLines = 2, overflow = TextOverflow.Ellipsis)
             Spacer(Modifier.height(8.dp))
-            Row(Modifier.fillMaxWidth()) {
-                Column(Modifier.weight(1f)) {
-                    Text(heading, fontFamily = font, fontWeight = FontWeight.Bold, fontSize = 22.sp, color = LobbyColors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Spacer(Modifier.height(3.dp))
-                    Text(body, fontFamily = font, fontSize = 9.sp, color = LobbyColors.soft, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                    Spacer(Modifier.height(8.dp))
-                    Box(
-                        Modifier
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(LobbyColors.focusFill)
-                            .then(if (LobbyColors.focusStyle == "glass") Modifier.border(1.dp, Color(0x55FFFFFF), RoundedCornerShape(14.dp)) else Modifier)
-                            .padding(horizontal = 16.dp, vertical = 6.dp),
-                    ) {
-                        Text("Play", fontFamily = font, fontWeight = FontWeight.SemiBold, fontSize = 10.sp, color = LobbyColors.focusContent)
-                    }
-                }
-                if (heroLogo != null) {
-                    AsyncImage(model = heroLogo, contentDescription = null, contentScale = ContentScale.Fit, modifier = Modifier.padding(start = 8.dp).size(width = 96.dp, height = 44.dp))
-                }
+            Box(
+                Modifier
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(LobbyColors.focusFill)
+                    .then(if (LobbyColors.focusStyle == "glass") Modifier.border(1.dp, Color(0x55FFFFFF), RoundedCornerShape(14.dp)) else Modifier)
+                    .padding(horizontal = 16.dp, vertical = 6.dp),
+            ) {
+                Text("Play", fontFamily = font, fontWeight = FontWeight.SemiBold, fontSize = 10.sp, color = LobbyColors.focusContent)
             }
-            Spacer(Modifier.weight(1f))
+        }
+        if (heroLogo != null) {
+            AsyncImage(
+                model = heroLogo,
+                contentDescription = null,
+                contentScale = ContentScale.Fit,
+                modifier = Modifier.align(Alignment.TopEnd).padding(end = 26.dp, top = 40.dp).size(width = 104.dp, height = 46.dp),
+            )
+        }
+        // A real poster row near the bottom; the second card carries the focus ring.
+        Column(Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(start = 46.dp, end = 16.dp, bottom = 50.dp)) {
             Text(rowTitle, fontFamily = font, fontWeight = FontWeight.SemiBold, fontSize = 11.sp, color = LobbyColors.ink)
             Spacer(Modifier.height(5.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -490,9 +528,8 @@ private fun SettingsPreview(
                     }
                 }
             }
-            Spacer(Modifier.height(42.dp))
         }
-        // Left rail of nav icons (overlay).
+        // Left rail of nav icons.
         Column(
             Modifier.align(Alignment.CenterStart).padding(start = 12.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),

@@ -758,7 +758,7 @@ private fun mergeContinueRows(rows: List<HomeRow>): List<HomeRow> {
 
 /** The dominant colour of the hero image, for the left-side wash. Transparent until it loads (or if it can't). */
 @Composable
-private fun rememberAccentColor(url: String?): Color {
+internal fun rememberAccentColor(url: String?): Color {
     val context = LocalContext.current
     var color by remember { mutableStateOf(Color.Transparent) }
     LaunchedEffect(url) {
