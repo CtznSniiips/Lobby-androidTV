@@ -8,7 +8,7 @@ on:
         description: "Version name, e.g. 0.1.0 (the tag becomes v<version>)"
         required: true
       version_code:
-        description: "Android versionCode — leave blank to auto-increment from the number of previous releases"
+        description: "Android versionCode — leave blank to continue from the Build workflow's run number"
         required: false
       prerelease:
         description: "Mark as a pre-release"
@@ -17,28 +17,31 @@ on:
 
 permissions:
   contents: write
+  actions: read
 
 jobs:
   release:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          # Full history + tags so the versionCode can be derived from the existing release tags.
-          fetch-depth: 0
 
       - name: Resolve versionCode
         id: vc
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           manual="${{ inputs.version_code }}"
           if [ -n "$manual" ]; then
             code="$manual"
             echo "Using the versionCode you entered: $code"
           else
-            # Auto-increment: one more than the number of v* release tags already published.
-            prev=$(git tag -l 'v*' | wc -l | tr -d ' ')
-            code=$((prev + 1))
-            echo "Auto versionCode: $code (there are $prev previous release tag(s))"
+            # The Build workflow stamps each debug build with its run number as the versionCode. Continue that
+            # series: take the latest Build run number and step one above it, so a release always outranks the
+            # debug builds and climbs with every release.
+            base=$(gh api "repos/${{ github.repository }}/actions/workflows/build.yml/runs?per_page=1" --jq '.workflow_runs[0].run_number' 2>/dev/null || echo "")
+            if [ -z "$base" ] || [ "$base" = "null" ]; then base=0; fi
+            code=$((base + 1))
+            echo "Auto versionCode: $code (latest Build run number was $base)"
           fi
           echo "code=$code" >> "$GITHUB_OUTPUT"
 
