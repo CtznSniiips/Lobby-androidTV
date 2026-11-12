@@ -230,10 +230,10 @@ fun HomeScreen(
         }
 
         // Dock drops the hero entirely, so there's no backdrop art or colour wash — just open space up top.
-        if (!isDock) HeroBackdrop(heroItem, address)
+        if (!heroLess) HeroBackdrop(heroItem, address)
 
         // A soft wash of the hero image's dominant colour, kept to the upper-left so it doesn't bleed into the rows.
-        if (!isDock && accent != Color.Transparent) {
+        if (!heroLess && accent != Color.Transparent) {
             Box(
                 Modifier.fillMaxSize().drawBehind {
                     drawRect(
@@ -306,13 +306,15 @@ fun HomeScreen(
                     .graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)
                     .drawWithContent {
                         drawContent()
+                        // Watch fades the top edge so rows dissolve under the hero. Dock and List have no hero there,
+                        // so the top stays fully opaque and only the bottom fades.
+                        val stops = if (heroLess) {
+                            arrayOf(0f to Color.White, 0.90f to Color.White, 1f to Color.Transparent)
+                        } else {
+                            arrayOf(0f to Color.Transparent, 0.10f to Color.White, 0.88f to Color.White, 1f to Color.Transparent)
+                        }
                         drawRect(
-                            Brush.verticalGradient(
-                                0f to Color.Transparent,
-                                0.10f to Color.White,
-                                0.88f to Color.White,
-                                1f to Color.Transparent,
-                            ),
+                            Brush.verticalGradient(*stops),
                             blendMode = BlendMode.DstIn,
                         )
                     },
@@ -616,9 +618,10 @@ private fun Rail(
     horizontal: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
-    val search = @Composable { RailButton(RailIcon.Search, "Search", onSearch, Modifier.focusRequester(searchFocus)) }
-    val art = @Composable { RailButton(RailIcon.Art, "Screensaver", onScreenSaver) }
-    val apps = @Composable { if (onApps != null) RailButton(RailIcon.Apps, "Go to apps", onApps) }
+    val showLabel = !horizontal
+    val search = @Composable { RailButton(RailIcon.Search, "Search", onSearch, Modifier.focusRequester(searchFocus), showLabel) }
+    val art = @Composable { RailButton(RailIcon.Art, "Screensaver", onScreenSaver, showLabel = showLabel) }
+    val apps = @Composable { if (onApps != null) RailButton(RailIcon.Apps, "Go to apps", onApps, showLabel = showLabel) }
     val settings = @Composable {
         RailButton(
             RailIcon.Settings,
@@ -627,6 +630,7 @@ private fun Rail(
             Modifier.focusRequester(settingsFocus).then(
                 if (settingsDown != null) Modifier.focusProperties { down = settingsDown } else Modifier,
             ),
+            showLabel,
         )
     }
     if (horizontal) {
@@ -671,7 +675,7 @@ private fun weatherIconRes(code: Int, day: Boolean): Int = when {
 }
 
 @Composable
-private fun RailButton(icon: RailIcon, label: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun RailButton(icon: RailIcon, label: String, onClick: () -> Unit, modifier: Modifier = Modifier, showLabel: Boolean = true) {
     val interaction = remember { MutableInteractionSource() }
     val focused by interaction.collectIsFocusedAsState()
     val tint = if (focused) LobbyColors.focusContent else LobbyColors.soft
@@ -695,8 +699,8 @@ private fun RailButton(icon: RailIcon, label: String, onClick: () -> Unit, modif
             }
         }
         // On focus, a label pill appears to the right of the icon. A Popup lets it overflow the narrow rail
-        // without widening it or shifting the icons.
-        if (focused) {
+        // without widening it or shifting the icons. The horizontal rail skips it so it can't overlap the next icon.
+        if (focused && showLabel) {
             val gap = with(LocalDensity.current) { 44.dp.roundToPx() }
             Popup(alignment = Alignment.CenterStart, offset = IntOffset(gap, 0), properties = PopupProperties(focusable = false)) {
                 Text(
@@ -1121,14 +1125,17 @@ private fun AppDock(
     var panelPos by remember { mutableStateOf(Offset.Zero) }
     Box(
         Modifier
-            // Over a photo the dock is a frosted bar: a soft shadow and dim rim let it float. On a dark background
-            // it stays bare like the Samsung dock — no bar, no border, no shadow — so the tiles sit on the page.
-            .then(if (glass) Modifier.shadow(24.dp, shape, clip = false) else Modifier)
+            // Over a photo the dock is a frosted bar. On a dark background it's a subtle soft bar like the Samsung
+            // dock — a faint translucent plate and dim rim — not the bright, obvious Android bar.
+            .shadow(if (glass) 24.dp else 12.dp, shape, clip = false)
             .clip(shape)
-            .then(if (glass) Modifier.border(1.dp, Color(0x24FFFFFF), shape) else Modifier)
+            .border(1.dp, if (glass) Color(0x24FFFFFF) else Color(0x1FFFFFFF), shape)
             .then(if (glass) Modifier.onGloballyPositioned { panelPos = it.positionInWindow() } else Modifier),
     ) {
-        // Backdrop layer, only over a photo. matchParentSize keeps it from inflating the bar.
+        // Backdrop layer. Over a photo it's the frosted-glass window; on a dark background a subtle translucent plate.
+        if (!glass) {
+            Box(Modifier.matchParentSize().clip(shape).background(Color(0x99171A21)))
+        }
         if (glass) {
             Box(Modifier.matchParentSize().clip(shape)) {
                 if (blurredBmp != null && rootSize.width > 0) {
@@ -1297,10 +1304,10 @@ private fun AppList(
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
                         if (appDisplay != "text") {
+                            // With no name, the icon grows to fill the row width; with a name it stays a small banner.
                             Box(
                                 Modifier
-                                    .width(52.dp)
-                                    .height(28.dp)
+                                    .then(if (appDisplay == "icons") Modifier.fillMaxWidth().height(48.dp) else Modifier.width(52.dp).height(28.dp))
                                     .clip(androidx.compose.foundation.shape.RoundedCornerShape(9.dp))
                                     .background(Color(0x22000000)),
                             ) {
