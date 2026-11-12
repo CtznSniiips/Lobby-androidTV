@@ -9,6 +9,10 @@ pairing flow (enter the server address, get a code, approve it in the plugin's a
 
 Android TV only. Not intended for phones or tablets.
 
+<picture>
+  <img src="docs/Lobby-android.png" alt="Lobby for Android">
+</picture>
+
 ## Lobby: Emby/Jellyfin and Seerr on Home
 
 Lobby adds rows from your own Emby or Jellyfin server and Seerr to Home: Continue Watching, On Now, games for teams you follow, and Seerr's Trending and Popular lists. OK resumes or plays in the Emby/Jellyfin app, or requests a title in Seerr as the right person. The Watch layout puts a rotating featured title at the top (including your teams' games when they're about to start), with one row per band below and your apps in a dock along the bottom.
