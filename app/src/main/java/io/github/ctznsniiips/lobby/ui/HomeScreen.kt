@@ -180,12 +180,10 @@ fun HomeScreen(
     val heroFocus = remember { FocusRequester() }
     val dockFocus = remember { FocusRequester() }
     val hasApps = state.apps.isNotEmpty()
-    // Watch leads with Emby/Seerr content; until the TV has any, it falls back to the Dock layout.
-    val mediaConnected = home?.let { it.featured.isNotEmpty() || it.rows.isNotEmpty() } == true
-    val layout = if (state.homeLayout == "watch" && !mediaConnected) "dock" else state.homeLayout
-    val isList = layout == "list"
-    val isWatch = layout == "watch"
-    // In List, apps run down the left as a vertical list; otherwise they sit in the bottom dock.
+    // Watch is the full layout led by the hero; Dock drops the hero for an open top; List puts the apps
+    // in a vertical list down the left. Watch and Dock both keep the bottom app dock.
+    val isList = state.homeLayout == "list"
+    val isDock = state.homeLayout == "dock"
     val hasBottomDock = hasApps && !isList
     val hasAppList = hasApps && isList
 
@@ -199,8 +197,14 @@ fun HomeScreen(
         }
     }
     // In preview mode (the settings previewer) nothing grabs focus — the settings UI keeps it.
-    LaunchedEffect(featured.isNotEmpty()) {
-        if (!preview && featured.isNotEmpty()) runCatching { heroFocus.requestFocus() }
+    // Dock and List have no hero to focus, so initial focus goes to the app dock (or app list) instead.
+    LaunchedEffect(featured.isNotEmpty(), state.homeLayout, hasApps) {
+        if (preview) return@LaunchedEffect
+        if (!isDock && !isList && featured.isNotEmpty()) {
+            runCatching { heroFocus.requestFocus() }
+        } else if (hasApps) {
+            runCatching { dockFocus.requestFocus() }
+        }
     }
 
     val settingsFocus = remember { FocusRequester() }
@@ -222,10 +226,11 @@ fun HomeScreen(
             Box(Modifier.fillMaxSize().background(scrim))
         }
 
-        HeroBackdrop(heroItem, address)
+        // Dock drops the hero entirely, so there's no backdrop art or colour wash — just open space up top.
+        if (!isDock) HeroBackdrop(heroItem, address)
 
         // A soft wash of the hero image's dominant colour, kept to the upper-left so it doesn't bleed into the rows.
-        if (accent != Color.Transparent) {
+        if (!isDock && accent != Color.Transparent) {
             Box(
                 Modifier.fillMaxSize().drawBehind {
                     drawRect(
@@ -254,24 +259,29 @@ fun HomeScreen(
                 state.weather?.let { WeatherChip(it, Modifier.padding(start = 18.dp)) }
             }
 
-            Hero(
-                item = heroItem,
-                address = address,
-                count = featured.size,
-                index = featuredIndex,
-                onItem = onItem,
-                searchFocus = searchFocus,
-                heroFocus = heroFocus,
-                onCycle = { delta ->
-                    if (featured.size <= 1) false
-                    else if (delta < 0 && featuredIndex == 0) false // let focus fall left to the rail
-                    else {
-                        featuredIndex = (featuredIndex + delta + featured.size) % featured.size
-                        true
-                    }
-                },
-                modifier = Modifier.fillMaxWidth().padding(start = HERO_INSET).height(164.dp),
-            )
+            // Dock keeps the hero's vertical band empty so the rows stay put and the top reads as open space.
+            if (isDock) {
+                Spacer(Modifier.height(164.dp))
+            } else {
+                Hero(
+                    item = heroItem,
+                    address = address,
+                    count = featured.size,
+                    index = featuredIndex,
+                    onItem = onItem,
+                    searchFocus = searchFocus,
+                    heroFocus = heroFocus,
+                    onCycle = { delta ->
+                        if (featured.size <= 1) false
+                        else if (delta < 0 && featuredIndex == 0) false // let focus fall left to the rail
+                        else {
+                            featuredIndex = (featuredIndex + delta + featured.size) % featured.size
+                            true
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth().padding(start = HERO_INSET).height(164.dp),
+                )
+            }
 
             // The rows sit a little lower, in a band that fades softly at the top and bottom. The focused row is
             // pinned to a fixed spot, so moving down carries the previous row fully out of view and lifts the next
@@ -366,7 +376,7 @@ fun HomeScreen(
                     .align(Alignment.BottomCenter)
                     .padding(bottom = 8.dp)
                     .onFocusChanged { if (it.hasFocus) browsed = null },
-            ) { AppDock(state.apps, onApp, dockFocus, glass = state.bgMode == "photo", wallpaperUri = wallpaper.fullUri, material = state.material, rootSize = rootSize, appDisplay = state.appDisplay, compact = isWatch) }
+            ) { AppDock(state.apps, onApp, dockFocus, glass = state.bgMode == "photo", wallpaperUri = wallpaper.fullUri, material = state.material, rootSize = rootSize, appDisplay = state.appDisplay) }
         }
 
         MessageToast(state.message, onMessageShown, Modifier.align(Alignment.BottomCenter))
@@ -1040,7 +1050,6 @@ private fun AppDock(
     material: String,
     rootSize: IntSize,
     appDisplay: String = "both",
-    compact: Boolean = false,
 ) {
     val list = remember(apps) { apps.distinctBy { it.packageName } }
     val shape = androidx.compose.foundation.shape.RoundedCornerShape(22.dp)
@@ -1149,7 +1158,7 @@ private fun AppDock(
                     focusedContainerColor = Color.Transparent,
                 ),
                 scale = ClickableSurfaceDefaults.scale(focusedScale = 1.06f),
-                modifier = Modifier.width(if (compact) 72.dp else 88.dp).then(if (i == 0) Modifier.focusRequester(firstFocus) else Modifier),
+                modifier = Modifier.width(88.dp).then(if (i == 0) Modifier.focusRequester(firstFocus) else Modifier),
             ) {
                 // fillMaxWidth (not fillMaxSize): in the wrap-height dock Row, fillMaxSize would stretch the tile to
                 // the whole screen. The Column sizes the height; the selector plate matches via matchParentSize.
@@ -1164,8 +1173,8 @@ private fun AppDock(
                     if (appDisplay != "text") {
                         Box(
                             Modifier
-                                .width(if (compact) 42.dp else 52.dp)
-                                .height(if (compact) 24.dp else 28.dp)
+                                .width(52.dp)
+                                .height(28.dp)
                                 .clip(androidx.compose.foundation.shape.RoundedCornerShape(9.dp))
                                 .background(Color(0x22000000)),
                         ) {
@@ -1183,7 +1192,7 @@ private fun AppDock(
                     if (appDisplay != "icons") {
                         Text(
                             app.label,
-                            fontSize = if (compact) 10.sp else 11.sp,
+                            fontSize = 11.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = LobbyColors.ink,
                             maxLines = 1,

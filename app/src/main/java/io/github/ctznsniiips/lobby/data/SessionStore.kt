@@ -92,8 +92,8 @@ class SessionStore(context: Context) {
         prefs.edit().putString(KEY_MATERIAL, id).apply()
     }
 
-    /** The Home layout: "list" (left app list), "dock" (bottom dock) or "watch" (media-forward). */
-    fun homeLayout(): String = prefs.getString(KEY_HOME_LAYOUT, "dock") ?: "dock"
+    /** The Home layout: "watch" (hero + rows + dock, the default), "dock" (no hero, open top) or "list" (left app list). */
+    fun homeLayout(): String = prefs.getString(KEY_HOME_LAYOUT, "watch") ?: "watch"
 
     fun setHomeLayout(id: String) {
         prefs.edit().putString(KEY_HOME_LAYOUT, id).apply()

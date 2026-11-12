@@ -164,7 +164,7 @@ private fun CategoryList(
             val summary = when (cat) {
                 SettingsCategory.Background -> BackgroundModes.firstOrNull { it.first == bgMode }?.second ?: "Dark"
                 SettingsCategory.Layout -> {
-                    val name = LayoutChoices.firstOrNull { it.first == homeLayout }?.second ?: "Dock"
+                    val name = LayoutChoices.firstOrNull { it.first == homeLayout }?.second ?: "Watch"
                     val display = AppDisplayChoices.firstOrNull { it.first == appDisplay }?.second ?: "Icons and text"
                     "$name · $display"
                 }
@@ -243,7 +243,7 @@ private fun CategoryDetail(
                     SettingsCategory.Apps -> "Which apps appear in the dock at the bottom of Home, and in what order."
                     SettingsCategory.Inputs -> "Which TV inputs appear on Home."
                     SettingsCategory.Focus -> "How the highlight looks when you move around Home. Material tunes the glass over a photo background."
-                    SettingsCategory.Layout -> "How Home is arranged, and how your apps are labelled. Watch leads with your Emby and Seerr titles."
+                    SettingsCategory.Layout -> "How Home is arranged, and how your apps are labelled. Watch leads with the hero; Dock drops it for an open top; List runs your apps down the left."
                     else -> null
                 }
                 if (hint != null) Text(hint, fontSize = 15.sp, color = LobbyColors.soft)
@@ -300,15 +300,6 @@ private fun CategoryDetail(
                                 if (id == homeState.homeLayout) Text("  •", color = LobbyColors.accent)
                             }
                         }
-                    }
-                }
-                if (homeState.homeLayout == "watch" && homeState.home?.let { it.featured.isNotEmpty() || it.rows.isNotEmpty() } != true) {
-                    item {
-                        Text(
-                            "Watch leads with your Emby and Seerr titles. Until this TV is connected under Emby/Jellyfin & Seerr, Home uses Dock.",
-                            fontSize = 14.sp,
-                            color = LobbyColors.mute,
-                        )
                     }
                 }
                 item { SectionHeader("App display") }
@@ -485,11 +476,9 @@ private fun SettingsPreview(
     val heroArt = address.imageUrl(hero?.backdropUrl ?: hero?.landscapeUrl, width = 800)
     val heroLogo = address.imageUrl(hero?.logoUrl, width = 300)
     val accent = rememberAccentColor(heroArt)
-    // Watch falls back to Dock until the TV has Emby/Seerr content to lead with.
-    val mediaConnected = homeState.home?.let { it.featured.isNotEmpty() || it.rows.isNotEmpty() } == true
-    val effLayout = if (homeState.homeLayout == "watch" && !mediaConnected) "dock" else homeState.homeLayout
-    val isList = effLayout == "list"
-    val isWatch = effLayout == "watch"
+    // Watch = hero + rows + dock; Dock = no hero, open top; List = left app list.
+    val isList = homeState.homeLayout == "list"
+    val isDock = homeState.homeLayout == "dock"
     val appDisplay = homeState.appDisplay
     Box(
         modifier
@@ -503,7 +492,8 @@ private fun SettingsPreview(
             Box(Modifier.fillMaxSize().background(Color(0x4D000000)))
         }
         // Hero backdrop art, upper-right, dissolving toward the left and bottom (mirrors the real HeroBackdrop).
-        if (heroArt != null) {
+        // Dock drops the hero entirely, leaving an open top.
+        if (!isDock && heroArt != null) {
             Box(
                 Modifier
                     .fillMaxWidth(0.62f)
@@ -520,7 +510,7 @@ private fun SettingsPreview(
             }
         }
         // Hero theme-colour wash, kept to the upper-left (mirrors the real home's accent glow).
-        if (accent != Color.Transparent) {
+        if (!isDock && accent != Color.Transparent) {
             Box(
                 Modifier.fillMaxSize().drawBehind {
                     drawRect(
@@ -535,24 +525,27 @@ private fun SettingsPreview(
             )
         }
         // Hero text + the featured logo; in List the left column holds the app list, so the hero indents past it.
-        Column(Modifier.fillMaxWidth(if (isList) 0.5f else 0.58f).align(Alignment.TopStart).padding(start = if (isList) 108.dp else 44.dp, end = 8.dp, top = 12.dp)) {
-            Text("Good afternoon", fontFamily = font, fontSize = 8.sp, color = LobbyColors.soft)
-            Spacer(Modifier.height(2.dp))
-            Text(heading, fontFamily = font, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = LobbyColors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Spacer(Modifier.height(2.dp))
-            Text(body, fontFamily = font, fontSize = 7.sp, color = LobbyColors.soft, maxLines = 2, overflow = TextOverflow.Ellipsis, lineHeight = 9.sp)
-            Spacer(Modifier.height(6.dp))
-            Box(
-                Modifier
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(LobbyColors.focusFill)
-                    .then(if (LobbyColors.focusStyle == "glass") Modifier.border(1.dp, Color(0x55FFFFFF), RoundedCornerShape(10.dp)) else Modifier)
-                    .padding(horizontal = 11.dp, vertical = 4.dp),
-            ) {
-                Text("Play", fontFamily = font, fontWeight = FontWeight.SemiBold, fontSize = 8.sp, color = LobbyColors.focusContent)
+        // Dock has no hero.
+        if (!isDock) {
+            Column(Modifier.fillMaxWidth(if (isList) 0.5f else 0.58f).align(Alignment.TopStart).padding(start = if (isList) 108.dp else 44.dp, end = 8.dp, top = 12.dp)) {
+                Text("Good afternoon", fontFamily = font, fontSize = 8.sp, color = LobbyColors.soft)
+                Spacer(Modifier.height(2.dp))
+                Text(heading, fontFamily = font, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = LobbyColors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Spacer(Modifier.height(2.dp))
+                Text(body, fontFamily = font, fontSize = 7.sp, color = LobbyColors.soft, maxLines = 2, overflow = TextOverflow.Ellipsis, lineHeight = 9.sp)
+                Spacer(Modifier.height(6.dp))
+                Box(
+                    Modifier
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(LobbyColors.focusFill)
+                        .then(if (LobbyColors.focusStyle == "glass") Modifier.border(1.dp, Color(0x55FFFFFF), RoundedCornerShape(10.dp)) else Modifier)
+                        .padding(horizontal = 11.dp, vertical = 4.dp),
+                ) {
+                    Text("Play", fontFamily = font, fontWeight = FontWeight.SemiBold, fontSize = 8.sp, color = LobbyColors.focusContent)
+                }
             }
         }
-        if (heroLogo != null) {
+        if (!isDock && heroLogo != null) {
             AsyncImage(
                 model = heroLogo,
                 contentDescription = null,
@@ -565,7 +558,7 @@ private fun SettingsPreview(
         Column(
             Modifier.align(Alignment.BottomStart)
                 .fillMaxWidth(if (isList) 0.68f else 0.72f)
-                .padding(start = if (isList) 108.dp else 24.dp, bottom = if (isList) 14.dp else if (isWatch) 34.dp else 42.dp),
+                .padding(start = if (isList) 108.dp else 24.dp, bottom = if (isList) 14.dp else 42.dp),
             verticalArrangement = Arrangement.spacedBy(7.dp),
         ) {
             val shown = if (previewRows.isNotEmpty()) previewRows else listOf(null, null)
@@ -628,8 +621,8 @@ private fun SettingsPreview(
             }
         }
         // The dock, pinned bottom-centre (Dock and Watch; List shows the app list instead). The frosted veil follows
-        // the Material, the focused tile shows the glass plate, Watch uses a more compact dock, and the tiles follow
-        // App display (icon only / name only / both).
+        // the Material, the focused tile shows the glass plate, and the tiles follow App display
+        // (icon only / name only / both). Watch and Dock both keep the bottom dock; List does not.
         if (!isList) {
             val dockShape = RoundedCornerShape(9.dp)
             val dockVeil = if (bgMode == "photo") {
@@ -641,8 +634,8 @@ private fun SettingsPreview(
             } else {
                 LobbyColors.surface
             }
-            val tileW = if (isWatch) 26.dp else 30.dp
-            val iconH = if (isWatch) 16.dp else 20.dp
+            val tileW = 30.dp
+            val iconH = 20.dp
             Row(
                 Modifier
                     .align(Alignment.BottomCenter)
@@ -651,7 +644,7 @@ private fun SettingsPreview(
                     .background(dockVeil)
                     .border(1.dp, Color(0x24FFFFFF), dockShape)
                     .padding(horizontal = 9.dp, vertical = 5.dp),
-                horizontalArrangement = Arrangement.spacedBy(if (isWatch) 7.dp else 9.dp),
+                horizontalArrangement = Arrangement.spacedBy(9.dp),
             ) {
                 val slots = if (apps.isNotEmpty()) apps.size else 5
                 repeat(slots) { i ->

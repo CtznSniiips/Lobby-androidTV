@@ -96,7 +96,7 @@ data class LobbyState(
     val focusStyle: String = "type",
     val material: String = "soft",
     /** Home layout ("list", "dock", "watch") and how apps are shown ("icons", "both", "text"). */
-    val homeLayout: String = "dock",
+    val homeLayout: String = "watch",
     val appDisplay: String = "both",
     /** When true, Home merges Continue Watching and Next Up into one row (a server TV setting, cached locally). */
     val combineContinueNextUp: Boolean = false,
