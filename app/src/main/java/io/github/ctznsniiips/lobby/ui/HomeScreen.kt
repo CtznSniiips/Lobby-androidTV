@@ -184,6 +184,9 @@ fun HomeScreen(
     // in a vertical list down the left. Watch and Dock both keep the bottom app dock.
     val isList = state.homeLayout == "list"
     val isDock = state.homeLayout == "dock"
+    // Dock and List drop the hero and move the clock to the top-left and the rail to a horizontal strip top-right,
+    // freeing the middle for more rows. Watch keeps the hero and the vertical left rail.
+    val heroLess = isDock || isList
     val hasBottomDock = hasApps && !isList
     val hasAppList = hasApps && isList
 
@@ -248,21 +251,20 @@ fun HomeScreen(
         // Content fills the width; the rail is an overlay, so the rows reach almost to the left edge while the
         // hero text and greeting are inset enough to clear it.
         // Reserve the dock's band at the bottom so the rows end above it instead of rendering under it (as in Samsung).
-        Column(Modifier.fillMaxSize().padding(start = if (hasAppList) APP_LIST_WIDTH else 0.dp, end = 40.dp, top = 20.dp, bottom = if (hasBottomDock) 86.dp else 0.dp)) {
-            Row(
-                Modifier.fillMaxWidth().padding(start = HERO_INSET),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(greeting(), fontSize = 16.sp, color = LobbyColors.soft, modifier = Modifier.weight(1f))
-                if (state.loading) Text("Loading…", fontSize = 14.sp, color = LobbyColors.mute, modifier = Modifier.padding(end = 20.dp))
-                ClockText()
-                state.weather?.let { WeatherChip(it, Modifier.padding(start = 18.dp)) }
-            }
+        Column(Modifier.fillMaxSize().padding(start = if (hasAppList) APP_LIST_WIDTH else 0.dp, end = 40.dp, top = if (heroLess) 54.dp else 20.dp, bottom = if (hasBottomDock) 86.dp else 0.dp)) {
+            // Watch keeps the greeting + clock bar and the hero inline. Dock and List relocate the clock to the
+            // top-left and the rail to the top-right (overlays below) and drop the hero so the rows fill the space.
+            if (!heroLess) {
+                Row(
+                    Modifier.fillMaxWidth().padding(start = HERO_INSET),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(greeting(), fontSize = 16.sp, color = LobbyColors.soft, modifier = Modifier.weight(1f))
+                    if (state.loading) Text("Loading…", fontSize = 14.sp, color = LobbyColors.mute, modifier = Modifier.padding(end = 20.dp))
+                    ClockText()
+                    state.weather?.let { WeatherChip(it, Modifier.padding(start = 18.dp)) }
+                }
 
-            // Dock keeps the hero's vertical band empty so the rows stay put and the top reads as open space.
-            if (isDock) {
-                Spacer(Modifier.height(164.dp))
-            } else {
                 Hero(
                     item = heroItem,
                     address = address,
@@ -347,24 +349,48 @@ fun HomeScreen(
             }
         }
 
-        // The left rail floats over the content so the rows can run full width beneath it.
-        Rail(
-            onSearch = onSearch,
-            onScreenSaver = onScreenSaver,
-            onApps = if (hasApps) ({ runCatching { dockFocus.requestFocus() } }) else null,
-            onSettings = onLobbySettings,
-            searchFocus = searchFocus,
-            settingsFocus = settingsFocus,
-            settingsDown = if (hasApps) dockFocus else null,
-            modifier = Modifier.align(Alignment.TopStart),
-        )
+        // The rail of utilities. Watch keeps it vertical on the left; Dock and List move it to a horizontal
+        // strip in the top-right and put the date/time/weather in the top-left.
+        val onApps: (() -> Unit)? = if (hasApps) ({ runCatching { dockFocus.requestFocus() } }) else null
+        if (heroLess) {
+            Rail(
+                onSearch = onSearch,
+                onScreenSaver = onScreenSaver,
+                onApps = onApps,
+                onSettings = onLobbySettings,
+                searchFocus = searchFocus,
+                settingsFocus = settingsFocus,
+                settingsDown = if (hasApps) dockFocus else null,
+                horizontal = true,
+                modifier = Modifier.align(Alignment.TopEnd).padding(top = 12.dp, end = 12.dp),
+            )
+            Row(
+                Modifier.align(Alignment.TopStart).padding(start = 24.dp, top = 18.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                ClockText()
+                state.weather?.let { WeatherChip(it, Modifier.padding(start = 18.dp)) }
+            }
+        } else {
+            Rail(
+                onSearch = onSearch,
+                onScreenSaver = onScreenSaver,
+                onApps = onApps,
+                onSettings = onLobbySettings,
+                searchFocus = searchFocus,
+                settingsFocus = settingsFocus,
+                settingsDown = if (hasApps) dockFocus else null,
+                modifier = Modifier.align(Alignment.TopStart),
+            )
+        }
 
-        // List layout: the apps run down the left as a vertical list, to the right of the rail.
+        // List layout: the apps run down the left as a vertical list, centred vertically, clear of the clock.
         if (hasAppList) {
             Box(
                 Modifier
                     .align(Alignment.TopStart)
-                    .padding(start = 64.dp, top = 24.dp, bottom = 16.dp)
+                    .fillMaxHeight()
+                    .padding(start = 24.dp, top = 48.dp, bottom = 16.dp)
                     .onFocusChanged { if (it.hasFocus) browsed = null },
             ) { AppList(state.apps, onApp, dockFocus, appDisplay = state.appDisplay) }
         }
@@ -587,16 +613,13 @@ private fun Rail(
     searchFocus: FocusRequester,
     settingsFocus: FocusRequester,
     settingsDown: FocusRequester?,
+    horizontal: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
-    Column(
-        modifier.width(60.dp).padding(start = 8.dp, top = 24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        RailButton(RailIcon.Search, "Search", onSearch, Modifier.focusRequester(searchFocus))
-        RailButton(RailIcon.Art, "Screensaver", onScreenSaver)
-        if (onApps != null) RailButton(RailIcon.Apps, "Go to apps", onApps)
+    val search = @Composable { RailButton(RailIcon.Search, "Search", onSearch, Modifier.focusRequester(searchFocus)) }
+    val art = @Composable { RailButton(RailIcon.Art, "Screensaver", onScreenSaver) }
+    val apps = @Composable { if (onApps != null) RailButton(RailIcon.Apps, "Go to apps", onApps) }
+    val settings = @Composable {
         RailButton(
             RailIcon.Settings,
             "Lobby Settings",
@@ -605,6 +628,19 @@ private fun Rail(
                 if (settingsDown != null) Modifier.focusProperties { down = settingsDown } else Modifier,
             ),
         )
+    }
+    if (horizontal) {
+        Row(
+            modifier.padding(4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) { search(); art(); apps(); settings() }
+    } else {
+        Column(
+            modifier.width(60.dp).padding(start = 8.dp, top = 24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) { search(); art(); apps(); settings() }
     }
 }
 
@@ -766,7 +802,7 @@ private fun HomePrompt(onSetup: () -> Unit, onDismiss: () -> Unit) {
 }
 
 /** Fold the server's Continue Watching and Next Up rows into one, in-progress titles first (as the Samsung app does). */
-private fun mergeContinueRows(rows: List<HomeRow>): List<HomeRow> {
+internal fun mergeContinueRows(rows: List<HomeRow>): List<HomeRow> {
     val hasBoth = rows.any { it.id == "continue" } && rows.any { it.id == "nextup" }
     if (!hasBoth) return rows
     val out = ArrayList<HomeRow>(rows.size)
@@ -1222,7 +1258,7 @@ private fun AppList(
     val list = remember(apps) { apps.distinctBy { it.packageName } }
     LazyColumn(
         modifier = Modifier.width(228.dp).fillMaxHeight(),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterVertically),
     ) {
         items(list, key = { it.packageName }) { app ->
             val i = list.indexOf(app)

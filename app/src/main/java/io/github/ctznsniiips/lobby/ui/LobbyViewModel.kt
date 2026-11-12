@@ -469,9 +469,7 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
             runCatching { client.settings() }
                 .onSuccess { data ->
                     updateSettings { it.copy(loading = false, data = data) }
-                    // Cache the server's combine setting so Home applies it without reopening settings.
-                    store.setCombineContinueNextUp(data.combineContinueNextUp)
-                    _state.update { it.copy(combineContinueNextUp = data.combineContinueNextUp) }
+                    // combineContinueNextUp is a client-only setting; don't let the server's echoed value reset it.
                 }
                 .onFailure { e ->
                     if (e is CancellationException) throw e
@@ -499,7 +497,8 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Combine or separate the Continue Watching and Next Up rows (a server TV setting, cached for Home). */
     fun setCombineContinueNextUp(value: Boolean) {
-        editSettings("combineContinue") { d -> d.copy(combineContinueNextUp = value) }
+        // Client-only: persisted locally so it survives reopening settings. The plugin doesn't store it, so
+        // round-tripping it through the server would echo false and reset the toggle.
         store.setCombineContinueNextUp(value)
         _state.update { it.copy(combineContinueNextUp = value) }
     }
@@ -590,14 +589,12 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
                 playDelayMs = if ("delay" in fields) data.playDelayMs else null,
                 playTimeoutSeconds = if ("timeout" in fields) data.playTimeoutSeconds else null,
                 sportsTeams = if ("teams" in fields) data.sportsTeams else null,
-                combineContinueNextUp = if ("combineContinue" in fields) data.combineContinueNextUp else null,
             )
             runCatching { client.saveSettings(body) }
                 .onSuccess { saved ->
                     settingsChanged = true
                     // Take the server's clamped values, unless the user has already changed something else since.
-                    // Keep the locally-cached combine setting: older plugins don't persist it and would echo false.
-                    if (dirty.isEmpty()) updateSettings { it.copy(data = saved.copy(combineContinueNextUp = store.combineContinueNextUp())) }
+                    if (dirty.isEmpty()) updateSettings { it.copy(data = saved) }
                 }
                 .onFailure { e ->
                     dirty.addAll(fields)
