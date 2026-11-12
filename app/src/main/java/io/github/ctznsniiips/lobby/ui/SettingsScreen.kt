@@ -489,19 +489,21 @@ private fun SettingsPreview(
             )
         }
         // Hero text + the featured logo.
-        Column(Modifier.fillMaxWidth(0.62f).align(Alignment.TopStart).padding(start = 46.dp, end = 8.dp, top = 24.dp)) {
-            Text(heading, fontFamily = font, fontWeight = FontWeight.Bold, fontSize = 22.sp, color = LobbyColors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Spacer(Modifier.height(3.dp))
-            Text(body, fontFamily = font, fontSize = 9.sp, color = LobbyColors.soft, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            Spacer(Modifier.height(8.dp))
+        Column(Modifier.fillMaxWidth(0.58f).align(Alignment.TopStart).padding(start = 40.dp, end = 8.dp, top = 14.dp)) {
+            Text("Good afternoon", fontFamily = font, fontSize = 8.sp, color = LobbyColors.soft)
+            Spacer(Modifier.height(2.dp))
+            Text(heading, fontFamily = font, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = LobbyColors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Spacer(Modifier.height(2.dp))
+            Text(body, fontFamily = font, fontSize = 7.sp, color = LobbyColors.soft, maxLines = 2, overflow = TextOverflow.Ellipsis, lineHeight = 9.sp)
+            Spacer(Modifier.height(6.dp))
             Box(
                 Modifier
-                    .clip(RoundedCornerShape(14.dp))
+                    .clip(RoundedCornerShape(10.dp))
                     .background(LobbyColors.focusFill)
-                    .then(if (LobbyColors.focusStyle == "glass") Modifier.border(1.dp, Color(0x55FFFFFF), RoundedCornerShape(14.dp)) else Modifier)
-                    .padding(horizontal = 16.dp, vertical = 6.dp),
+                    .then(if (LobbyColors.focusStyle == "glass") Modifier.border(1.dp, Color(0x55FFFFFF), RoundedCornerShape(10.dp)) else Modifier)
+                    .padding(horizontal = 11.dp, vertical = 4.dp),
             ) {
-                Text("Play", fontFamily = font, fontWeight = FontWeight.SemiBold, fontSize = 10.sp, color = LobbyColors.focusContent)
+                Text("Play", fontFamily = font, fontWeight = FontWeight.SemiBold, fontSize = 8.sp, color = LobbyColors.focusContent)
             }
         }
         if (heroLogo != null) {
@@ -509,13 +511,13 @@ private fun SettingsPreview(
                 model = heroLogo,
                 contentDescription = null,
                 contentScale = ContentScale.Fit,
-                modifier = Modifier.align(Alignment.TopEnd).padding(end = 26.dp, top = 40.dp).size(width = 104.dp, height = 46.dp),
+                modifier = Modifier.align(Alignment.TopEnd).padding(end = 24.dp, top = 30.dp).size(width = 82.dp, height = 36.dp),
             )
         }
         // A real poster row near the bottom; the second card carries the focus ring.
-        Column(Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(start = 46.dp, end = 16.dp, bottom = 50.dp)) {
-            Text(rowTitle, fontFamily = font, fontWeight = FontWeight.SemiBold, fontSize = 11.sp, color = LobbyColors.ink)
-            Spacer(Modifier.height(5.dp))
+        Column(Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(start = 40.dp, end = 16.dp, bottom = 50.dp)) {
+            Text(rowTitle, fontFamily = font, fontWeight = FontWeight.SemiBold, fontSize = 9.sp, color = LobbyColors.ink)
+            Spacer(Modifier.height(4.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 val slots = if (cards.isNotEmpty()) cards.size else 4
                 repeat(slots) { i ->
@@ -529,21 +531,21 @@ private fun SettingsPreview(
                 }
             }
         }
-        // Left rail of nav icons.
+        // Left rail of nav icons, in the upper-left like the real home.
         Column(
-            Modifier.align(Alignment.CenterStart).padding(start = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
+            Modifier.align(Alignment.TopStart).padding(start = 14.dp, top = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(11.dp),
         ) {
-            repeat(4) { Box(Modifier.size(20.dp).clip(circle).background(Color(0x26FFFFFF))) }
+            repeat(4) { Box(Modifier.size(15.dp).clip(circle).background(Color(0x26FFFFFF))) }
         }
         // The dock, pinned bottom-centre; the focused tile shows the glass plate the Material tunes.
         Row(
             Modifier
                 .align(Alignment.BottomCenter)
                 .padding(bottom = 10.dp)
-                .clip(RoundedCornerShape(16.dp))
+                .clip(RoundedCornerShape(11.dp))
                 .background(if (bgMode == "photo") Color(0x40101418) else LobbyColors.surface)
-                .border(1.dp, Color(0x24FFFFFF), RoundedCornerShape(16.dp))
+                .border(1.dp, Color(0x24FFFFFF), RoundedCornerShape(11.dp))
                 .padding(horizontal = 10.dp, vertical = 6.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
