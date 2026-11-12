@@ -391,8 +391,8 @@ private fun CategoryDetail(
                                 Text("Combine with Next Up", fontSize = 18.sp, color = LobbyColors.ink)
                                 Text("Show Continue Watching and Next Up as a single Continue Watching row.", fontSize = 13.sp, color = LobbyColors.soft, maxLines = 2, overflow = TextOverflow.Ellipsis)
                             }
-                            Button(onClick = { actions.setCombineContinueNextUp(!data.combineContinueNextUp) }) {
-                                Text(if (data.combineContinueNextUp) "Combined" else "Separate")
+                            Button(onClick = { actions.setCombineContinueNextUp(!homeState.combineContinueNextUp) }) {
+                                Text(if (homeState.combineContinueNextUp) "Combined" else "Separate")
                             }
                         }
                     }
@@ -480,6 +480,8 @@ private fun SettingsPreview(
     // Watch = hero + rows + dock; Dock = no hero, open top; List = left app list.
     val isList = homeState.homeLayout == "list"
     val isDock = homeState.homeLayout == "dock"
+    // Dock and List drop the hero, move the clock top-left and the rail to a horizontal strip top-right.
+    val heroLess = isList || isDock
     val appDisplay = homeState.appDisplay
     Box(
         modifier
@@ -494,7 +496,7 @@ private fun SettingsPreview(
         }
         // Hero backdrop art, upper-right, dissolving toward the left and bottom (mirrors the real HeroBackdrop).
         // Dock drops the hero entirely, leaving an open top.
-        if (!isDock && heroArt != null) {
+        if (!heroLess && heroArt != null) {
             Box(
                 Modifier
                     .fillMaxWidth(0.62f)
@@ -511,7 +513,7 @@ private fun SettingsPreview(
             }
         }
         // Hero theme-colour wash, kept to the upper-left (mirrors the real home's accent glow).
-        if (!isDock && accent != Color.Transparent) {
+        if (!heroLess && accent != Color.Transparent) {
             Box(
                 Modifier.fillMaxSize().drawBehind {
                     drawRect(
@@ -527,7 +529,7 @@ private fun SettingsPreview(
         }
         // Hero text + the featured logo; in List the left column holds the app list, so the hero indents past it.
         // Dock has no hero.
-        if (!isDock) {
+        if (!heroLess) {
             Column(Modifier.fillMaxWidth(if (isList) 0.5f else 0.58f).align(Alignment.TopStart).padding(start = if (isList) 108.dp else 44.dp, end = 8.dp, top = 12.dp)) {
                 Text("Good afternoon", fontFamily = font, fontSize = 8.sp, color = LobbyColors.soft)
                 Spacer(Modifier.height(2.dp))
@@ -546,7 +548,7 @@ private fun SettingsPreview(
                 }
             }
         }
-        if (!isDock && heroLogo != null) {
+        if (!heroLess && heroLogo != null) {
             AsyncImage(
                 model = heroLogo,
                 contentDescription = null,
@@ -555,7 +557,7 @@ private fun SettingsPreview(
             )
         }
         // Hero pager dots, one per featured item, mirroring the real home's bottom-right indicator.
-        if (!isDock && featuredCount > 1) {
+        if (!heroLess && featuredCount > 1) {
             Row(
                 Modifier.align(Alignment.TopEnd).padding(end = 26.dp, top = 74.dp),
                 horizontalArrangement = Arrangement.spacedBy(3.dp),
@@ -572,14 +574,22 @@ private fun SettingsPreview(
             }
         }
         // Two real poster rows near the bottom; the second card of the first row carries the focus ring.
-        val previewRows = remember(homeState.home) { homeState.home?.rows?.filter { it.items.isNotEmpty() }?.take(2).orEmpty() }
+        // Dock and List free up the hero's band, so the previewer shows an extra row there.
+        val rowCount = if (heroLess) 3 else 2
+        val previewRows = remember(homeState.home, homeState.combineContinueNextUp, rowCount) {
+            homeState.home?.rows
+                ?.let { if (homeState.combineContinueNextUp) mergeContinueRows(it) else it }
+                ?.filter { it.items.isNotEmpty() }
+                ?.take(rowCount)
+                .orEmpty()
+        }
         Column(
             Modifier.align(Alignment.BottomStart)
-                .fillMaxWidth(if (isList) 0.68f else 0.72f)
+                .fillMaxWidth(if (isDock) 0.82f else 0.72f)
                 .padding(start = if (isList) 108.dp else 24.dp, bottom = if (isList) 14.dp else 42.dp),
-            verticalArrangement = Arrangement.spacedBy(7.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            val shown = if (previewRows.isNotEmpty()) previewRows else listOf(null, null)
+            val shown = if (previewRows.isNotEmpty()) previewRows else List(rowCount) { null }
             shown.forEachIndexed { ri, r ->
                 val title = r?.title?.takeIf { it.isNotBlank() } ?: if (ri == 0) "Continue Watching" else "Next Up"
                 // Title hugs its own row of cards; the outer spacing separates the two groups.
@@ -608,10 +618,10 @@ private fun SettingsPreview(
             }
         }
         if (isList) {
-            // List layout: a vertical app list down the left, following App display (icons / name / both).
+            // List layout: a vertical app list down the left, centred vertically, following App display.
             Column(
-                Modifier.align(Alignment.TopStart).fillMaxHeight().width(100.dp).padding(start = 12.dp, top = 14.dp, bottom = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(5.dp),
+                Modifier.align(Alignment.TopStart).fillMaxHeight().width(100.dp).padding(start = 12.dp, top = 40.dp, bottom = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(5.dp, Alignment.CenterVertically),
             ) {
                 val slots = if (apps.isNotEmpty()) apps.size else 5
                 repeat(slots.coerceAtMost(6)) { i ->
@@ -635,8 +645,28 @@ private fun SettingsPreview(
                     }
                 }
             }
+        }
+        // The rail of nav icons. Watch keeps it vertical on the left; Dock and List use a horizontal strip top-right
+        // with the date/time/weather moved to the top-left.
+        if (heroLess) {
+            Row(
+                Modifier.align(Alignment.TopEnd).padding(top = 12.dp, end = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                listOf(RailIcon.Search, RailIcon.Art, RailIcon.Apps, RailIcon.Settings).forEach { icon ->
+                    Canvas(Modifier.size(12.dp)) { drawRailIcon(icon, Color(0xCCFFFFFF)) }
+                }
+            }
+            Row(
+                Modifier.align(Alignment.TopStart).padding(start = 14.dp, top = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Text("9:41", fontFamily = font, fontWeight = FontWeight.SemiBold, fontSize = 9.sp, color = LobbyColors.ink)
+                Text("72°", fontFamily = font, fontSize = 8.sp, color = LobbyColors.soft)
+            }
         } else {
-            // Dock / Watch: left rail of the real nav icons (search, screensaver, apps, settings).
             Column(
                 Modifier.align(Alignment.TopStart).padding(start = 14.dp, top = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(9.dp),
