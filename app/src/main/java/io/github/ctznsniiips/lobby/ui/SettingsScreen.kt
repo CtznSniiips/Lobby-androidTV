@@ -486,7 +486,7 @@ private fun SettingsPreview(
             )
         }
         // Hero text + the featured logo.
-        Column(Modifier.fillMaxWidth(0.58f).align(Alignment.TopStart).padding(start = 40.dp, end = 8.dp, top = 14.dp)) {
+        Column(Modifier.fillMaxWidth(0.58f).align(Alignment.TopStart).padding(start = 44.dp, end = 8.dp, top = 12.dp)) {
             Text("Good afternoon", fontFamily = font, fontSize = 8.sp, color = LobbyColors.soft)
             Spacer(Modifier.height(2.dp))
             Text(heading, fontFamily = font, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = LobbyColors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -514,14 +514,14 @@ private fun SettingsPreview(
         // Two real poster rows near the bottom; the second card of the first row carries the focus ring.
         val previewRows = remember(homeState.home) { homeState.home?.rows?.filter { it.items.isNotEmpty() }?.take(2).orEmpty() }
         Column(
-            Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(start = 40.dp, end = 16.dp, bottom = 48.dp),
-            verticalArrangement = Arrangement.spacedBy(5.dp),
+            Modifier.align(Alignment.BottomStart).fillMaxWidth(0.72f).padding(start = 24.dp, bottom = 42.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             val shown = if (previewRows.isNotEmpty()) previewRows else listOf(null, null)
             shown.forEachIndexed { ri, r ->
                 val title = r?.title?.takeIf { it.isNotBlank() } ?: if (ri == 0) "Continue Watching" else "Next Up"
                 Text(title, fontFamily = font, fontWeight = FontWeight.SemiBold, fontSize = 9.sp, color = LobbyColors.ink)
-                Spacer(Modifier.height(3.dp))
+                Spacer(Modifier.height(1.dp))
                 val rc = r?.items?.distinctBy { it.id }?.take(5).orEmpty()
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     val slots = if (rc.isNotEmpty()) rc.size else 5
