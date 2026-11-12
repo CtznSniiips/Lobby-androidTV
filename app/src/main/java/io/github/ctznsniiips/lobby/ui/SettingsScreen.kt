@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -408,10 +409,10 @@ private fun CategoryDetail(
 }
 
 /**
- * A live preview of Home shown beside each appearance menu, like the Samsung version's previewer. It reproduces the
- * real home layout (rail, hero, a row, the dock) at a fixed design size scaled to fit the pane, and fills it with
- * the user's actual content — featured title and tagline, real row posters, real app icons — so it reads as their
- * own home and reflects the current background, typeface, focus style and material.
+ * A live preview of Home shown beside each appearance menu, like the Samsung version's previewer. It lays the home
+ * out responsively to fill the pane (hero, rail, a row, the dock) and fills it with the user's real content — the
+ * featured title/tagline and logo, the first real row's posters, and the real app icons — so it mirrors their home
+ * and reflects the current background, typeface, focus style and material as they change settings.
  */
 @Composable
 private fun SettingsPreview(
@@ -426,7 +427,7 @@ private fun SettingsPreview(
     val wp = remember(wallpaper) { Wallpapers.firstOrNull { it.id == wallpaper } ?: Wallpapers.first() }
     val shape = RoundedCornerShape(16.dp)
     val circle = RoundedCornerShape(percent = 50)
-    val card12 = RoundedCornerShape(12.dp)
+    val card12 = RoundedCornerShape(10.dp)
     val hero = homeState.home?.featured?.firstOrNull()
     val heading = hero?.tagline?.takeIf { it.isNotBlank() } ?: hero?.title?.takeIf { it.isNotBlank() } ?: "Featured Title"
     val body = hero?.overview?.takeIf { it.isNotBlank() }
@@ -435,116 +436,92 @@ private fun SettingsPreview(
     val rowTitle = row?.title?.takeIf { it.isNotBlank() } ?: "Continue Watching"
     val cards = remember(row) { row?.items?.distinctBy { it.id }?.take(5).orEmpty() }
     val apps = remember(homeState.apps) { homeState.apps.distinctBy { it.packageName }.take(5) }
-    val heroLogo = address.imageUrl(hero?.logoUrl, width = 400)
-    // Built at a fixed 1280x800 "home" size, then scaled to fit the pane, so it mirrors the real home's proportions.
-    BoxWithConstraints(
+    val heroLogo = address.imageUrl(hero?.logoUrl, width = 300)
+    Box(
         modifier
             .aspectRatio(16f / 10f)
             .clip(shape)
             .background(LobbyColors.background)
             .border(1.dp, Color(0x1FFFFFFF), shape),
     ) {
-        val scale = maxWidth.value / 1280f
         if (bgMode == "photo") {
             AsyncImage(model = wp.fullUri, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
             Box(Modifier.fillMaxSize().background(Color(0x4D000000)))
         }
-        Box(
-            Modifier
-                .requiredSize(1280.dp, 800.dp)
-                .graphicsLayer { scaleX = scale; scaleY = scale; transformOrigin = TransformOrigin(0f, 0f) },
-        ) {
-            // Left rail of nav icons.
-            Column(
-                Modifier.align(Alignment.TopStart).padding(start = 40.dp, top = 150.dp),
-                verticalArrangement = Arrangement.spacedBy(20.dp),
-            ) {
-                repeat(4) { Box(Modifier.size(44.dp).clip(circle).background(Color(0x22FFFFFF))) }
+        // Main content, inset on the left so it clears the rail.
+        Column(Modifier.fillMaxSize().padding(start = 46.dp, end = 16.dp, top = 12.dp, bottom = 12.dp)) {
+            Row(Modifier.fillMaxWidth()) {
+                Spacer(Modifier.weight(1f))
+                Text("2:18  61°", fontFamily = font, fontSize = 9.sp, color = LobbyColors.soft)
             }
-            // Clock + weather, top right.
-            Text(
-                "2:18 PM   61°",
-                modifier = Modifier.align(Alignment.TopEnd).padding(end = 56.dp, top = 56.dp),
-                fontFamily = font, fontSize = 26.sp, color = LobbyColors.ink,
-            )
-            // Hero: the real tagline/overview and the Play button (showing the Focus style).
-            Column(
-                Modifier.align(Alignment.TopStart).padding(start = 150.dp, top = 120.dp).width(640.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp),
-            ) {
-                Text(heading, fontFamily = font, fontWeight = FontWeight.Bold, fontSize = 60.sp, color = LobbyColors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(body, fontFamily = font, fontSize = 26.sp, color = LobbyColors.soft, maxLines = 3, overflow = TextOverflow.Ellipsis)
-                Box(
-                    Modifier
-                        .padding(top = 10.dp)
-                        .clip(RoundedCornerShape(28.dp))
-                        .background(LobbyColors.focusFill)
-                        .then(if (LobbyColors.focusStyle == "glass") Modifier.border(2.dp, Color(0x55FFFFFF), RoundedCornerShape(28.dp)) else Modifier)
-                        .padding(horizontal = 40.dp, vertical = 18.dp),
-                ) {
-                    Text("Play", fontFamily = font, fontWeight = FontWeight.SemiBold, fontSize = 26.sp, color = LobbyColors.focusContent)
-                }
-            }
-            // The featured logo on the right, if there is one.
-            if (heroLogo != null) {
-                AsyncImage(
-                    model = heroLogo,
-                    contentDescription = null,
-                    contentScale = ContentScale.Fit,
-                    modifier = Modifier.align(Alignment.TopEnd).padding(end = 120.dp, top = 170.dp).size(width = 360.dp, height = 150.dp),
-                )
-            }
-            // A real row of posters; the second card carries the focus ring.
-            Column(
-                Modifier.align(Alignment.BottomStart).padding(start = 150.dp, bottom = 170.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                Text(rowTitle, fontFamily = font, fontWeight = FontWeight.SemiBold, fontSize = 24.sp, color = LobbyColors.ink)
-                Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
-                    val slots = if (cards.isNotEmpty()) cards.size else 5
-                    repeat(slots) { i ->
-                        val art = cards.getOrNull(i)?.let { address.imageUrl(it.landscapeUrl ?: it.posterUrl, width = 368) }
-                        Box(
-                            Modifier
-                                .size(width = 184.dp, height = 104.dp)
-                                .clip(card12)
-                                .background(LobbyColors.card)
-                                .then(if (i == 1) Modifier.border(3.dp, Color(0xCCFFFFFF), card12) else Modifier),
-                        ) {
-                            if (art != null) AsyncImage(model = art, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-                        }
-                    }
-                }
-            }
-            // The dock with the real app icons; the focused tile shows the glass plate, which the Material tunes.
-            Row(
-                Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = 44.dp)
-                    .clip(RoundedCornerShape(22.dp))
-                    .background(if (bgMode == "photo") Color(0x40101418) else LobbyColors.surface)
-                    .border(1.dp, Color(0x24FFFFFF), RoundedCornerShape(22.dp))
-                    .padding(horizontal = 18.dp, vertical = 14.dp),
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-            ) {
-                val slots = if (apps.isNotEmpty()) apps.size else 5
-                repeat(slots) { i ->
-                    val focused = i == (slots / 2)
-                    val bmp = apps.getOrNull(i)?.let { app -> app.icon?.toBitmap(240, 135)?.asImageBitmap() }
+            Spacer(Modifier.height(8.dp))
+            Row(Modifier.fillMaxWidth()) {
+                Column(Modifier.weight(1f)) {
+                    Text(heading, fontFamily = font, fontWeight = FontWeight.Bold, fontSize = 22.sp, color = LobbyColors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Spacer(Modifier.height(3.dp))
+                    Text(body, fontFamily = font, fontSize = 9.sp, color = LobbyColors.soft, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Spacer(Modifier.height(8.dp))
                     Box(
                         Modifier
-                            .size(width = 70.dp, height = 46.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .then(
-                                if (focused) Modifier.background(LobbyColors.focusPlate).border(1.dp, Color(0x66FFFFFF), RoundedCornerShape(12.dp))
-                                else Modifier.background(Color(0x2EFFFFFF)),
-                            ),
-                        contentAlignment = Alignment.Center,
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(LobbyColors.focusFill)
+                            .then(if (LobbyColors.focusStyle == "glass") Modifier.border(1.dp, Color(0x55FFFFFF), RoundedCornerShape(14.dp)) else Modifier)
+                            .padding(horizontal = 16.dp, vertical = 6.dp),
                     ) {
-                        if (bmp != null) {
-                            Image(bitmap = bmp, contentDescription = null, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize().padding(6.dp))
-                        }
+                        Text("Play", fontFamily = font, fontWeight = FontWeight.SemiBold, fontSize = 10.sp, color = LobbyColors.focusContent)
                     }
+                }
+                if (heroLogo != null) {
+                    AsyncImage(model = heroLogo, contentDescription = null, contentScale = ContentScale.Fit, modifier = Modifier.padding(start = 8.dp).size(width = 96.dp, height = 44.dp))
+                }
+            }
+            Spacer(Modifier.weight(1f))
+            Text(rowTitle, fontFamily = font, fontWeight = FontWeight.SemiBold, fontSize = 11.sp, color = LobbyColors.ink)
+            Spacer(Modifier.height(5.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                val slots = if (cards.isNotEmpty()) cards.size else 4
+                repeat(slots) { i ->
+                    val art = cards.getOrNull(i)?.let { address.imageUrl(it.landscapeUrl ?: it.posterUrl, width = 240) }
+                    Box(
+                        Modifier.weight(1f).aspectRatio(1.6f).clip(card12).background(LobbyColors.card)
+                            .then(if (i == 1) Modifier.border(2.dp, Color(0xCCFFFFFF), card12) else Modifier),
+                    ) {
+                        if (art != null) AsyncImage(model = art, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                    }
+                }
+            }
+            Spacer(Modifier.height(42.dp))
+        }
+        // Left rail of nav icons (overlay).
+        Column(
+            Modifier.align(Alignment.CenterStart).padding(start = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            repeat(4) { Box(Modifier.size(20.dp).clip(circle).background(Color(0x26FFFFFF))) }
+        }
+        // The dock, pinned bottom-centre; the focused tile shows the glass plate the Material tunes.
+        Row(
+            Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 10.dp)
+                .clip(RoundedCornerShape(16.dp))
+                .background(if (bgMode == "photo") Color(0x40101418) else LobbyColors.surface)
+                .border(1.dp, Color(0x24FFFFFF), RoundedCornerShape(16.dp))
+                .padding(horizontal = 10.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            val slots = if (apps.isNotEmpty()) apps.size else 5
+            repeat(slots) { i ->
+                val bmp = apps.getOrNull(i)?.let { app -> app.icon?.toBitmap(240, 135)?.asImageBitmap() }
+                Box(
+                    Modifier.size(width = 36.dp, height = 24.dp).clip(RoundedCornerShape(8.dp))
+                        .then(
+                            if (i == slots / 2) Modifier.background(LobbyColors.focusPlate).border(1.dp, Color(0x66FFFFFF), RoundedCornerShape(8.dp))
+                            else Modifier.background(Color(0x2EFFFFFF)),
+                        ),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (bmp != null) Image(bitmap = bmp, contentDescription = null, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize().padding(3.dp))
                 }
             }
         }
