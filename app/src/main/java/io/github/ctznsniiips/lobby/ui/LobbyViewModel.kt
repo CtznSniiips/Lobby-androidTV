@@ -1,6 +1,7 @@
 package io.github.ctznsniiips.lobby.ui
 
 import android.app.Application
+import java.io.File
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.ctznsniiips.lobby.data.HomeItem
@@ -125,8 +126,11 @@ data class LobbyState(
     val currentVersion: String = "",
     val latestVersion: String? = null,
     val updateUrl: String? = null,
+    val updateNotes: String? = null,
+    val updateApkUrl: String? = null,
     val updateAvailable: Boolean = false,
     val checkingUpdate: Boolean = false,
+    val downloadingUpdate: Boolean = false,
     /** Whether the remote's Home button opens Lobby. Starts true so the prompt doesn't flash before the first check. */
     val isDefaultHome: Boolean = true,
     val homeOverrideEnabled: Boolean = false,
@@ -509,6 +513,8 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
                     checkingUpdate = false,
                     latestVersion = rel.version,
                     updateUrl = rel.url,
+                    updateNotes = rel.notes.ifBlank { null },
+                    updateApkUrl = rel.apkUrl,
                     updateAvailable = UpdateChecker.isNewer(rel.version, it.currentVersion),
                 )
             }
@@ -519,6 +525,23 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
     fun openLatestRelease() {
         val url = _state.value.updateUrl ?: return
         if (!device.openUrl(url)) say("Couldn't open the releases page. Find it on GitHub: CtznSniiips/Lobby-androidTV.")
+    }
+
+    /** Downloads the latest release's APK and hands it to the system installer. Falls back to the page if there's no APK asset. */
+    fun downloadAndInstall() {
+        if (_state.value.downloadingUpdate) return
+        val url = _state.value.updateApkUrl ?: run { openLatestRelease(); return }
+        _state.update { it.copy(downloadingUpdate = true) }
+        viewModelScope.launch {
+            val file = File(getApplication<Application>().cacheDir, "lobby-update.apk")
+            val ok = UpdateChecker.download(url, file)
+            _state.update { it.copy(downloadingUpdate = false) }
+            if (!ok) {
+                say("Couldn't download the update.")
+            } else if (!device.installApk(file)) {
+                say("Downloaded, but couldn't open the installer.")
+            }
+        }
     }
 
     // ---- Lobby settings (this TV's own rows, limits and teams) ---------------------------------

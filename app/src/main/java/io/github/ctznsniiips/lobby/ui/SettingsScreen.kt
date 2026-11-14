@@ -406,6 +406,7 @@ private fun CategoryDetail(
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text("Installed version ${homeState.currentVersion.ifBlank { "—" }}", fontSize = 15.sp, color = LobbyColors.soft)
                         val status = when {
+                            homeState.downloadingUpdate -> "Downloading…"
                             homeState.checkingUpdate -> "Checking…"
                             homeState.updateAvailable -> "Update available: ${homeState.latestVersion}"
                             homeState.latestVersion != null -> "Up to date"
@@ -414,12 +415,28 @@ private fun CategoryDetail(
                         if (status.isNotEmpty()) {
                             Text(status, fontSize = 15.sp, color = if (homeState.updateAvailable) LobbyColors.accent else LobbyColors.ink)
                         }
+                        // What's new, straight from the release notes.
+                        if (homeState.updateAvailable && !homeState.updateNotes.isNullOrBlank()) {
+                            Text(
+                                homeState.updateNotes!!.trim(),
+                                fontSize = 13.sp,
+                                color = LobbyColors.soft,
+                                lineHeight = 18.sp,
+                                maxLines = 12,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.fillMaxWidth(0.9f),
+                            )
+                        }
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             Button(onClick = { actions.setCheckForUpdates(!homeState.checkForUpdates) }) {
                                 Text(if (homeState.checkForUpdates) "Auto-check: On" else "Auto-check: Off")
                             }
-                            Button(onClick = actions.checkForUpdatesNow) { Text("Check now") }
-                            if (homeState.updateAvailable) Button(onClick = actions.openLatestRelease) { Text("Get it") }
+                            Button(onClick = actions.checkForUpdatesNow, enabled = !homeState.downloadingUpdate) { Text("Check now") }
+                            if (homeState.updateAvailable) {
+                                Button(onClick = actions.downloadAndInstall, enabled = !homeState.downloadingUpdate) {
+                                    Text(if (homeState.downloadingUpdate) "Downloading…" else "Download & install")
+                                }
+                            }
                         }
                     }
                 }

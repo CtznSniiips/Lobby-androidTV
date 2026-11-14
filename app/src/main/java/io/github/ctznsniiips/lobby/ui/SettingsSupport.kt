@@ -57,6 +57,7 @@ class SettingsActions(
     val setCheckForUpdates: (value: Boolean) -> Unit,
     val checkForUpdatesNow: () -> Unit,
     val openLatestRelease: () -> Unit,
+    val downloadAndInstall: () -> Unit,
     val openHomeSetup: () -> Unit,
     val setAppHidden: (packageName: String, hidden: Boolean) -> Unit,
     val moveApp: (packageName: String, delta: Int) -> Unit,

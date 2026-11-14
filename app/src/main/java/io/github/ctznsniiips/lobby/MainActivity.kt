@@ -44,6 +44,7 @@ class MainActivity : ComponentActivity() {
             setCheckForUpdates = viewModel::setCheckForUpdates,
             checkForUpdatesNow = viewModel::checkForUpdatesNow,
             openLatestRelease = viewModel::openLatestRelease,
+            downloadAndInstall = viewModel::downloadAndInstall,
             openHomeSetup = viewModel::openHomeSetup,
             setAppHidden = viewModel::setAppHidden,
             moveApp = viewModel::moveApp,

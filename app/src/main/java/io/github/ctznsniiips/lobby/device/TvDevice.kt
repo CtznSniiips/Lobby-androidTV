@@ -127,6 +127,15 @@ class TvDevice(private val context: Context) {
     fun openUrl(url: String): Boolean =
         start(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)))
 
+    /** Hands a downloaded APK to the system installer via a FileProvider URI. */
+    fun installApk(file: java.io.File): Boolean {
+        val uri = androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.updates", file)
+        val intent = Intent(Intent.ACTION_VIEW)
+            .setDataAndType(uri, "application/vnd.android.package-archive")
+            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        return start(intent)
+    }
+
     /** The installed official Jellyfin or Emby app that playback is handed to, if any. */
     fun playbackApp(): String? = PLAYBACK_PACKAGES.firstOrNull { isInstalled(it) }
 
