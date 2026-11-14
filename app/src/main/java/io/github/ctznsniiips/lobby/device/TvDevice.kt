@@ -133,7 +133,17 @@ class TvDevice(private val context: Context) {
     }.isSuccess
 
     companion object {
-        /** Official Android TV clients, in preference order. */
-        val PLAYBACK_PACKAGES = listOf("org.jellyfin.androidtv", "tv.emby.embyatv", "org.jellyfin.androidtv.debug")
+        /**
+         * Official Jellyfin/Emby clients playback is handed to, in preference order: the Android TV apps first,
+         * then the general Android apps (which Google TV often installs instead of the TV-specific build), then
+         * the Jellyfin debug build.
+         */
+        val PLAYBACK_PACKAGES = listOf(
+            "org.jellyfin.androidtv",
+            "tv.emby.embyatv",
+            "com.mb.android",
+            "org.jellyfin.mobile",
+            "org.jellyfin.androidtv.debug",
+        )
     }
 }

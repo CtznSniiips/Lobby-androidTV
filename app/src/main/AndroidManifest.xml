@@ -28,6 +28,9 @@
         <package android:name="org.jellyfin.androidtv" />
         <package android:name="org.jellyfin.androidtv.debug" />
         <package android:name="tv.emby.embyatv" />
+        <!-- The general Android Emby/Jellyfin apps, which Google TV often installs instead of the TV-specific build. -->
+        <package android:name="com.mb.android" />
+        <package android:name="org.jellyfin.mobile" />
         <!-- Hosts the activity that starts the system screen saver. -->
         <package android:name="com.android.systemui" />
     </queries>
