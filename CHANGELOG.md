@@ -5,6 +5,12 @@ All notable changes to Lobby for Android TV are recorded here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.5.0] - 11/14/2026
+
+### Fixed
+- The hero no longer gets stuck on a row title: pressing up from a home row returns to the featured carousel and left/right cycles it again, instead of staying pinned to whichever card was focused.
+- Continue Watching and Next Up titles are kept out of the hero carousel; they only appear in their own rows.
+
 ## [v0.4.0] - 11/14/2026
 
 ### Added
@@ -39,7 +45,8 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 - GitHub Actions build check on every pull request.
 - Fixed signing key via a GitHub Actions secret, so new builds install over older ones without uninstalling.
 
-[Unreleased]: https://github.com/CtznSniiips/Lobby-androidTV/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/CtznSniiips/Lobby-androidTV/compare/v0.5.0...HEAD
+[v0.5.0]: https://github.com/CtznSniiips/Lobby-androidTV/compare/v0.4.0...v0.5.0
 [v0.4.0]: https://github.com/CtznSniiips/Lobby-androidTV/compare/v0.3.0...v0.4.0
 [v0.3.0]: https://github.com/CtznSniiips/Lobby-androidTV/compare/v0.2.0...v0.3.0
 [v0.2.0]: https://github.com/CtznSniiips/Lobby-androidTV/compare/v0.1.0...v0.2.0
