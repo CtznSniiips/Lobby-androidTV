@@ -385,6 +385,61 @@ private fun CategoryDetail(
                         }
                     }
                 }
+                item { SectionHeader("Sleep when idle") }
+                item {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Column(Modifier.weight(1f)) {
+                            Text("Go quiet after", fontSize = 18.sp, color = LobbyColors.ink)
+                            Text(
+                                "After this long with no remote input, Lobby stops animating and refreshing so the box can go to sleep on its own, like the stock launcher. Pair with HDMI-CEC or the box's own power setting.",
+                                fontSize = 13.sp, color = LobbyColors.soft,
+                            )
+                        }
+                        val qm = homeState.quietOnIdleMinutes
+                        Button(onClick = { actions.stepQuietOnIdle(-1) }, enabled = qm > SCREEN_SAVER_OPTIONS.first()) { Text("-") }
+                        Text(if (qm <= 0) "Off" else "$qm min", fontSize = 18.sp, color = LobbyColors.ink, textAlign = TextAlign.Center, modifier = Modifier.width(96.dp))
+                        Button(onClick = { actions.stepQuietOnIdle(1) }, enabled = qm < SCREEN_SAVER_OPTIONS.last()) { Text("+") }
+                    }
+                }
+                item { SectionHeader("Updates") }
+                item {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Installed version ${homeState.currentVersion.ifBlank { "—" }}", fontSize = 15.sp, color = LobbyColors.soft)
+                        val status = when {
+                            homeState.downloadingUpdate -> "Downloading…"
+                            homeState.checkingUpdate -> "Checking…"
+                            homeState.updateAvailable -> "Update available: ${homeState.latestVersion}"
+                            homeState.latestVersion != null -> "Up to date"
+                            else -> ""
+                        }
+                        if (status.isNotEmpty()) {
+                            Text(status, fontSize = 15.sp, color = if (homeState.updateAvailable) LobbyColors.accent else LobbyColors.ink)
+                        }
+                        // What's new, straight from the release notes.
+                        if (homeState.updateAvailable && !homeState.updateNotes.isNullOrBlank()) {
+                            Text(
+                                homeState.updateNotes!!.trim(),
+                                fontSize = 13.sp,
+                                color = LobbyColors.soft,
+                                lineHeight = 18.sp,
+                                maxLines = 12,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.fillMaxWidth(0.9f),
+                            )
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Button(onClick = { actions.setCheckForUpdates(!homeState.checkForUpdates) }) {
+                                Text(if (homeState.checkForUpdates) "Auto-check: On" else "Auto-check: Off")
+                            }
+                            Button(onClick = actions.checkForUpdatesNow, enabled = !homeState.downloadingUpdate) { Text("Check now") }
+                            if (homeState.updateAvailable) {
+                                Button(onClick = actions.downloadAndInstall, enabled = !homeState.downloadingUpdate) {
+                                    Text(if (homeState.downloadingUpdate) "Downloading…" else "Download & install")
+                                }
+                            }
+                        }
+                    }
+                }
             }
             // Emby & Seerr: the connection plus everything the plugin keeps for this TV, grouped like the Samsung app.
             SettingsCategory.Media -> {

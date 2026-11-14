@@ -28,7 +28,7 @@ android {
         targetSdk = 35
         // Overridable from the release workflow with -PversionCode / -PversionName; defaults for local/CI debug builds.
         versionCode = (project.findProperty("versionCode") as String?)?.toIntOrNull() ?: 1
-        versionName = (project.findProperty("versionName") as String?) ?: "0.3.0"
+        versionName = (project.findProperty("versionName") as String?) ?: "0.4.0"
     }
 
     signingConfigs {

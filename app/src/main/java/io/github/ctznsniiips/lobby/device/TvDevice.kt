@@ -119,6 +119,23 @@ class TvDevice(private val context: Context) {
     /** Where the user chooses the screen saver and Android's own "When to start" delay. */
     fun openScreenSaverSettings(): Boolean = start(Intent(Settings.ACTION_DREAM_SETTINGS)) || openSystemSettings()
 
+    /** The installed version name of Lobby (e.g. "0.3.0"), for the update check. */
+    fun appVersionName(): String =
+        runCatching { pm.getPackageInfo(context.packageName, 0).versionName }.getOrNull().orEmpty()
+
+    /** Opens a web URL (e.g. the GitHub releases page) in whatever browser the TV has, if any. */
+    fun openUrl(url: String): Boolean =
+        start(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)))
+
+    /** Hands a downloaded APK to the system installer via a FileProvider URI. */
+    fun installApk(file: java.io.File): Boolean {
+        val uri = androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.updates", file)
+        val intent = Intent(Intent.ACTION_VIEW)
+            .setDataAndType(uri, "application/vnd.android.package-archive")
+            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        return start(intent)
+    }
+
     /** The installed official Jellyfin or Emby app that playback is handed to, if any. */
     fun playbackApp(): String? = PLAYBACK_PACKAGES.firstOrNull { isInstalled(it) }
 
