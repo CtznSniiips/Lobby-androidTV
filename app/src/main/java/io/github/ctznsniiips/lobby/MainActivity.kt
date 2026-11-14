@@ -40,6 +40,10 @@ class MainActivity : ComponentActivity() {
             reset = viewModel::resetSettings,
             stepScreenSaver = viewModel::stepScreenSaver,
             openScreenSaverSettings = viewModel::openScreenSaverSettings,
+            stepQuietOnIdle = viewModel::stepQuietOnIdle,
+            setCheckForUpdates = viewModel::setCheckForUpdates,
+            checkForUpdatesNow = viewModel::checkForUpdatesNow,
+            openLatestRelease = viewModel::openLatestRelease,
             openHomeSetup = viewModel::openHomeSetup,
             setAppHidden = viewModel::setAppHidden,
             moveApp = viewModel::moveApp,
@@ -190,6 +194,13 @@ class MainActivity : ComponentActivity() {
                     minutes = state.screenSaverMinutes,
                     activity = viewModel.activity,
                     onIdle = { viewModel.startScreenSaver(automatic = true) },
+                )
+                // After its own idle delay, Lobby goes quiet (stops animating/polling) so the box can sleep.
+                IdleWatcher(
+                    enabled = onHome,
+                    minutes = state.quietOnIdleMinutes,
+                    activity = viewModel.activity,
+                    onIdle = { viewModel.setQuiet(true) },
                 )
                 }
             }

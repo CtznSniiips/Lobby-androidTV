@@ -36,6 +36,20 @@ class SessionStore(context: Context) {
         prefs.edit().putInt(KEY_SCREEN_SAVER, minutes).apply()
     }
 
+    /** Idle minutes before Lobby stops animating and polling so the box can sleep on its own; 0 (default) is off. */
+    fun quietOnIdleMinutes(): Int = prefs.getInt(KEY_QUIET_IDLE, 0)
+
+    fun setQuietOnIdleMinutes(minutes: Int) {
+        prefs.edit().putInt(KEY_QUIET_IDLE, minutes).apply()
+    }
+
+    /** Whether Lobby periodically checks GitHub for a newer release. On by default. */
+    fun checkForUpdates(): Boolean = prefs.getBoolean(KEY_CHECK_UPDATES, true)
+
+    fun setCheckForUpdates(value: Boolean) {
+        prefs.edit().putBoolean(KEY_CHECK_UPDATES, value).apply()
+    }
+
     /** True once the user has said "Not now" to the make-Lobby-your-home-screen prompt on Home. */
     fun homePromptDismissed(): Boolean = prefs.getBoolean(KEY_HOME_PROMPT_DISMISSED, false)
 
@@ -132,6 +146,8 @@ class SessionStore(context: Context) {
         const val KEY_TOKEN = "token"
         const val KEY_NAME = "tvName"
         const val KEY_SCREEN_SAVER = "screenSaverMinutes"
+        const val KEY_QUIET_IDLE = "quietOnIdleMinutes"
+        const val KEY_CHECK_UPDATES = "checkForUpdates"
         const val KEY_HOME_PROMPT_DISMISSED = "homePromptDismissed"
         const val KEY_HIDDEN_APPS = "hiddenApps"
         const val KEY_HIDDEN_INPUTS = "hiddenInputs"

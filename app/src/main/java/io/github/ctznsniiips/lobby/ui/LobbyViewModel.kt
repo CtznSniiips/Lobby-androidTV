@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.ctznsniiips.lobby.data.HomeItem
+import io.github.ctznsniiips.lobby.data.UpdateChecker
 import io.github.ctznsniiips.lobby.data.HomeRow
 import io.github.ctznsniiips.lobby.data.HomeResponse
 import io.github.ctznsniiips.lobby.data.WeatherNow
@@ -115,6 +116,17 @@ data class LobbyState(
     val settings: SettingsState? = null,
     /** Idle minutes before the system screen saver is started; 0 is off. */
     val screenSaverMinutes: Int = 0,
+    /** Idle minutes before Lobby goes quiet (stops animating/polling) so the box can sleep; 0 is off. */
+    val quietOnIdleMinutes: Int = 0,
+    /** True while Lobby is quiet: Home stops its hero rotation and background polling. */
+    val quiet: Boolean = false,
+    /** Update checking against GitHub releases. */
+    val checkForUpdates: Boolean = true,
+    val currentVersion: String = "",
+    val latestVersion: String? = null,
+    val updateUrl: String? = null,
+    val updateAvailable: Boolean = false,
+    val checkingUpdate: Boolean = false,
     /** Whether the remote's Home button opens Lobby. Starts true so the prompt doesn't flash before the first check. */
     val isDefaultHome: Boolean = true,
     val homeOverrideEnabled: Boolean = false,
@@ -128,7 +140,7 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
     private val store = SessionStore(app)
     private val device = TvDevice(app)
 
-    private val _state = MutableStateFlow(LobbyState(lastAddress = store.lastOrigin().orEmpty(), screenSaverMinutes = store.screenSaverMinutes(), homePromptDismissed = store.homePromptDismissed(), hiddenApps = store.hiddenApps(), hiddenInputs = store.hiddenInputs(), homeFont = store.homeFont(), bgMode = store.bgMode(), wallpaper = store.wallpaper(), focusStyle = store.focusStyle(), material = store.material(), homeLayout = store.homeLayout(), appDisplay = store.appDisplay(), combineContinueNextUp = store.combineContinueNextUp()))
+    private val _state = MutableStateFlow(LobbyState(lastAddress = store.lastOrigin().orEmpty(), screenSaverMinutes = store.screenSaverMinutes(), homePromptDismissed = store.homePromptDismissed(), hiddenApps = store.hiddenApps(), hiddenInputs = store.hiddenInputs(), homeFont = store.homeFont(), bgMode = store.bgMode(), wallpaper = store.wallpaper(), focusStyle = store.focusStyle(), material = store.material(), homeLayout = store.homeLayout(), appDisplay = store.appDisplay(), combineContinueNextUp = store.combineContinueNextUp(), quietOnIdleMinutes = store.quietOnIdleMinutes(), checkForUpdates = store.checkForUpdates(), currentVersion = device.appVersionName()))
     val state: StateFlow<LobbyState> = _state.asStateFlow()
 
     // Bumped on every remote key press; the idle watcher restarts its countdown when it changes.
@@ -150,6 +162,7 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
     init {
         refreshHomeStatus()
         store.load()?.let { onPaired(it, save = false) }
+        if (store.checkForUpdates()) checkForUpdatesNow()
     }
 
     // ---- Pairing ------------------------------------------------------------------------------
@@ -442,7 +455,15 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---- System screen saver ------------------------------------------------------------------
 
-    fun userActivity() = _activity.update { it + 1 }
+    fun userActivity() {
+        _activity.update { it + 1 }
+        if (_state.value.quiet) _state.update { it.copy(quiet = false) }
+    }
+
+    /** Lobby enters/leaves the quiet state (Home stops animating and polling so the box can sleep on idle). */
+    fun setQuiet(quiet: Boolean) {
+        if (_state.value.quiet != quiet) _state.update { it.copy(quiet = quiet) }
+    }
 
     /** Starts the screen saver chosen in Android's settings. [automatic] (the idle timer) stays quiet if the device won't allow it. */
     fun startScreenSaver(automatic: Boolean = false) {
@@ -460,6 +481,44 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
         val next = SCREEN_SAVER_OPTIONS[(current + direction).coerceIn(0, SCREEN_SAVER_OPTIONS.lastIndex)]
         store.setScreenSaverMinutes(next)
         _state.update { it.copy(screenSaverMinutes = next) }
+    }
+
+    fun stepQuietOnIdle(direction: Int) {
+        val current = SCREEN_SAVER_OPTIONS.indexOf(_state.value.quietOnIdleMinutes).coerceAtLeast(0)
+        val next = SCREEN_SAVER_OPTIONS[(current + direction).coerceIn(0, SCREEN_SAVER_OPTIONS.lastIndex)]
+        store.setQuietOnIdleMinutes(next)
+        _state.update { it.copy(quietOnIdleMinutes = next) }
+        if (next == 0) setQuiet(false)
+    }
+
+    fun setCheckForUpdates(value: Boolean) {
+        store.setCheckForUpdates(value)
+        _state.update { it.copy(checkForUpdates = value) }
+        if (value) checkForUpdatesNow()
+    }
+
+    /** Asks GitHub for the latest release and flags whether it's newer than the installed build. */
+    fun checkForUpdatesNow() {
+        if (_state.value.checkingUpdate) return
+        _state.update { it.copy(checkingUpdate = true) }
+        viewModelScope.launch {
+            val rel = UpdateChecker.latest()
+            _state.update {
+                if (rel == null) it.copy(checkingUpdate = false)
+                else it.copy(
+                    checkingUpdate = false,
+                    latestVersion = rel.version,
+                    updateUrl = rel.url,
+                    updateAvailable = UpdateChecker.isNewer(rel.version, it.currentVersion),
+                )
+            }
+        }
+    }
+
+    /** Opens the latest release's page (where the APK is attached), if a browser is available. */
+    fun openLatestRelease() {
+        val url = _state.value.updateUrl ?: return
+        if (!device.openUrl(url)) say("Couldn't open the releases page. Find it on GitHub: CtznSniiips/Lobby-androidTV.")
     }
 
     // ---- Lobby settings (this TV's own rows, limits and teams) ---------------------------------

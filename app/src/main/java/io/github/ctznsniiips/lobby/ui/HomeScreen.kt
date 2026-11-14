@@ -190,9 +190,10 @@ fun HomeScreen(
     val hasBottomDock = hasApps && !isList
     val hasAppList = hasApps && isList
 
-    // Rotate the featured titles while nothing in the rows is focused.
-    LaunchedEffect(featured, browsed, preview) {
-        if (!preview && browsed == null && featured.size > 1) {
+    // Rotate the featured titles while nothing in the rows is focused. Paused while Lobby is quiet (idle), so the
+    // Home screen stops redrawing and the box can go to sleep.
+    LaunchedEffect(featured, browsed, preview, state.quiet) {
+        if (!preview && !state.quiet && browsed == null && featured.size > 1) {
             while (true) {
                 delay(ROTATE_MS)
                 featuredIndex = (featuredIndex + 1) % featured.size
@@ -261,7 +262,7 @@ fun HomeScreen(
                 ) {
                     Text(greeting(), fontSize = 16.sp, color = LobbyColors.soft, modifier = Modifier.weight(1f))
                     if (state.loading) Text("Loading…", fontSize = 14.sp, color = LobbyColors.mute, modifier = Modifier.padding(end = 20.dp))
-                    ClockText()
+                    ClockText(paused = state.quiet)
                     state.weather?.let { WeatherChip(it, Modifier.padding(start = 18.dp)) }
                 }
 
@@ -370,7 +371,7 @@ fun HomeScreen(
                 Modifier.align(Alignment.TopStart).padding(start = 24.dp, top = 18.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                ClockText()
+                ClockText(paused = state.quiet)
                 state.weather?.let { WeatherChip(it, Modifier.padding(start = 18.dp)) }
             }
         } else {
@@ -597,9 +598,10 @@ private fun greeting(): String = when (LocalTime.now().hour) {
 }
 
 @Composable
-private fun ClockText() {
+private fun ClockText(paused: Boolean = false) {
     var now by remember { mutableStateOf(LocalDateTime.now()) }
-    LaunchedEffect(Unit) {
+    LaunchedEffect(paused) {
+        if (paused) return@LaunchedEffect
         while (true) {
             now = LocalDateTime.now()
             delay(15_000)
