@@ -13,33 +13,35 @@ import android.view.accessibility.AccessibilityEvent
  *
  *  1. Key filtering: where the platform delivers KEYCODE_HOME to accessibility services, we consume it and bring
  *     Lobby forward directly — no flicker.
- *  2. Window bounce: where it doesn't (the common case on Google TV), we watch for a stock launcher coming to the
- *     foreground — which only happens when Home is pressed or at boot — and immediately relaunch Lobby in front of
- *     it. This is the same approach Projectivy's Home-button override uses.
+ *  2. Window bounce: where it doesn't (the common case on Google TV), we watch for the stock launcher's Home screen
+ *     coming to the foreground — which only happens when Home is pressed or at boot — and immediately relaunch Lobby
+ *     in front of it. This is the same approach Projectivy's Home-button override uses.
+ *
+ * The bounce matches the launcher's exact Home *activity* (package + class), never just its package. On Google TV
+ * the system Settings surface, notification shade and other panels are hosted by the same launcher package, so
+ * bouncing on the package alone would also yank the user out of Settings the instant it opened.
  *
  * The service only runs while the user has enabled it under Settings -> Accessibility, so its presence is the
  * opt-in; there's nothing to toggle here.
  */
 class HomeOverrideService : AccessibilityService() {
 
-    /** Packages that answer the HOME intent (the launchers to bounce off), minus Lobby itself. Cached, refreshed lazily. */
-    @Volatile private var launcherPackages: Set<String> = emptySet()
+    /** Flattened "package/class" of every stock launcher Home activity (minus Lobby's). Cached, refreshed lazily. */
+    @Volatile private var homeActivities: Set<String> = emptySet()
     private var lastBounce = 0L
 
     override fun onServiceConnected() {
         super.onServiceConnected()
-        refreshLaunchers()
+        refreshHomeActivities()
     }
 
-    private fun refreshLaunchers() {
+    private fun refreshHomeActivities() {
         val home = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
-        val found = packageManager.queryIntentActivities(home, PackageManager.MATCH_DEFAULT_ONLY)
-            .mapNotNull { it.activityInfo?.packageName }
-            .toMutableSet()
-        // Common stock launchers, in case the query misses one on a given build.
-        found += KNOWN_LAUNCHERS
-        found -= packageName
-        launcherPackages = found
+        homeActivities = packageManager.queryIntentActivities(home, PackageManager.MATCH_DEFAULT_ONLY)
+            .mapNotNull { it.activityInfo }
+            .filter { it.packageName != packageName } // not Lobby itself
+            .map { "${it.packageName}/${it.name}" }
+            .toSet()
     }
 
     override fun onKeyEvent(event: KeyEvent): Boolean {
@@ -53,11 +55,17 @@ class HomeOverrideService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent) {
         if (event.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
         val pkg = event.packageName?.toString() ?: return
+        val cls = event.className?.toString() ?: return
         if (pkg == packageName) return
-        if (pkg !in launcherPackages) {
+        val component = "$pkg/$cls"
+        if (component !in homeActivities) {
             // A launcher we haven't seen yet may have been installed/updated; re-check once before ignoring.
-            if (launcherPackages.isEmpty()) refreshLaunchers()
-            if (pkg !in launcherPackages) return
+            if (homeActivities.isEmpty()) {
+                refreshHomeActivities()
+                if (component !in homeActivities) return
+            } else {
+                return
+            }
         }
         // Debounce: a single Home press can emit several window events.
         val now = SystemClock.uptimeMillis()
@@ -75,12 +83,4 @@ class HomeOverrideService : AccessibilityService() {
     }
 
     override fun onInterrupt() {}
-
-    private companion object {
-        val KNOWN_LAUNCHERS = setOf(
-            "com.google.android.apps.tv.launcherx",
-            "com.google.android.tvlauncher",
-            "com.google.android.tungsten.setupwraith",
-        )
-    }
 }
