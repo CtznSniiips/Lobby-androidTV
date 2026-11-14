@@ -93,7 +93,7 @@ jobs:
           def section(name):
               m = re.search(r"^## \[" + re.escape(name) + r"\].*?\n(.*?)(?=^## \[|^\[[^\]]+\]:|\Z)", text, re.M | re.S)
               return m.group(1).strip() if m else ""
-          notes = section(version) or section("Unreleased") or f"Release {version}."
+          notes = section(version) or section("v" + version) or section("Unreleased") or f"Release {version}."
           print(notes)
           PY
           echo "---- notes ----"; cat RELEASE_NOTES.md
