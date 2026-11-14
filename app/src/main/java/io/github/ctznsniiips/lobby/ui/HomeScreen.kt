@@ -171,7 +171,15 @@ fun HomeScreen(
     preview: Boolean = false,
 ) {
     val home = state.home
-    val featured = remember(home) { home?.featured.orEmpty().distinctBy { it.id } }
+    // The hero shows curated featured titles only — never Continue Watching / Next Up entries, which have their own
+    // rows. Drop any featured item whose id appears in those rows.
+    val featured = remember(home) {
+        val continueIds = home?.rows.orEmpty()
+            .filter { it.id == "continue" || it.id == "nextup" }
+            .flatMap { it.items }
+            .mapTo(HashSet()) { it.id }
+        home?.featured.orEmpty().distinctBy { it.id }.filter { it.id !in continueIds }
+    }
     var featuredIndex by remember { mutableIntStateOf(0) }
     var browsed by remember { mutableStateOf<HomeItem?>(null) }
     val heroItem = browsed ?: featured.getOrNull(featuredIndex.coerceIn(0, (featured.size - 1).coerceAtLeast(0)))
@@ -266,24 +274,28 @@ fun HomeScreen(
                     state.weather?.let { WeatherChip(it, Modifier.padding(start = 18.dp)) }
                 }
 
-                Hero(
-                    item = heroItem,
-                    address = address,
-                    count = featured.size,
-                    index = featuredIndex,
-                    onItem = onItem,
-                    searchFocus = searchFocus,
-                    heroFocus = heroFocus,
-                    onCycle = { delta ->
-                        if (featured.size <= 1) false
-                        else if (delta < 0 && featuredIndex == 0) false // let focus fall left to the rail
-                        else {
-                            featuredIndex = (featuredIndex + delta + featured.size) % featured.size
-                            true
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth().padding(start = HERO_INSET).height(164.dp),
-                )
+                // Returning focus to the hero clears the browsed title, so the hero shows the featured carousel again
+                // (and left/right cycles it) instead of staying stuck on whichever row card was focused on the way up.
+                Box(Modifier.onFocusChanged { if (it.hasFocus) browsed = null }) {
+                    Hero(
+                        item = heroItem,
+                        address = address,
+                        count = featured.size,
+                        index = featuredIndex,
+                        onItem = onItem,
+                        searchFocus = searchFocus,
+                        heroFocus = heroFocus,
+                        onCycle = { delta ->
+                            if (featured.size <= 1) false
+                            else if (delta < 0 && featuredIndex == 0) false // let focus fall left to the rail
+                            else {
+                                featuredIndex = (featuredIndex + delta + featured.size) % featured.size
+                                true
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth().padding(start = HERO_INSET).height(164.dp),
+                    )
+                }
             }
 
             // The rows sit a little lower, in a band that fades softly at the top and bottom. The focused row is
