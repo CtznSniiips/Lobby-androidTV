@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import io.github.ctznsniiips.lobby.ui.AppsScreen
 import io.github.ctznsniiips.lobby.ui.ConnectScreen
 import io.github.ctznsniiips.lobby.ui.DetailsScreen
 import io.github.ctznsniiips.lobby.ui.HomeScreen
@@ -148,6 +149,14 @@ class MainActivity : ComponentActivity() {
                         onClose = viewModel::closeDetails,
                         onMessageShown = viewModel::clearMessage,
                     )
+                } else if (state.appGridOpen) {
+                    BackHandler(onBack = viewModel::closeAppGrid)
+                    AppsScreen(
+                        apps = state.appGrid,
+                        message = state.message,
+                        onApp = viewModel::launchAppFromGrid,
+                        onMessageShown = viewModel::clearMessage,
+                    )
                 } else if (state.search != null) {
                     BackHandler(onBack = viewModel::closeSearch)
                     SearchScreen(
@@ -180,6 +189,7 @@ class MainActivity : ComponentActivity() {
                         onSettings = viewModel::openSystemSettings,
                         onDisconnect = viewModel::disconnect,
                         onMessageShown = viewModel::clearMessage,
+                        onOpenApps = viewModel::openAppGrid,
                     )
                 }
 

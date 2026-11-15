@@ -87,6 +87,9 @@ data class LobbyState(
     /** Everything detected, for the settings pickers. */
     val allApps: List<DockApp> = emptyList(),
     val allInputs: List<TvInput> = emptyList(),
+    /** The full-screen grid of every launchable app on the system, and whether it's open. */
+    val appGrid: List<DockApp> = emptyList(),
+    val appGridOpen: Boolean = false,
     val hiddenApps: Set<String> = emptySet(),
     val hiddenInputs: Set<String> = emptySet(),
     /** The chosen home font id. */
@@ -804,6 +807,21 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
 
     fun launchApp(app: DockApp) {
         if (!device.launchApp(app.packageName)) say("Couldn't open ${app.label}.")
+    }
+
+    /** Opens the full-screen grid of every launchable app on the system. */
+    fun openAppGrid() {
+        _state.update { it.copy(appGrid = device.allLaunchableApps(), appGridOpen = true) }
+    }
+
+    fun closeAppGrid() {
+        _state.update { it.copy(appGridOpen = false) }
+    }
+
+    /** Launches an app from the grid, then closes the grid so returning lands back on Home. */
+    fun launchAppFromGrid(app: DockApp) {
+        launchApp(app)
+        closeAppGrid()
     }
 
     fun openSystemSettings() {
