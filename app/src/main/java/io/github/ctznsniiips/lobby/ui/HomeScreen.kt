@@ -254,9 +254,11 @@ fun HomeScreen(
                     drawRect(
                         Brush.radialGradient(
                             0f to accent.copy(alpha = 0.30f),
-                            0.55f to Color.Transparent,
-                            center = Offset(size.width * 0.14f, size.height * 0.24f),
-                            radius = size.width * 0.42f,
+                            0.48f to Color.Transparent,
+                            // Kept high and tight so the wash sits behind the greeting/hero text and fades out above
+                            // the first row — otherwise it dims that row's title (worst over a dark backdrop).
+                            center = Offset(size.width * 0.14f, size.height * 0.16f),
+                            radius = size.width * 0.34f,
                         ),
                     )
                 },
