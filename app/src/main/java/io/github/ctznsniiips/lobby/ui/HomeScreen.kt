@@ -169,6 +169,10 @@ fun HomeScreen(
     onSettings: () -> Unit,
     onDisconnect: () -> Unit,
     onMessageShown: () -> Unit,
+    showUpdateBanner: Boolean = false,
+    updateVersion: String? = null,
+    onUpdate: () -> Unit = {},
+    onUpdateDismiss: () -> Unit = {},
     preview: Boolean = false,
 ) {
     val home = state.home
@@ -309,7 +313,7 @@ fun HomeScreen(
             val rowsState = rememberLazyListState()
             val rowsScope = rememberCoroutineScope()
             var focusedRowId by remember { mutableStateOf<String?>(null) }
-            val preItems = (if (showHomePrompt) 1 else 0) + (if (state.homeError != null) 1 else 0)
+            val preItems = (if (showUpdateBanner) 1 else 0) + (if (showHomePrompt) 1 else 0) + (if (state.homeError != null) 1 else 0)
             LaunchedEffect(focusedRowId, rowList.size) {
                 val idx = rowList.indexOfFirst { it.id == focusedRowId }
                 if (idx >= 0) rowsScope.launch { rowsState.animateScrollToItem(preItems + idx) }
@@ -339,6 +343,10 @@ fun HomeScreen(
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(top = 8.dp, bottom = if (hasBottomDock) 12.dp else 28.dp),
                     verticalArrangement = Arrangement.spacedBy(2.dp),
                 ) {
+                    if (showUpdateBanner) {
+                        item { UpdateBanner(updateVersion, onUpdate, onUpdateDismiss) }
+                    }
+
                     if (showHomePrompt) {
                         item { HomePrompt(onHomeSetup, onHomePromptDismiss) }
                     }
@@ -825,6 +833,31 @@ private fun HomePrompt(onSetup: () -> Unit, onDismiss: () -> Unit) {
         }
         Button(onClick = onSetup) { Text("Set up") }
         Button(onClick = onDismiss) { Text("Not now") }
+    }
+}
+
+/** A slim banner on Home when an update is ready: a shortcut to apply it, and a way to hide it for this release. */
+@Composable
+private fun UpdateBanner(version: String?, onUpdate: () -> Unit, onDismiss: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(androidx.compose.foundation.shape.RoundedCornerShape(14.dp))
+            .background(MaterialTheme.colorScheme.surface)
+            .padding(20.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text("Update available", fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+            Text(
+                version?.let { "Lobby $it is ready to install." } ?: "A new version of Lobby is ready to install.",
+                fontSize = 14.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Button(onClick = onUpdate) { Text("Update") }
+        Button(onClick = onDismiss) { Text("Hide") }
     }
 }
 

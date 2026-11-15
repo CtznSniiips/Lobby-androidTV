@@ -41,6 +41,8 @@ data class SettingsState(
     val teams: List<GuideTeam> = emptyList(),
     val teamsLoading: Boolean = false,
     val teamsMessage: String? = null,
+    /** Category to open directly (by SettingsCategory name), e.g. jumping straight to "System" from a home banner. */
+    val initialCategory: String? = null,
 )
 
 /** Callbacks for the settings screens, so MainActivity passes one object instead of a dozen lambdas. */
@@ -55,6 +57,7 @@ class SettingsActions(
     val openScreenSaverSettings: () -> Unit,
     val stepQuietOnIdle: (direction: Int) -> Unit,
     val setCheckForUpdates: (value: Boolean) -> Unit,
+    val setShowUpdateNotice: (value: Boolean) -> Unit,
     val checkForUpdatesNow: () -> Unit,
     val openLatestRelease: () -> Unit,
     val downloadAndInstall: () -> Unit,

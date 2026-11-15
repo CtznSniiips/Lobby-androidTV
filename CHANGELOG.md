@@ -7,6 +7,9 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ## [Unreleased]
 
+### Added
+- Home-screen update notice: when an update is available, a banner appears at the top of Home with an "Update" shortcut that jumps straight to the Updates settings to apply it, and a "Hide" button that dismisses it until a newer release. A new System setting, "Show a notice on the home screen", turns the banner off entirely.
+
 ### Fixed
 - Pressing left on a row's first card no longer lands on an invisible target (which could launch an app in the dock); it now moves to the rail, or to the app list in the List layout.
 

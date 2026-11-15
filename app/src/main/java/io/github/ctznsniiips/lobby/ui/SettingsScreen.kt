@@ -107,7 +107,10 @@ fun SettingsScreen(
     actions: SettingsActions,
     onMessageShown: () -> Unit,
 ) {
-    var category by remember { mutableStateOf<SettingsCategory?>(null) }
+    // Open straight to a category when asked (e.g. the home-screen update banner jumps to System).
+    var category by remember {
+        mutableStateOf(SettingsCategory.entries.firstOrNull { it.name == settings.initialCategory })
+    }
 
     // Back closes an open sub-menu before leaving settings (the teams picker has its own handler in MainActivity).
     BackHandler(enabled = category != null && !settings.teamsOpen) { category = null }
@@ -436,6 +439,15 @@ private fun CategoryDetail(
                                 Button(onClick = actions.downloadAndInstall, enabled = !homeState.downloadingUpdate) {
                                     Text(if (homeState.downloadingUpdate) "Downloading…" else "Download & install")
                                 }
+                            }
+                        }
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Column(Modifier.weight(1f)) {
+                                Text("Show a notice on the home screen", fontSize = 16.sp, color = LobbyColors.ink)
+                                Text("A banner appears on Home when an update is ready, with a shortcut here.", fontSize = 13.sp, color = LobbyColors.soft)
+                            }
+                            Button(onClick = { actions.setShowUpdateNotice(!homeState.showUpdateNotice) }) {
+                                Text(if (homeState.showUpdateNotice) "On" else "Off")
                             }
                         }
                     }

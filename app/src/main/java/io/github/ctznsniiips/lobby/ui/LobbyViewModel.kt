@@ -131,6 +131,10 @@ data class LobbyState(
     val updateAvailable: Boolean = false,
     val checkingUpdate: Boolean = false,
     val downloadingUpdate: Boolean = false,
+    /** Whether the home screen shows a banner when an update is available. */
+    val showUpdateNotice: Boolean = true,
+    /** The release version whose home-screen banner the user has hidden. */
+    val updateDismissedVersion: String? = null,
     /** Whether the remote's Home button opens Lobby. Starts true so the prompt doesn't flash before the first check. */
     val isDefaultHome: Boolean = true,
     val homeOverrideEnabled: Boolean = false,
@@ -144,7 +148,7 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
     private val store = SessionStore(app)
     private val device = TvDevice(app)
 
-    private val _state = MutableStateFlow(LobbyState(lastAddress = store.lastOrigin().orEmpty(), screenSaverMinutes = store.screenSaverMinutes(), homePromptDismissed = store.homePromptDismissed(), hiddenApps = store.hiddenApps(), hiddenInputs = store.hiddenInputs(), homeFont = store.homeFont(), bgMode = store.bgMode(), wallpaper = store.wallpaper(), focusStyle = store.focusStyle(), material = store.material(), homeLayout = store.homeLayout(), appDisplay = store.appDisplay(), combineContinueNextUp = store.combineContinueNextUp(), quietOnIdleMinutes = store.quietOnIdleMinutes(), checkForUpdates = store.checkForUpdates(), currentVersion = device.appVersionName()))
+    private val _state = MutableStateFlow(LobbyState(lastAddress = store.lastOrigin().orEmpty(), screenSaverMinutes = store.screenSaverMinutes(), homePromptDismissed = store.homePromptDismissed(), hiddenApps = store.hiddenApps(), hiddenInputs = store.hiddenInputs(), homeFont = store.homeFont(), bgMode = store.bgMode(), wallpaper = store.wallpaper(), focusStyle = store.focusStyle(), material = store.material(), homeLayout = store.homeLayout(), appDisplay = store.appDisplay(), combineContinueNextUp = store.combineContinueNextUp(), quietOnIdleMinutes = store.quietOnIdleMinutes(), checkForUpdates = store.checkForUpdates(), showUpdateNotice = store.showUpdateNotice(), updateDismissedVersion = store.dismissedUpdateVersion(), currentVersion = device.appVersionName()))
     val state: StateFlow<LobbyState> = _state.asStateFlow()
 
     // Bumped on every remote key press; the idle watcher restarts its countdown when it changes.
@@ -501,6 +505,19 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
         if (value) checkForUpdatesNow()
     }
 
+    /** Whether the home screen shows an update banner at all. */
+    fun setShowUpdateNotice(value: Boolean) {
+        store.setShowUpdateNotice(value)
+        _state.update { it.copy(showUpdateNotice = value) }
+    }
+
+    /** Hides the home-screen banner for the current release; a newer release brings it back. */
+    fun dismissUpdateNotice() {
+        val version = _state.value.latestVersion ?: return
+        store.setDismissedUpdateVersion(version)
+        _state.update { it.copy(updateDismissedVersion = version) }
+    }
+
     /** Asks GitHub for the latest release and flags whether it's newer than the installed build. */
     fun checkForUpdatesNow() {
         if (_state.value.checkingUpdate) return
@@ -546,11 +563,11 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---- Lobby settings (this TV's own rows, limits and teams) ---------------------------------
 
-    fun openSettings() {
+    fun openSettings(initialCategory: String? = null) {
         val client = api ?: return
         dirty.clear()
         settingsChanged = false
-        _state.update { it.copy(settings = SettingsState()) }
+        _state.update { it.copy(settings = SettingsState(initialCategory = initialCategory)) }
         viewModelScope.launch {
             runCatching { client.settings() }
                 .onSuccess { data ->

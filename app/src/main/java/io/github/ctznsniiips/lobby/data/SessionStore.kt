@@ -50,6 +50,20 @@ class SessionStore(context: Context) {
         prefs.edit().putBoolean(KEY_CHECK_UPDATES, value).apply()
     }
 
+    /** Whether the home screen shows a banner when an update is available. On by default. */
+    fun showUpdateNotice(): Boolean = prefs.getBoolean(KEY_SHOW_UPDATE_NOTICE, true)
+
+    fun setShowUpdateNotice(value: Boolean) {
+        prefs.edit().putBoolean(KEY_SHOW_UPDATE_NOTICE, value).apply()
+    }
+
+    /** The release version whose home-screen banner the user has hidden; a newer version shows the banner again. */
+    fun dismissedUpdateVersion(): String? = prefs.getString(KEY_DISMISSED_UPDATE, null)
+
+    fun setDismissedUpdateVersion(version: String) {
+        prefs.edit().putString(KEY_DISMISSED_UPDATE, version).apply()
+    }
+
     /** True once the user has said "Not now" to the make-Lobby-your-home-screen prompt on Home. */
     fun homePromptDismissed(): Boolean = prefs.getBoolean(KEY_HOME_PROMPT_DISMISSED, false)
 
@@ -148,6 +162,8 @@ class SessionStore(context: Context) {
         const val KEY_SCREEN_SAVER = "screenSaverMinutes"
         const val KEY_QUIET_IDLE = "quietOnIdleMinutes"
         const val KEY_CHECK_UPDATES = "checkForUpdates"
+        const val KEY_SHOW_UPDATE_NOTICE = "showUpdateNotice"
+        const val KEY_DISMISSED_UPDATE = "dismissedUpdateVersion"
         const val KEY_HOME_PROMPT_DISMISSED = "homePromptDismissed"
         const val KEY_HIDDEN_APPS = "hiddenApps"
         const val KEY_HIDDEN_INPUTS = "hiddenInputs"
