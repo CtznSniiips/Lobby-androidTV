@@ -52,6 +52,24 @@ class TvDevice(private val context: Context) {
     }
 
     /**
+     * Every launchable app on the system, for the full apps grid: TV apps (LEANBACK_LAUNCHER) plus any that only
+     * declare the regular launcher category (common with sideloaded phone apps on Google TV). Lobby itself is left
+     * out; square launcher icons, sorted by name.
+     */
+    fun allLaunchableApps(): List<DockApp> {
+        val leanback = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LEANBACK_LAUNCHER)
+        val launcher = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+        return (pm.queryIntentActivities(leanback, 0) + pm.queryIntentActivities(launcher, 0))
+            .asSequence()
+            .map { it.activityInfo.packageName to it }
+            .filter { (pkg, _) -> pkg != context.packageName }
+            .distinctBy { it.first }
+            .map { (pkg, info) -> DockApp(pkg, info.loadLabel(pm).toString(), runCatching { info.loadIcon(pm) }.getOrNull()) }
+            .sortedBy { it.label.lowercase() }
+            .toList()
+    }
+
+    /**
      * The TV's HDMI inputs, via the TV Input Framework (same approach as LtvLauncher): passthrough inputs only,
      * HDMI type first. Empty on boxes with no tuner/inputs (e.g. a streaming stick), so the UI hides the row.
      */
