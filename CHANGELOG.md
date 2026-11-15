@@ -5,6 +5,11 @@ All notable changes to Lobby for Android TV are recorded here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.7.0] - 11/15/2026
+
+### Fixed
+- The top row (e.g. "Continue Watching") is no longer shadowed at rest. The cause was the rows' top-edge fade — meant to dissolve rows under the hero as they scroll up — which was applied even while nothing was scrolled, partially erasing the first row's title and cards. It now kicks in only once the list is actually scrolled up. This also reverts the 0.6.0 hero colour-wash tweak, which was an incorrect attempt at the same issue.
+
 ## [v0.6.0] - 11/15/2026
 
 ### Added
@@ -55,7 +60,8 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 - GitHub Actions build check on every pull request.
 - Fixed signing key via a GitHub Actions secret, so new builds install over older ones without uninstalling.
 
-[Unreleased]: https://github.com/CtznSniiips/Lobby-androidTV/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/CtznSniiips/Lobby-androidTV/compare/v0.7.0...HEAD
+[v0.7.0]: https://github.com/CtznSniiips/Lobby-androidTV/compare/v0.6.0...v0.7.0
 [v0.6.0]: https://github.com/CtznSniiips/Lobby-androidTV/compare/v0.5.0...v0.6.0
 [v0.5.0]: https://github.com/CtznSniiips/Lobby-androidTV/compare/v0.4.0...v0.5.0
 [v0.4.0]: https://github.com/CtznSniiips/Lobby-androidTV/compare/v0.3.0...v0.4.0
