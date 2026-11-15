@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
@@ -351,9 +352,11 @@ fun HomeScreen(
                         }
                     }
 
+                    // Left from a row's first card goes to a real target: the app list in List, otherwise the rail.
+                    val rowLeftFocus = if (hasAppList) dockFocus else searchFocus
                     items(rowList, key = { it.id }) { row ->
                         Box(Modifier.onFocusChanged { if (it.hasFocus) focusedRowId = row.id }) {
-                            MediaRow(row, address, onItem, onFocused = { browsed = it })
+                            MediaRow(row, address, onItem, onFocused = { browsed = it }, leftFocus = rowLeftFocus)
                         }
                     }
 
@@ -879,7 +882,7 @@ private fun rememberBlurredWallpaper(uri: String): ImageBitmap? {
 }
 
 @Composable
-internal fun MediaRow(row: HomeRow, address: ServerAddress, onItem: (HomeItem) -> Unit, onFocused: (HomeItem?) -> Unit = {}) {
+internal fun MediaRow(row: HomeRow, address: ServerAddress, onItem: (HomeItem) -> Unit, onFocused: (HomeItem?) -> Unit = {}, leftFocus: FocusRequester? = null) {
     val poster = row.layout == "poster"
     // Samsung brightens a row's title only while that row is active (holds the focused card): ~95% vs ~58% ink.
     var active by remember { mutableStateOf(false) }
@@ -901,13 +904,23 @@ internal fun MediaRow(row: HomeRow, address: ServerAddress, onItem: (HomeItem) -
             // Small top gap keeps the title close to its cards; the bottom gap gives a focused card room to scale.
             contentPadding = androidx.compose.foundation.layout.PaddingValues(start = ROW_H_PAD, end = ROW_H_PAD, top = 3.dp, bottom = ROW_V_PAD),
         ) {
-            items(row.items.distinctBy { it.id }, key = { it.id }) { item -> MediaCard(item, address, poster, row.id == "seerr-trending", onItem, onFocused) }
+            val cards = row.items.distinctBy { it.id }
+            itemsIndexed(cards, key = { _, it -> it.id }) { index, item ->
+                // The leftmost card sends Left to a defined target (the rail, or the app list) instead of letting
+                // Compose hunt for the nearest focusable, which otherwise lands invisibly on an app in the dock.
+                val cardModifier = if (index == 0 && leftFocus != null) {
+                    Modifier.focusProperties { left = leftFocus }
+                } else {
+                    Modifier
+                }
+                MediaCard(item, address, poster, row.id == "seerr-trending", onItem, onFocused, cardModifier)
+            }
         }
     }
 }
 
 @Composable
-private fun MediaCard(item: HomeItem, address: ServerAddress, poster: Boolean, trending: Boolean, onItem: (HomeItem) -> Unit, onFocused: (HomeItem?) -> Unit) {
+private fun MediaCard(item: HomeItem, address: ServerAddress, poster: Boolean, trending: Boolean, onItem: (HomeItem) -> Unit, onFocused: (HomeItem?) -> Unit, modifier: Modifier = Modifier) {
     val width = if (poster) POSTER_W else LANDSCAPE_W
     val height = if (poster) POSTER_H else LANDSCAPE_H
     val art = address.imageUrl(if (poster) item.posterUrl ?: item.landscapeUrl else item.landscapeUrl ?: item.posterUrl, width = width * 2)
@@ -946,7 +959,7 @@ private fun MediaCard(item: HomeItem, address: ServerAddress, poster: Boolean, t
             border = CardDefaults.border(
                 focusedBorder = Border(BorderStroke(1.5.dp, Color(0x9EFFFFFF)), shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)),
             ),
-            modifier = Modifier.onFocusChanged { if (it.isFocused) onFocused(item) },
+            modifier = modifier.onFocusChanged { if (it.isFocused) onFocused(item) },
         ) {
             Box(Modifier.fillMaxWidth().height(height.dp)) {
                 if (art != null) {

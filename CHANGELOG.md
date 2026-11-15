@@ -5,6 +5,11 @@ All notable changes to Lobby for Android TV are recorded here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- Pressing left on a row's first card no longer lands on an invisible target (which could launch an app in the dock); it now moves to the rail, or to the app list in the List layout.
+
 ## [v0.5.0] - 11/14/2026
 
 ### Fixed
