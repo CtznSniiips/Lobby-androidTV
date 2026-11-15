@@ -13,7 +13,7 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Fixed
 - Pressing left on a row's first card no longer lands on an invisible target (which could launch an app in the dock); it now moves to the rail, or to the app list in the List layout.
-- The top row's title (e.g. "Continue Watching") is no longer dimmed: the hero's upper-left colour wash was bleeding down onto it; it's now kept tighter to the hero area so it fades out above the first row.
+- The top row (e.g. "Continue Watching") is no longer shadowed at rest: the rows' top-edge fade — meant to dissolve rows under the hero as they scroll up — was also fading the first row while nothing was scrolled. It now kicks in only once the list is actually scrolled up, so the first row's title and cards stay crisp.
 
 ## [v0.5.0] - 11/14/2026
 
