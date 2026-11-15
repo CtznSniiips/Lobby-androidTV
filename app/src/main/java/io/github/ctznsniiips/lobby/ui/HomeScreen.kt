@@ -254,11 +254,9 @@ fun HomeScreen(
                     drawRect(
                         Brush.radialGradient(
                             0f to accent.copy(alpha = 0.30f),
-                            0.48f to Color.Transparent,
-                            // Kept high and tight so the wash sits behind the greeting/hero text and fades out above
-                            // the first row — otherwise it dims that row's title (worst over a dark backdrop).
-                            center = Offset(size.width * 0.14f, size.height * 0.16f),
-                            radius = size.width * 0.34f,
+                            0.55f to Color.Transparent,
+                            center = Offset(size.width * 0.14f, size.height * 0.24f),
+                            radius = size.width * 0.42f,
                         ),
                     )
                 },
@@ -921,9 +919,10 @@ private fun rememberBlurredWallpaper(uri: String): ImageBitmap? {
 @Composable
 internal fun MediaRow(row: HomeRow, address: ServerAddress, onItem: (HomeItem) -> Unit, onFocused: (HomeItem?) -> Unit = {}, leftFocus: FocusRequester? = null) {
     val poster = row.layout == "poster"
-    // Samsung brightens a row's title only while that row is active (holds the focused card): ~95% vs ~58% ink.
+    // A row's title brightens to full ink while it's active (holds the focused card); unfocused rows stay a step
+    // down at ~80% so they read clearly without looking shadowed, rather than the dimmer ~60% mute.
     var active by remember { mutableStateOf(false) }
-    val titleColor by animateColorAsState(if (active) LobbyColors.ink else LobbyColors.mute, tween(140), label = "rowTitle")
+    val titleColor by animateColorAsState(if (active) LobbyColors.ink else LobbyColors.soft, tween(140), label = "rowTitle")
     Column(
         Modifier.onFocusChanged { active = it.hasFocus },
         verticalArrangement = Arrangement.spacedBy(0.dp),
