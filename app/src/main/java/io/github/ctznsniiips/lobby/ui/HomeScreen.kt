@@ -176,14 +176,13 @@ fun HomeScreen(
     preview: Boolean = false,
 ) {
     val home = state.home
-    // The hero shows curated featured titles only — never Continue Watching / Next Up entries, which have their own
-    // rows. Drop any featured item whose id appears in those rows.
+    // The hero shows curated highlights only — games, new and trending. Continue Watching ("resume") and Next Up
+    // titles are dropped by their own featureReason, since the plugin seeds the hero with them directly (not only via
+    // the rows), so matching row ids missed the ones that have no visible row.
     val featured = remember(home) {
-        val continueIds = home?.rows.orEmpty()
-            .filter { it.id == "continue" || it.id == "nextup" }
-            .flatMap { it.items }
-            .mapTo(HashSet()) { it.id }
-        home?.featured.orEmpty().distinctBy { it.id }.filter { it.id !in continueIds }
+        home?.featured.orEmpty()
+            .distinctBy { it.id }
+            .filter { it.featureReason != "resume" && it.featureReason != "nextup" }
     }
     var featuredIndex by remember { mutableIntStateOf(0) }
     var browsed by remember { mutableStateOf<HomeItem?>(null) }

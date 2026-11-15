@@ -12,6 +12,7 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Fixed
 - Pressing left on a row's first card no longer lands on an invisible target (which could launch an app in the dock); it now moves to the rail, or to the app list in the List layout.
+- Continue Watching and Next Up titles are now reliably kept out of the hero: they're excluded by the item's own feature reason rather than by cross-referencing the rows, so resume titles that have no visible row no longer slip into the hero.
 
 ## [v0.5.0] - 11/14/2026
 
