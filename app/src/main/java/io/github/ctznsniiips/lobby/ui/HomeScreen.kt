@@ -1221,6 +1221,25 @@ private fun AppDock(
     }
     val topLine = if (light) Color(0x1F1C1A17) else Color(0x3DFFFFFF)
     val faintRim = if (light) Color(0x0A1C1A17) else Color(0x0AFFFFFF)
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+      // A compact coachmark while a tile is lifted, so the long-press gesture is discoverable.
+      if (movingPackage != null) {
+          Row(
+              Modifier
+                  .padding(bottom = 8.dp)
+                  .clip(androidx.compose.foundation.shape.RoundedCornerShape(10.dp))
+                  .background(if (light) Color(0xF2FFFFFF) else Color(0xF21E2128))
+                  .padding(horizontal = 12.dp, vertical = 6.dp),
+              verticalAlignment = Alignment.CenterVertically,
+          ) {
+              Text(
+                  "◀ ▶  Move   ·   OK to place   ·   Back to finish",
+                  color = if (light) Color(0xE6000000) else LobbyColors.ink,
+                  fontSize = 12.sp,
+                  fontWeight = FontWeight.Medium,
+              )
+          }
+      }
     Box(
         Modifier
             .shadow(if (glass) 16.dp else 6.dp, shape, clip = false)
@@ -1386,6 +1405,7 @@ private fun AppDock(
           }
         }
         }
+    }
     }
 }
 
