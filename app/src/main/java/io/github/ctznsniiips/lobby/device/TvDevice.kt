@@ -134,8 +134,23 @@ class TvDevice(private val context: Context) {
     /** Android's Accessibility settings, where the user turns the Home-button override on or off. */
     fun openAccessibilitySettings(): Boolean = start(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
 
-    /** Where the user chooses the screen saver and Android's own "When to start" delay. */
-    fun openScreenSaverSettings(): Boolean = start(Intent(Settings.ACTION_DREAM_SETTINGS)) || openSystemSettings()
+    /**
+     * Opens the screen saver screen (Settings -> Device Preferences -> Screen saver on Google TV). Android TV's
+     * Settings declares no intent-filter for ACTION_DREAM_SETTINGS, so that action just lands on top-level Settings;
+     * the screen saver screen is instead its own exported activity. Launch that directly, then fall back to the
+     * standard action (phones/tablets) and finally plain Settings. A missing or non-exported target throws and is
+     * caught in start(), so each fallback is tried in turn.
+     */
+    fun openScreenSaverSettings(): Boolean {
+        val tvScreenSaverActivities = listOf(
+            "com.android.tv.settings.device.display.daydream.DaydreamActivity",
+            "com.android.tv.settings.device.displaysound.daydream.DaydreamActivity",
+        )
+        for (cls in tvScreenSaverActivities) {
+            if (start(Intent(Intent.ACTION_MAIN).setClassName("com.android.tv.settings", cls))) return true
+        }
+        return start(Intent(Settings.ACTION_DREAM_SETTINGS)) || openSystemSettings()
+    }
 
     /** The installed version name of Lobby (e.g. "0.3.0"), for the update check. */
     fun appVersionName(): String =

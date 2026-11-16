@@ -40,6 +40,8 @@
         <package android:name="org.jellyfin.mobile" />
         <!-- Hosts the activity that starts the system screen saver. -->
         <package android:name="com.android.systemui" />
+        <!-- Hosts the TV Settings screen saver screen, opened by explicit component. -->
+        <package android:name="com.android.tv.settings" />
     </queries>
 
     <application
