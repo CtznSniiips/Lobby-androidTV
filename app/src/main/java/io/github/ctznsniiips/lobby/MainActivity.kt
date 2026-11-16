@@ -190,6 +190,7 @@ class MainActivity : ComponentActivity() {
                         onDisconnect = viewModel::disconnect,
                         onMessageShown = viewModel::clearMessage,
                         onOpenApps = viewModel::openAppGrid,
+                        onMoveApp = viewModel::moveDockApp,
                     )
                 }
 

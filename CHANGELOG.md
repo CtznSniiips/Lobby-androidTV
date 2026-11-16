@@ -5,6 +5,11 @@ All notable changes to Lobby for Android TV are recorded here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- Rearrange the app bar: long-press an app in the dock to pick it up, then move it left/right with the D-pad and press OK (or Back) to drop it. The order is saved.
+
 ## [v0.7.0] - 11/15/2026
 
 ### Fixed

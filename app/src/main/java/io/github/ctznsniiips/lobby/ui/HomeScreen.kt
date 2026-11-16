@@ -174,6 +174,7 @@ fun HomeScreen(
     onUpdate: () -> Unit = {},
     onUpdateDismiss: () -> Unit = {},
     onOpenApps: () -> Unit = {},
+    onMoveApp: (packageName: String, direction: Int) -> Unit = { _, _ -> },
     preview: Boolean = false,
 ) {
     val home = state.home
@@ -432,7 +433,7 @@ fun HomeScreen(
                     .align(Alignment.BottomCenter)
                     .padding(bottom = 8.dp)
                     .onFocusChanged { if (it.hasFocus) browsed = null },
-            ) { AppDock(state.apps, onApp, dockFocus, glass = state.bgMode == "photo", wallpaperUri = wallpaper.fullUri, material = state.material, rootSize = rootSize, appDisplay = state.appDisplay) }
+            ) { AppDock(state.apps, onApp, dockFocus, glass = state.bgMode == "photo", wallpaperUri = wallpaper.fullUri, material = state.material, rootSize = rootSize, appDisplay = state.appDisplay, onMove = onMoveApp) }
         }
 
         MessageToast(state.message, onMessageShown, Modifier.align(Alignment.BottomCenter))
@@ -1186,8 +1187,13 @@ private fun AppDock(
     material: String,
     rootSize: IntSize,
     appDisplay: String = "both",
+    onMove: (packageName: String, direction: Int) -> Unit = { _, _ -> },
 ) {
     val list = remember(apps) { apps.distinctBy { it.packageName } }
+    // Long-press puts a tile into "move mode": left/right then reposition it, centre/back commits. Null when idle.
+    var movingPackage by remember { mutableStateOf<String?>(null) }
+    // A tile that's no longer present (uninstalled, or hidden) can't stay in move mode.
+    if (movingPackage != null && list.none { it.packageName == movingPackage }) movingPackage = null
     val shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp)
     val light = LobbyColors.palette.light
     val context = LocalContext.current
@@ -1290,12 +1296,18 @@ private fun AppDock(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
         list.forEachIndexed { i, app ->
+          // key() gives each tile a stable identity, so when the order changes the moving tile keeps its focus and
+          // simply slides to its new slot rather than focus jumping to whatever lands in that position. Fully
+          // qualified because the short name collides with the KeyEvent.key import used for remote input.
+          androidx.compose.runtime.key(app.packageName) {
             val bitmap = remember(app.packageName) { app.icon?.toBitmap(240, 135)?.asImageBitmap() }
             val tileInteraction = remember { MutableInteractionSource() }
             val tileFocused by tileInteraction.collectIsFocusedAsState()
             val tileShape = androidx.compose.foundation.shape.RoundedCornerShape(10.dp)
+            val moving = movingPackage == app.packageName
             Surface(
-                onClick = { onApp(app) },
+                onClick = { if (moving) movingPackage = null else onApp(app) },
+                onLongClick = { movingPackage = if (moving) null else app.packageName },
                 interactionSource = tileInteraction,
                 shape = ClickableSurfaceDefaults.shape(tileShape),
                 colors = ClickableSurfaceDefaults.colors(
@@ -1303,13 +1315,29 @@ private fun AppDock(
                     containerColor = Color.Transparent,
                     focusedContainerColor = Color.Transparent,
                 ),
-                scale = ClickableSurfaceDefaults.scale(focusedScale = 1.06f),
-                modifier = Modifier.width(88.dp).then(if (i == 0) Modifier.focusRequester(firstFocus) else Modifier),
+                scale = ClickableSurfaceDefaults.scale(focusedScale = if (moving) 1.12f else 1.06f),
+                modifier = Modifier.width(88.dp)
+                    .then(if (i == 0) Modifier.focusRequester(firstFocus) else Modifier)
+                    // While a tile is being moved, left/right reposition it and centre/back commit; other keys are
+                    // swallowed so focus can't wander out of move mode by accident.
+                    .onPreviewKeyEvent { ev ->
+                        if (!moving) return@onPreviewKeyEvent false
+                        when (ev.key) {
+                            Key.DirectionLeft -> { if (ev.type == KeyEventType.KeyDown) onMove(app.packageName, -1); true }
+                            Key.DirectionRight -> { if (ev.type == KeyEventType.KeyDown) onMove(app.packageName, 1); true }
+                            Key.DirectionCenter, Key.Enter, Key.Back -> { if (ev.type == KeyEventType.KeyUp) movingPackage = null; true }
+                            Key.DirectionUp, Key.DirectionDown -> true
+                            else -> false
+                        }
+                    },
             ) {
                 // fillMaxWidth (not fillMaxSize): in the wrap-height dock Row, fillMaxSize would stretch the tile to
                 // the whole screen. The Column sizes the height; the selector plate matches via matchParentSize.
-                Box(Modifier.fillMaxWidth()) {
-                    if (tileFocused) {
+                Box(
+                    Modifier.fillMaxWidth()
+                        .then(if (moving) Modifier.border(2.dp, LobbyColors.accent, tileShape) else Modifier),
+                ) {
+                    if (tileFocused && !moving) {
                         when {
                             glass -> GlassSelector(tileShape)
                             light -> LightSelector(tileShape)
@@ -1355,6 +1383,7 @@ private fun AppDock(
                 }
                 }
             }
+          }
         }
         }
     }
