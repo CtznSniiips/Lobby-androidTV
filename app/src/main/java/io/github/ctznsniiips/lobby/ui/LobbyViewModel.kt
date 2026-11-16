@@ -500,7 +500,14 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
     /** Starts the screen saver chosen in Android's settings. [automatic] (the idle timer) stays quiet if the device won't allow it. */
     fun startScreenSaver(automatic: Boolean = false) {
         if (device.startSystemScreensaver()) return
-        if (!automatic) say("This device won't let apps start its screen saver. Start it from System settings, Screen saver.")
+        // The idle timer stays silent when the device blocks app-started screen savers.
+        if (automatic) return
+        // A manual press is a clear intent to start it now, so when the device blocks that (common on Google TV),
+        // jump straight to the system Screen saver settings — where "Start now" and the setup live — rather than
+        // leaving the user at a dead-end message.
+        if (!device.openScreenSaverSettings()) {
+            say("This device won't let apps start its screen saver, and its Screen saver settings couldn't be opened.")
+        }
     }
 
     fun openScreenSaverSettings() {
