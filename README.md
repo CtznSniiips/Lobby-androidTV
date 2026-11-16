@@ -39,6 +39,15 @@ official app on the same device alongside Lobby.
 | Art Mode + Screen saver         | The system screen saver: Screen saver button on Home, optional idle start   |
 | HDMI input switching            | TV Input Framework: HDMI inputs row on Home                                  |
 
+## Setting Lobby as your home screen
+
+To make Lobby the launcher that opens when you press the Home button:
+
+1. Make Lobby your home app — from Lobby's **System** settings, or in Android's **Settings → Apps → Special app access → Home app** (wording varies by device).
+2. Turn on Lobby's **Home-button override** when prompted. It's an accessibility service that returns you to Lobby when the Home button would otherwise open the stock launcher; on Google TV the Home-app role alone isn't enough, so this is what makes the physical Home button come back to Lobby.
+
+If the accessibility setting won't turn on — the toggle is greyed out, flips back off, or reports it's restricted — that's Android's "restricted settings" protection for sideloaded apps. Install Lobby with ADB (`adb install Lobby-<version>.apk`) and the accessibility toggle will enable normally, since apps installed over ADB aren't subject to that restriction. (On some devices you can instead allow it from **Settings → Apps → Lobby → ⋮ → Allow restricted settings**.)
+
 ## Build
 
 Open in Android Studio, or `./gradlew assembleDebug` with the Android SDK installed. CI builds a debug APK on every push.
