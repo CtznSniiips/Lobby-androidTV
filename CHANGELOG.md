@@ -8,7 +8,7 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 ## [Unreleased]
 
 ### Added
-- Rearrange the app bar: long-press an app in the dock to pick it up, then move it left/right with the D-pad and press OK (or Back) to drop it. The order is saved.
+- Rearrange apps from the home screen: long-press an app to pick it up, then move it with the D-pad (left/right in the dock, up/down in the List layout) and press OK or Back to drop it. A hint appears while a tile is lifted, and the new order is saved (and shared with the dock, List and Settings).
 
 ## [v0.7.0] - 11/15/2026
 
