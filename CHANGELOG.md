@@ -5,6 +5,11 @@ All notable changes to Lobby for Android TV are recorded here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.9.0] - 11/16/2026
+
+### Changed
+- When the device blocks Lobby from starting the screen saver (common on Google TV), pressing the Screensaver button now opens the system Screen saver settings — where you can start it or set it up — instead of just showing a message.
+
 ## [v0.8.0] - 11/16/2026
 
 ### Added
@@ -65,7 +70,8 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 - GitHub Actions build check on every pull request.
 - Fixed signing key via a GitHub Actions secret, so new builds install over older ones without uninstalling.
 
-[Unreleased]: https://github.com/CtznSniiips/Lobby-androidTV/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/CtznSniiips/Lobby-androidTV/compare/v0.9.0...HEAD
+[v0.9.0]: https://github.com/CtznSniiips/Lobby-androidTV/compare/v0.8.0...v0.9.0
 [v0.8.0]: https://github.com/CtznSniiips/Lobby-androidTV/compare/v0.7.0...v0.8.0
 [v0.7.0]: https://github.com/CtznSniiips/Lobby-androidTV/compare/v0.6.0...v0.7.0
 [v0.6.0]: https://github.com/CtznSniiips/Lobby-androidTV/compare/v0.5.0...v0.6.0
