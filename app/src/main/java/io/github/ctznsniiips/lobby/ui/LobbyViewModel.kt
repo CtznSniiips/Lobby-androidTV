@@ -349,6 +349,27 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /**
+     * Moves an app one slot within the visible dock order (the Home app bar), skipping hidden apps so a step always
+     * lands next to the neighbour the user actually sees, then persists the full order.
+     */
+    fun moveDockApp(packageName: String, direction: Int) {
+        val visible = _state.value.apps.map { it.packageName }
+        val from = visible.indexOf(packageName)
+        val target = from + direction
+        if (from < 0 || target !in visible.indices) return
+        val neighbor = visible[target]
+        val order = _state.value.allApps.map { it.packageName }.toMutableList()
+        order.remove(packageName)
+        val neighborIndex = order.indexOf(neighbor)
+        order.add(if (direction < 0) neighborIndex else neighborIndex + 1, packageName)
+        store.setAppOrder(order)
+        _state.update {
+            val ordered = orderApps(it.allApps)
+            it.copy(allApps = ordered, apps = ordered.filter { app -> app.packageName !in it.hiddenApps })
+        }
+    }
+
     fun setInputHidden(inputId: String, hidden: Boolean) {
         val hiddenInputs = _state.value.hiddenInputs.toMutableSet().apply { if (hidden) add(inputId) else remove(inputId) }
         store.setHiddenInputs(hiddenInputs)

@@ -174,6 +174,7 @@ fun HomeScreen(
     onUpdate: () -> Unit = {},
     onUpdateDismiss: () -> Unit = {},
     onOpenApps: () -> Unit = {},
+    onMoveApp: (packageName: String, direction: Int) -> Unit = { _, _ -> },
     preview: Boolean = false,
 ) {
     val home = state.home
@@ -422,7 +423,7 @@ fun HomeScreen(
                     .fillMaxHeight()
                     .padding(start = 24.dp, top = 48.dp, bottom = 16.dp)
                     .onFocusChanged { if (it.hasFocus) browsed = null },
-            ) { AppList(state.apps, onApp, dockFocus, appDisplay = state.appDisplay) }
+            ) { AppList(state.apps, onApp, dockFocus, appDisplay = state.appDisplay, onMove = onMoveApp) }
         }
 
         // The app dock stays pinned along the bottom, centred, over the rows (Dock and Watch).
@@ -432,7 +433,7 @@ fun HomeScreen(
                     .align(Alignment.BottomCenter)
                     .padding(bottom = 8.dp)
                     .onFocusChanged { if (it.hasFocus) browsed = null },
-            ) { AppDock(state.apps, onApp, dockFocus, glass = state.bgMode == "photo", wallpaperUri = wallpaper.fullUri, material = state.material, rootSize = rootSize, appDisplay = state.appDisplay) }
+            ) { AppDock(state.apps, onApp, dockFocus, glass = state.bgMode == "photo", wallpaperUri = wallpaper.fullUri, material = state.material, rootSize = rootSize, appDisplay = state.appDisplay, onMove = onMoveApp) }
         }
 
         MessageToast(state.message, onMessageShown, Modifier.align(Alignment.BottomCenter))
@@ -1186,8 +1187,13 @@ private fun AppDock(
     material: String,
     rootSize: IntSize,
     appDisplay: String = "both",
+    onMove: (packageName: String, direction: Int) -> Unit = { _, _ -> },
 ) {
     val list = remember(apps) { apps.distinctBy { it.packageName } }
+    // Long-press puts a tile into "move mode": left/right then reposition it, centre/back commits. Null when idle.
+    var movingPackage by remember { mutableStateOf<String?>(null) }
+    // A tile that's no longer present (uninstalled, or hidden) can't stay in move mode.
+    if (movingPackage != null && list.none { it.packageName == movingPackage }) movingPackage = null
     val shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp)
     val light = LobbyColors.palette.light
     val context = LocalContext.current
@@ -1215,6 +1221,25 @@ private fun AppDock(
     }
     val topLine = if (light) Color(0x1F1C1A17) else Color(0x3DFFFFFF)
     val faintRim = if (light) Color(0x0A1C1A17) else Color(0x0AFFFFFF)
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+      // A compact coachmark while a tile is lifted, so the long-press gesture is discoverable.
+      if (movingPackage != null) {
+          Row(
+              Modifier
+                  .padding(bottom = 8.dp)
+                  .clip(androidx.compose.foundation.shape.RoundedCornerShape(10.dp))
+                  .background(if (light) Color(0xF2FFFFFF) else Color(0xF21E2128))
+                  .padding(horizontal = 12.dp, vertical = 6.dp),
+              verticalAlignment = Alignment.CenterVertically,
+          ) {
+              Text(
+                  "◀ ▶  Move   ·   OK to place   ·   Back to finish",
+                  color = if (light) Color(0xE6000000) else LobbyColors.ink,
+                  fontSize = 12.sp,
+                  fontWeight = FontWeight.Medium,
+              )
+          }
+      }
     Box(
         Modifier
             .shadow(if (glass) 16.dp else 6.dp, shape, clip = false)
@@ -1290,12 +1315,18 @@ private fun AppDock(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
         list.forEachIndexed { i, app ->
+          // key() gives each tile a stable identity, so when the order changes the moving tile keeps its focus and
+          // simply slides to its new slot rather than focus jumping to whatever lands in that position. Fully
+          // qualified because the short name collides with the KeyEvent.key import used for remote input.
+          androidx.compose.runtime.key(app.packageName) {
             val bitmap = remember(app.packageName) { app.icon?.toBitmap(240, 135)?.asImageBitmap() }
             val tileInteraction = remember { MutableInteractionSource() }
             val tileFocused by tileInteraction.collectIsFocusedAsState()
             val tileShape = androidx.compose.foundation.shape.RoundedCornerShape(10.dp)
+            val moving = movingPackage == app.packageName
             Surface(
-                onClick = { onApp(app) },
+                onClick = { if (moving) movingPackage = null else onApp(app) },
+                onLongClick = { movingPackage = if (moving) null else app.packageName },
                 interactionSource = tileInteraction,
                 shape = ClickableSurfaceDefaults.shape(tileShape),
                 colors = ClickableSurfaceDefaults.colors(
@@ -1303,13 +1334,29 @@ private fun AppDock(
                     containerColor = Color.Transparent,
                     focusedContainerColor = Color.Transparent,
                 ),
-                scale = ClickableSurfaceDefaults.scale(focusedScale = 1.06f),
-                modifier = Modifier.width(88.dp).then(if (i == 0) Modifier.focusRequester(firstFocus) else Modifier),
+                scale = ClickableSurfaceDefaults.scale(focusedScale = if (moving) 1.12f else 1.06f),
+                modifier = Modifier.width(88.dp)
+                    .then(if (i == 0) Modifier.focusRequester(firstFocus) else Modifier)
+                    // While a tile is being moved, left/right reposition it and centre/back commit; other keys are
+                    // swallowed so focus can't wander out of move mode by accident.
+                    .onPreviewKeyEvent { ev ->
+                        if (!moving) return@onPreviewKeyEvent false
+                        when (ev.key) {
+                            Key.DirectionLeft -> { if (ev.type == KeyEventType.KeyDown) onMove(app.packageName, -1); true }
+                            Key.DirectionRight -> { if (ev.type == KeyEventType.KeyDown) onMove(app.packageName, 1); true }
+                            Key.DirectionCenter, Key.Enter, Key.Back -> { if (ev.type == KeyEventType.KeyUp) movingPackage = null; true }
+                            Key.DirectionUp, Key.DirectionDown -> true
+                            else -> false
+                        }
+                    },
             ) {
                 // fillMaxWidth (not fillMaxSize): in the wrap-height dock Row, fillMaxSize would stretch the tile to
                 // the whole screen. The Column sizes the height; the selector plate matches via matchParentSize.
-                Box(Modifier.fillMaxWidth()) {
-                    if (tileFocused) {
+                Box(
+                    Modifier.fillMaxWidth()
+                        .then(if (moving) Modifier.border(2.dp, LobbyColors.accent, tileShape) else Modifier),
+                ) {
+                    if (tileFocused && !moving) {
                         when {
                             glass -> GlassSelector(tileShape)
                             light -> LightSelector(tileShape)
@@ -1355,8 +1402,10 @@ private fun AppDock(
                 }
                 }
             }
+          }
         }
         }
+    }
     }
 }
 
@@ -1370,33 +1419,56 @@ private fun AppList(
     onApp: (DockApp) -> Unit,
     firstFocus: FocusRequester,
     appDisplay: String,
+    onMove: (packageName: String, direction: Int) -> Unit = { _, _ -> },
 ) {
     val list = remember(apps) { apps.distinctBy { it.packageName } }
     val glass = LobbyColors.photo
     val light = LobbyColors.palette.light
-    LazyColumn(
-        modifier = Modifier.width(228.dp).fillMaxHeight(),
+    // Long-press puts a row into "move mode": up/down then reposition it, centre/back commits. Null when idle.
+    var movingPackage by remember { mutableStateOf<String?>(null) }
+    if (movingPackage != null && list.none { it.packageName == movingPackage }) movingPackage = null
+    Box(Modifier.width(228.dp).fillMaxHeight()) {
+      LazyColumn(
+        modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterVertically),
     ) {
         items(list, key = { it.packageName }) { app ->
             val i = list.indexOf(app)
+            val moving = movingPackage == app.packageName
             val bitmap = remember(app.packageName) { app.icon?.toBitmap(240, 135)?.asImageBitmap() }
             val tileInteraction = remember { MutableInteractionSource() }
             val tileFocused by tileInteraction.collectIsFocusedAsState()
             val rowShape = androidx.compose.foundation.shape.RoundedCornerShape(10.dp)
             Surface(
-                onClick = { onApp(app) },
+                onClick = { if (moving) movingPackage = null else onApp(app) },
+                onLongClick = { movingPackage = if (moving) null else app.packageName },
                 interactionSource = tileInteraction,
                 shape = ClickableSurfaceDefaults.shape(rowShape),
                 colors = ClickableSurfaceDefaults.colors(
                     containerColor = Color.Transparent,
                     focusedContainerColor = Color.Transparent,
                 ),
-                scale = ClickableSurfaceDefaults.scale(focusedScale = 1.03f),
-                modifier = Modifier.fillMaxWidth().then(if (i == 0) Modifier.focusRequester(firstFocus) else Modifier),
+                scale = ClickableSurfaceDefaults.scale(focusedScale = if (moving) 1.06f else 1.03f),
+                modifier = Modifier.fillMaxWidth()
+                    .then(if (i == 0) Modifier.focusRequester(firstFocus) else Modifier)
+                    // While a row is being moved, up/down reposition it and centre/back commit; other keys are
+                    // swallowed so focus can't wander out of move mode by accident.
+                    .onPreviewKeyEvent { ev ->
+                        if (!moving) return@onPreviewKeyEvent false
+                        when (ev.key) {
+                            Key.DirectionUp -> { if (ev.type == KeyEventType.KeyDown) onMove(app.packageName, -1); true }
+                            Key.DirectionDown -> { if (ev.type == KeyEventType.KeyDown) onMove(app.packageName, 1); true }
+                            Key.DirectionCenter, Key.Enter, Key.Back -> { if (ev.type == KeyEventType.KeyUp) movingPackage = null; true }
+                            Key.DirectionLeft, Key.DirectionRight -> true
+                            else -> false
+                        }
+                    },
             ) {
-                Box(Modifier.fillMaxWidth()) {
-                    if (tileFocused) {
+                Box(
+                    Modifier.fillMaxWidth()
+                        .then(if (moving) Modifier.border(2.dp, LobbyColors.accent, rowShape) else Modifier),
+                ) {
+                    if (tileFocused && !moving) {
                         when {
                             glass -> GlassSelector(rowShape)
                             light -> LightSelector(rowShape)
@@ -1436,5 +1508,24 @@ private fun AppList(
                 }
             }
         }
+    }
+      // A compact coachmark while a row is lifted, so the long-press gesture is discoverable.
+      if (movingPackage != null) {
+          Row(
+              Modifier.align(Alignment.TopCenter).padding(top = 8.dp)
+                  .clip(androidx.compose.foundation.shape.RoundedCornerShape(10.dp))
+                  .background(if (light) Color(0xF2FFFFFF) else Color(0xF21E2128))
+                  .padding(horizontal = 12.dp, vertical = 6.dp),
+              verticalAlignment = Alignment.CenterVertically,
+          ) {
+              Text(
+                  "▲ ▼  Move   ·   OK to place   ·   Back to finish",
+                  color = if (light) Color(0xE6000000) else LobbyColors.ink,
+                  fontSize = 12.sp,
+                  fontWeight = FontWeight.Medium,
+                  textAlign = TextAlign.Center,
+              )
+          }
+      }
     }
 }
