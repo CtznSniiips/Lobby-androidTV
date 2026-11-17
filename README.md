@@ -64,6 +64,8 @@ The `pm grant` command below runs over an existing ADB connection — it has no 
 adb shell pm grant io.github.ctznsniiips.lobby android.permission.WRITE_SECURE_SETTINGS
 ```
 
+If ADB reports `more than one device/emulator`, another device is also connected — target the TV by adding `-s <tv-ip>:5555` before `shell`, e.g. `adb -s 192.168.86.x:5555 shell pm grant …` (`adb devices` lists what's attached).
+
 This permission can't be granted from the on-screen settings — only over ADB — but the grant survives app updates (it's cleared only by a full uninstall). With it, Lobby re-enables the Home-button override by itself whenever it finds it switched off, so updates no longer break it. Lobby shows this command in **System settings → Home button override** until the grant is in place.
 
 ## Build
