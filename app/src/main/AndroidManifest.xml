@@ -1,10 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <!-- Lets Lobby install a downloaded update APK (the user still confirms each install). -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- Granted once over adb (`pm grant`), this lets Lobby re-enable its own Home-button override
+         accessibility service after an in-app update, when the restricted-settings toggle would block it. -->
+    <uses-permission android:name="android.permission.WRITE_SECURE_SETTINGS"
+        tools:ignore="ProtectedPermissions" />
     <uses-permission android:name="android.permission.READ_TV_LISTINGS" />
     <uses-permission android:name="com.android.providers.tv.permission.READ_EPG_DATA" />
 

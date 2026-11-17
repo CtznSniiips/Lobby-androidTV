@@ -5,6 +5,11 @@ All notable changes to Lobby for Android TV are recorded here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.11.0] - 11/16/2026
+
+### Added
+- Lobby can now keep its Home-button override on across in-app updates. Updating used to switch the override off, and Android's restricted-settings block could stop you re-enabling it. If you grant Lobby secure-settings access once over ADB (`adb shell pm grant io.github.ctznsniiips.lobby android.permission.WRITE_SECURE_SETTINGS`), Lobby re-enables the override by itself whenever it finds it switched off. System settings shows the exact command until the grant is in place.
+
 ## [v0.10.0] - 11/16/2026
 
 ### Fixed
@@ -75,7 +80,8 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 - GitHub Actions build check on every pull request.
 - Fixed signing key via a GitHub Actions secret, so new builds install over older ones without uninstalling.
 
-[Unreleased]: https://github.com/CtznSniiips/Lobby-androidTV/compare/v0.10.0...HEAD
+[Unreleased]: https://github.com/CtznSniiips/Lobby-androidTV/compare/v0.11.0...HEAD
+[v0.11.0]: https://github.com/CtznSniiips/Lobby-androidTV/compare/v0.10.0...v0.11.0
 [v0.10.0]: https://github.com/CtznSniiips/Lobby-androidTV/compare/v0.9.0...v0.10.0
 [v0.9.0]: https://github.com/CtznSniiips/Lobby-androidTV/compare/v0.8.0...v0.9.0
 [v0.8.0]: https://github.com/CtznSniiips/Lobby-androidTV/compare/v0.7.0...v0.8.0

@@ -135,6 +135,39 @@ class TvDevice(private val context: Context) {
     fun openAccessibilitySettings(): Boolean = start(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
 
     /**
+     * Whether Lobby holds WRITE_SECURE_SETTINGS. A normal app can't get this through the UI; it's granted once over
+     * adb (`pm grant`), after which Lobby can enable its own accessibility service without the restricted toggle.
+     */
+    fun canWriteSecureSettings(): Boolean =
+        context.checkSelfPermission(android.Manifest.permission.WRITE_SECURE_SETTINGS) == PackageManager.PERMISSION_GRANTED
+
+    /**
+     * Turns the Home-button override accessibility service on by writing the secure setting directly, bypassing the
+     * restricted-settings toggle. Needs WRITE_SECURE_SETTINGS; returns false (and changes nothing) without it. This is
+     * how Lobby heals the override after an in-app update drops it.
+     */
+    fun enableHomeOverride(): Boolean {
+        if (!canWriteSecureSettings()) return false
+        val ours = ComponentName(context.packageName, "${context.packageName}.HomeOverrideService")
+        return try {
+            val cr = context.contentResolver
+            val current = Settings.Secure.getString(cr, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES).orEmpty()
+            val parts = current.split(':').filter { it.isNotBlank() }
+            if (parts.mapNotNull { ComponentName.unflattenFromString(it) }.none { it == ours }) {
+                Settings.Secure.putString(
+                    cr,
+                    Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
+                    (parts + ours.flattenToString()).joinToString(":"),
+                )
+            }
+            Settings.Secure.putInt(cr, Settings.Secure.ACCESSIBILITY_ENABLED, 1)
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    /**
      * Opens the screen saver screen (Settings -> Device Preferences -> Screen saver on Google TV). Android TV's
      * Settings declares no intent-filter for ACTION_DREAM_SETTINGS, so that action just lands on top-level Settings;
      * the screen saver screen is instead its own exported activity. Launch that directly, then fall back to the
