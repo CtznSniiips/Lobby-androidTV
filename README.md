@@ -50,11 +50,21 @@ If the accessibility setting won't turn on — the toggle is greyed out, flips b
 
 ### Keeping the override across in-app updates
 
-Updating Lobby from inside the app can switch the Home-button override back off, and the restricted-settings block can stop you re-enabling it. To let Lobby turn its own override back on after each update, grant it secure-settings access once over ADB:
+Updating Lobby from inside the app can switch the Home-button override back off, and the restricted-settings block can stop you re-enabling it. To let Lobby turn its own override back on after each update, grant it secure-settings access once over ADB.
+
+The `pm grant` command below runs over an existing ADB connection — it has no IP of its own; the TV's address goes in the `adb connect`/`adb pair` step first. A TV box usually has no USB port, so connect over the network:
+
+1. On the TV, turn on **Developer options** (Settings → System → About, then click the build number several times), then enable **Network debugging** (older Android TV) or **Wireless debugging** (Android 11+) under Developer options.
+2. From a computer with [platform-tools](https://developer.android.com/tools/releases/platform-tools), connect to the TV's IP (shown under Settings → Network, and on the Wireless debugging screen):
+   - Older Android TV: `adb connect <tv-ip>:5555`
+   - Android 11+ Wireless debugging (it shows a 6-digit pairing code and uses randomized ports, not 5555): `adb pair <tv-ip>:<pair-port>`, enter the code, then `adb connect <tv-ip>:<connect-port>` — both ports are shown on the Wireless debugging screen.
+3. Accept the "Allow debugging?" prompt on the TV the first time. Once `adb devices` lists the TV, run the grant:
 
 ```
 adb shell pm grant io.github.ctznsniiips.lobby android.permission.WRITE_SECURE_SETTINGS
 ```
+
+If ADB reports `more than one device/emulator`, another device is also connected — target the TV by adding `-s <tv-ip>:5555` before `shell`, e.g. `adb -s 192.168.86.x:5555 shell pm grant …` (`adb devices` lists what's attached).
 
 This permission can't be granted from the on-screen settings — only over ADB — but the grant survives app updates (it's cleared only by a full uninstall). With it, Lobby re-enables the Home-button override by itself whenever it finds it switched off, so updates no longer break it. Lobby shows this command in **System settings → Home button override** until the grant is in place.
 
