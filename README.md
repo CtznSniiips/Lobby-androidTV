@@ -48,6 +48,16 @@ To make Lobby the launcher that opens when you press the Home button:
 
 If the accessibility setting won't turn on — the toggle is greyed out, flips back off, or reports it's restricted — that's Android's "restricted settings" protection for sideloaded apps. Install Lobby with ADB (`adb install Lobby-<version>.apk`) and the accessibility toggle will enable normally, since apps installed over ADB aren't subject to that restriction. (On some devices you can instead allow it from **Settings → Apps → Lobby → ⋮ → Allow restricted settings**.)
 
+### Keeping the override across in-app updates
+
+Updating Lobby from inside the app can switch the Home-button override back off, and the restricted-settings block can stop you re-enabling it. To let Lobby turn its own override back on after each update, grant it secure-settings access once over ADB:
+
+```
+adb shell pm grant io.github.ctznsniiips.lobby android.permission.WRITE_SECURE_SETTINGS
+```
+
+This permission can't be granted from the on-screen settings — only over ADB — but the grant survives app updates (it's cleared only by a full uninstall). With it, Lobby re-enables the Home-button override by itself whenever it finds it switched off, so updates no longer break it. Lobby shows this command in **System settings → Home button override** until the grant is in place.
+
 ## Build
 
 Open in Android Studio, or `./gradlew assembleDebug` with the Android SDK installed. CI builds a debug APK on every push.

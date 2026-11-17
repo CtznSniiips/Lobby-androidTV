@@ -141,6 +141,8 @@ data class LobbyState(
     /** Whether the remote's Home button opens Lobby. Starts true so the prompt doesn't flash before the first check. */
     val isDefaultHome: Boolean = true,
     val homeOverrideEnabled: Boolean = false,
+    /** Whether Lobby can enable its own Home override (holds WRITE_SECURE_SETTINGS, granted once over adb). */
+    val canSelfEnableHome: Boolean = false,
     /** "Not now" was chosen on the Home prompt (the Lobby settings entry stays available). */
     val homePromptDismissed: Boolean = false,
     /** True while the make-Lobby-your-home-screen guide is open. */
@@ -452,9 +454,26 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---- Make Lobby the home screen ------------------------------------------------------------
 
-    /** Re-checks whether Lobby is the home app; called on start-up and whenever the app comes back to the front. */
+    /**
+     * Re-checks whether Lobby is the home app; called on start-up and whenever the app comes back to the front. If the
+     * Home override was on before but is now off (an in-app update drops it) and Lobby can write secure settings, it
+     * re-enables itself here — so the override survives updates without the user fighting the restricted toggle.
+     */
     fun refreshHomeStatus() {
-        _state.update { it.copy(isDefaultHome = device.isDefaultHome(), homeOverrideEnabled = device.isHomeOverrideEnabled()) }
+        var enabled = device.isHomeOverrideEnabled()
+        if (enabled) {
+            if (!store.homeOverrideDesired()) store.setHomeOverrideDesired(true)
+        } else if (store.homeOverrideDesired() && device.canWriteSecureSettings()) {
+            device.enableHomeOverride()
+            enabled = device.isHomeOverrideEnabled()
+        }
+        _state.update {
+            it.copy(
+                isDefaultHome = device.isDefaultHome(),
+                homeOverrideEnabled = enabled,
+                canSelfEnableHome = device.canWriteSecureSettings(),
+            )
+        }
     }
 
     fun openAccessibilitySettings() {
