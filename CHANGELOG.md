@@ -5,6 +5,11 @@ All notable changes to Lobby for Android TV are recorded here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- The Home-override self-heal now also does the *first* turn-on. 0.11.0 only re-enabled an override that had already been on once — but the restricted toggle blocks that first turn-on, so it could never arm. Now, whenever Lobby holds `WRITE_SECURE_SETTINGS` and the override is off, it switches it on itself (on launch/resume). Granting the permission is all that's needed; to turn the override off, revoke the permission.
+
 ## [v0.11.0] - 11/16/2026
 
 ### Added

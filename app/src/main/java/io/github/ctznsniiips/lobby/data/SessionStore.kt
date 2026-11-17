@@ -121,13 +121,6 @@ class SessionStore(context: Context) {
     }
 
     /** The Home layout: "watch" (hero + rows + dock, the default), "dock" (no hero, open top) or "list" (left app list). */
-    /** Whether the user has had the Home-button override on, so Lobby knows to heal it after an update disables it. */
-    fun homeOverrideDesired(): Boolean = prefs.getBoolean(KEY_HOME_OVERRIDE_DESIRED, false)
-
-    fun setHomeOverrideDesired(value: Boolean) {
-        prefs.edit().putBoolean(KEY_HOME_OVERRIDE_DESIRED, value).apply()
-    }
-
     fun homeLayout(): String = prefs.getString(KEY_HOME_LAYOUT, "watch") ?: "watch"
 
     fun setHomeLayout(id: String) {
@@ -162,7 +155,6 @@ class SessionStore(context: Context) {
     }
 
     private companion object {
-        const val KEY_HOME_OVERRIDE_DESIRED = "homeOverrideDesired"
         const val KEY_ORIGIN = "origin"
         const val KEY_PREFIX = "prefix"
         const val KEY_TOKEN = "token"

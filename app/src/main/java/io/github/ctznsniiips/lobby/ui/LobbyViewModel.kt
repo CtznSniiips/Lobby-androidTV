@@ -461,9 +461,11 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
      */
     fun refreshHomeStatus() {
         var enabled = device.isHomeOverrideEnabled()
-        if (enabled) {
-            if (!store.homeOverrideDesired()) store.setHomeOverrideDesired(true)
-        } else if (store.homeOverrideDesired() && device.canWriteSecureSettings()) {
+        val canWrite = device.canWriteSecureSettings()
+        // Holding WRITE_SECURE_SETTINGS is the opt-in. Whenever Lobby can write the setting and the override is off —
+        // the first turn-on (which the restricted toggle blocks) or after an in-app update drops it — Lobby switches
+        // it on itself. To turn it off, revoke the permission (`adb shell pm revoke ...`).
+        if (!enabled && canWrite) {
             device.enableHomeOverride()
             enabled = device.isHomeOverrideEnabled()
         }
@@ -471,7 +473,7 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
             it.copy(
                 isDefaultHome = device.isDefaultHome(),
                 homeOverrideEnabled = enabled,
-                canSelfEnableHome = device.canWriteSecureSettings(),
+                canSelfEnableHome = canWrite,
             )
         }
     }
