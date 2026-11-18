@@ -43,30 +43,57 @@ official app on the same device alongside Lobby.
 
 To make Lobby the launcher that opens when you press the Home button:
 
-1. Make Lobby your home app — from Lobby's **System** settings, or in Android's **Settings → Apps → Special app access → Home app** (wording varies by device).
-2. Turn on Lobby's **Home-button override** when prompted. It's an accessibility service that returns you to Lobby when the Home button would otherwise open the stock launcher; on Google TV the Home-app role alone isn't enough, so this is what makes the physical Home button come back to Lobby.
+1. Make Lobby your home app — from Lobby's **System** settings, or Android's **Settings → Apps → Special app access → Home app** (wording varies by device).
+2. Turn on Lobby's **Home-button override**. It's an accessibility service that returns you to Lobby when the Home button would otherwise open the stock launcher; on Google TV the Home-app role alone often isn't enough, so this is what makes the physical Home button come back to Lobby.
 
-If the accessibility setting won't turn on — the toggle is greyed out, flips back off, or reports it's restricted — that's Android's "restricted settings" protection for sideloaded apps. Install Lobby with ADB (`adb install Lobby-<version>.apk`) and the accessibility toggle will enable normally, since apps installed over ADB aren't subject to that restriction. (On some devices you can instead allow it from **Settings → Apps → Lobby → ⋮ → Allow restricted settings**.)
+### The restricted-settings wall
 
-### Keeping the override across in-app updates
+Step 2 is the hard part on modern Google TV. From Android 12 on, apps installed from outside the Play Store are marked **restricted**: their accessibility services can't be turned on through the normal toggle. How far the lock-down goes varies by device — on the strictest boxes the system **reverts** the `enabled_accessibility_services` setting even when you write it directly over ADB, so there is no way to turn the override on from the TV itself.
 
-Updating Lobby from inside the app can switch the Home-button override back off, and the restricted-settings block can stop you re-enabling it. To let Lobby turn its own override back on after each update, grant it secure-settings access once over ADB.
+Because an app can't lift its own restriction (that needs shell privileges the app can't hold), the dependable route is to install Lobby from a source Android already trusts.
 
-The `pm grant` command below runs over an existing ADB connection — it has no IP of its own; the TV's address goes in the `adb connect`/`adb pair` step first. A TV box usually has no USB port, so connect over the network:
+**Install over ADB (the reliable route).** An app installed with `adb install` counts as trusted, so it isn't flagged as restricted and the accessibility toggle works normally:
+
+1. Connect ADB to the TV (see [Connecting ADB](#connecting-adb)).
+2. `adb install -r Lobby-<version>.apk` — the `-r` keeps your data.
+3. Settings → Accessibility → turn on **Lobby Home button**.
+
+> **Updating re-locks it.** Updating Lobby from *inside the app* re-installs it from an untrusted source, which re-applies the restriction and switches the override back off. On a locked-down box you then have to `adb install` again to restore it — so on those devices, update Lobby with `adb install` rather than the in-app updater.
+
+**The self-heal shortcut (works on some devices, not all).** If your device lets an app write the accessibility setting, grant Lobby `WRITE_SECURE_SETTINGS` once over ADB and it will re-enable its own override after each update. On many boxes you must also lift the restriction with an AppOp — the equivalent of the "Allow restricted settings" button that Google TV's UI doesn't expose:
+
+```
+adb shell pm grant io.github.ctznsniiips.lobby android.permission.WRITE_SECURE_SETTINGS
+adb shell appops set io.github.ctznsniiips.lobby ACCESS_RESTRICTED_SETTINGS allow
+```
+
+Then test whether the setting actually sticks:
+
+```
+adb shell settings put secure enabled_accessibility_services io.github.ctznsniiips.lobby/io.github.ctznsniiips.lobby.HomeOverrideService
+adb shell settings get secure enabled_accessibility_services
+```
+
+If the `get` echoes the component, you're set and in-app updates will self-heal. If it comes back `null`, your device reverts the write no matter what — use the ADB-install route above; the self-heal can't help on that device.
+
+**Multi-user boxes.** Some Google TVs run the main profile as a non-zero user (e.g. user 10), and these settings are per-user — a command run against the wrong user does nothing. Check the active user and target it with `--user`:
+
+```
+adb shell am get-current-user          # e.g. prints 10
+adb shell pm grant --user 10 io.github.ctznsniiips.lobby android.permission.WRITE_SECURE_SETTINGS
+adb shell appops set --user 10 io.github.ctznsniiips.lobby ACCESS_RESTRICTED_SETTINGS allow
+adb shell settings put --user 10 secure enabled_accessibility_services io.github.ctznsniiips.lobby/io.github.ctznsniiips.lobby.HomeOverrideService
+```
+
+### Connecting ADB
+
+The commands above run over an existing ADB connection — the TV's address goes in the `adb connect`/`adb pair` step, not in the commands themselves. A TV box usually has no USB port, so connect over the network:
 
 1. On the TV, turn on **Developer options** (Settings → System → About, then click the build number several times), then enable **Network debugging** (older Android TV) or **Wireless debugging** (Android 11+) under Developer options.
 2. From a computer with [platform-tools](https://developer.android.com/tools/releases/platform-tools), connect to the TV's IP (shown under Settings → Network, and on the Wireless debugging screen):
    - Older Android TV: `adb connect <tv-ip>:5555`
-   - Android 11+ Wireless debugging (it shows a 6-digit pairing code and uses randomized ports, not 5555): `adb pair <tv-ip>:<pair-port>`, enter the code, then `adb connect <tv-ip>:<connect-port>` — both ports are shown on the Wireless debugging screen.
-3. Accept the "Allow debugging?" prompt on the TV the first time. Once `adb devices` lists the TV, run the grant:
-
-```
-adb shell pm grant io.github.ctznsniiips.lobby android.permission.WRITE_SECURE_SETTINGS
-```
-
-If ADB reports `more than one device/emulator`, another device is also connected — target the TV by adding `-s <tv-ip>:5555` before `shell`, e.g. `adb -s 192.168.86.x:5555 shell pm grant …` (`adb devices` lists what's attached).
-
-This permission can't be granted from the on-screen settings — only over ADB — but the grant survives app updates (it's cleared only by a full uninstall). With it, Lobby re-enables the Home-button override by itself whenever it finds it switched off, so updates no longer break it. Lobby shows this command in **System settings → Home button override** until the grant is in place.
+   - Android 11+ Wireless debugging (6-digit pairing code, randomized ports — not 5555): `adb pair <tv-ip>:<pair-port>`, enter the code, then `adb connect <tv-ip>:<connect-port>`.
+3. Accept the "Allow debugging?" prompt on the TV the first time. If ADB later reports `more than one device/emulator`, another device is attached — target the TV by adding `-s <tv-ip>:5555` before `shell`/`install` (`adb devices` lists what's attached).
 
 ## Build
 
