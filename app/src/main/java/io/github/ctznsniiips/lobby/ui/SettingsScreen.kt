@@ -386,22 +386,27 @@ private fun CategoryDetail(
                         Button(onClick = actions.openAccessibilitySettings) {
                             Text(if (homeState.homeOverrideEnabled) "Accessibility settings" else "Turn on in Accessibility settings")
                         }
-                        if (homeState.canSelfEnableHome) {
-                            Text(
+                        when {
+                            homeState.overrideBlocked -> Text(
+                                "This device won't let Lobby switch the override on — its restricted-settings protection undoes the change, even with the permission granted. Install Lobby over ADB (adb install) to enable it. See \"Setting Lobby as your home screen\" in the project README.",
+                                fontSize = 13.sp, color = LobbyColors.soft,
+                            )
+                            homeState.canSelfEnableHome -> Text(
                                 "Lobby can keep this on across in-app updates.",
                                 fontSize = 13.sp, color = LobbyColors.accent,
                             )
-                        } else {
-                            Text(
-                                "Updating from inside Lobby can switch this off, and the toggle may be blocked for sideloaded apps. To let Lobby keep it on across updates, grant it secure-settings access once over adb:",
-                                fontSize = 13.sp, color = LobbyColors.soft,
-                            )
-                            Text(
-                                "adb shell pm grant io.github.ctznsniiips.lobby android.permission.WRITE_SECURE_SETTINGS",
-                                fontSize = 13.sp,
-                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                                color = LobbyColors.ink,
-                            )
+                            else -> {
+                                Text(
+                                    "Updating from inside Lobby can switch this off, and the toggle may be blocked for sideloaded apps. To let Lobby keep it on across updates, grant it secure-settings access once over adb:",
+                                    fontSize = 13.sp, color = LobbyColors.soft,
+                                )
+                                Text(
+                                    "adb shell pm grant io.github.ctznsniiips.lobby android.permission.WRITE_SECURE_SETTINGS",
+                                    fontSize = 13.sp,
+                                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                    color = LobbyColors.ink,
+                                )
+                            }
                         }
                     }
                 }

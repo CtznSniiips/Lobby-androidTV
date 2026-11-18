@@ -143,6 +143,8 @@ data class LobbyState(
     val homeOverrideEnabled: Boolean = false,
     /** Whether Lobby can enable its own Home override (holds WRITE_SECURE_SETTINGS, granted once over adb). */
     val canSelfEnableHome: Boolean = false,
+    /** Lobby holds the permission and tried to enable the override, but the device reverted it (restricted settings). */
+    val overrideBlocked: Boolean = false,
     /** "Not now" was chosen on the Home prompt (the Lobby settings entry stays available). */
     val homePromptDismissed: Boolean = false,
     /** True while the make-Lobby-your-home-screen guide is open. */
@@ -465,15 +467,20 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
         // Holding WRITE_SECURE_SETTINGS is the opt-in. Whenever Lobby can write the setting and the override is off —
         // the first turn-on (which the restricted toggle blocks) or after an in-app update drops it — Lobby switches
         // it on itself. To turn it off, revoke the permission (`adb shell pm revoke ...`).
+        var blocked = false
         if (!enabled && canWrite) {
             device.enableHomeOverride()
             enabled = device.isHomeOverrideEnabled()
+            // The write didn't stick: the strictest Google TVs revert enabled_accessibility_services for a restricted
+            // (sideloaded) app no matter what, so the self-heal genuinely can't work there — flag it for an honest hint.
+            blocked = !enabled
         }
         _state.update {
             it.copy(
                 isDefaultHome = device.isDefaultHome(),
                 homeOverrideEnabled = enabled,
                 canSelfEnableHome = canWrite,
+                overrideBlocked = blocked,
             )
         }
     }
