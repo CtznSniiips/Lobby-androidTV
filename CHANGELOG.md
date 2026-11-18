@@ -5,7 +5,7 @@ All notable changes to Lobby for Android TV are recorded here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [v0.12.0] - 11/18/2026
 
 ### Fixed
 - The Home-override self-heal now also does the *first* turn-on. 0.11.0 only re-enabled an override that had already been on once — but the restricted toggle blocks that first turn-on, so it could never arm. Now, whenever Lobby holds `WRITE_SECURE_SETTINGS` and the override is off, it switches it on itself (on launch/resume). Granting the permission is all that's needed; to turn the override off, revoke the permission.
@@ -86,7 +86,8 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 - GitHub Actions build check on every pull request.
 - Fixed signing key via a GitHub Actions secret, so new builds install over older ones without uninstalling.
 
-[Unreleased]: https://github.com/CtznSniiips/Lobby-androidTV/compare/v0.11.0...HEAD
+[Unreleased]: https://github.com/CtznSniiips/Lobby-androidTV/compare/v0.12.0...HEAD
+[v0.12.0]: https://github.com/CtznSniiips/Lobby-androidTV/compare/v0.11.0...v0.12.0
 [v0.11.0]: https://github.com/CtznSniiips/Lobby-androidTV/compare/v0.10.0...v0.11.0
 [v0.10.0]: https://github.com/CtznSniiips/Lobby-androidTV/compare/v0.9.0...v0.10.0
 [v0.9.0]: https://github.com/CtznSniiips/Lobby-androidTV/compare/v0.8.0...v0.9.0
