@@ -21,8 +21,11 @@ import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.border
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -512,6 +515,7 @@ private fun CategoryDetail(
                             }
                         }
                         if (homeState.adbPairingActive) {
+                            val focusManager = LocalFocusManager.current
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                 BasicTextField(
                                     value = homeState.adbCode,
@@ -519,7 +523,12 @@ private fun CategoryDetail(
                                     enabled = !homeState.adbBusy,
                                     singleLine = true,
                                     textStyle = TextStyle(color = LobbyColors.ink, fontSize = 20.sp),
-                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
+                                    keyboardActions = KeyboardActions(onDone = {
+                                        // Release D-pad focus from the field (Compose-on-TV traps it otherwise), then pair.
+                                        focusManager.clearFocus()
+                                        if (homeState.adbCode.length == 6) actions.pairAdb()
+                                    }),
                                     modifier = Modifier
                                         .width(140.dp)
                                         .clip(RoundedCornerShape(8.dp))
