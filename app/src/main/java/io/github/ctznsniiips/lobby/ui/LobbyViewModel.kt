@@ -165,6 +165,8 @@ data class LobbyState(
     val adbPairingActive: Boolean = false,
     /** True when the current pairing session is auto-reading the code via the accessibility service. */
     val adbAutoRead: Boolean = false,
+    /** True once Lobby has paired+connected to its own ADB daemon this session (self-install becomes available). */
+    val adbConnected: Boolean = false,
 )
 
 class LobbyViewModel(app: Application) : AndroidViewModel(app) {
@@ -734,8 +736,57 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
                     adbPairStatus = status,
                     adbPairingActive = if (ok) false else it.adbPairingActive,
                     adbAutoRead = if (ok) false else it.adbAutoRead,
+                    adbConnected = if (ok) true else it.adbConnected,
                 )
             }
+        }
+    }
+
+    /**
+     * Self-install the latest update over the ADB connection: download the APK, then stream it to
+     * `cmd package install`. Pairing is one-time and persisted, so this reconnects on its own (autoConnect) without the
+     * pairing dance. A trusted-source ADB install also clears the restricted-settings wall, so updates stop re-locking
+     * the Home override.
+     */
+    fun selfInstallOverAdb() {
+        if (_state.value.adbBusy) return
+        _state.update { it.copy(adbBusy = true, adbPairStatus = "Downloading update…") }
+        viewModelScope.launch {
+            val status = withContext(Dispatchers.IO) {
+                try {
+                    val app = getApplication<Application>()
+                    val file = File(app.cacheDir, "lobby-update.apk")
+                    val url = _state.value.updateApkUrl
+                    if (url != null) {
+                        if (!UpdateChecker.download(url, file)) return@withContext "Couldn't download the update."
+                    } else if (!file.exists()) {
+                        return@withContext "No update downloaded. Tap \"Check for updates\" first."
+                    }
+                    val manager = io.github.ctznsniiips.lobby.device.LobbyAdbConnectionManager.getInstance(app)
+                    _state.update { it.copy(adbPairStatus = "Installing update over ADB…") }
+                    // Stream the APK to the package installer. -S <size> makes it read exactly that many bytes of
+                    // stdin, so no EOF half-close is needed. exec: (not shell:) avoids shell-protocol framing on binary.
+                    val size = file.length()
+                    val stream = try {
+                        manager.openStream("exec:cmd package install -r -S $size")
+                    } catch (e: Exception) {
+                        manager.autoConnect(app, 10_000L)
+                        manager.openStream("exec:cmd package install -r -S $size")
+                    }
+                    file.inputStream().use { input ->
+                        val out = stream.openOutputStream()
+                        input.copyTo(out, 65_536)
+                        out.flush()
+                    }
+                    val result = stream.openInputStream().bufferedReader().use { it.readText() }.trim()
+                    stream.close()
+                    if (result.contains("Success", ignoreCase = true)) "Update installed over ADB. Lobby will restart."
+                    else "Install failed: ${result.ifBlank { "(no output from installer)" }}"
+                } catch (e: Exception) {
+                    "Install error: ${e.message ?: e.javaClass.simpleName}"
+                }
+            }
+            _state.update { it.copy(adbBusy = false, adbPairStatus = status) }
         }
     }
 

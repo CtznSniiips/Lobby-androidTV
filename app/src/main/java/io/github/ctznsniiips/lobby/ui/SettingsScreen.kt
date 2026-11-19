@@ -566,6 +566,16 @@ private fun CategoryDetail(
                         homeState.adbPairStatus?.let {
                             Text(it, fontSize = 13.sp, color = LobbyColors.accent, lineHeight = 18.sp, modifier = Modifier.fillMaxWidth(0.95f))
                         }
+                        if (homeState.adbConnected) {
+                            Text(
+                                "Connected to this TV's ADB. Lobby can now install its own updates — no installer prompt, " +
+                                    "and the trusted install keeps the Home override from re-locking.",
+                                fontSize = 13.sp, color = LobbyColors.soft, lineHeight = 18.sp, modifier = Modifier.fillMaxWidth(0.95f),
+                            )
+                            Button(onClick = actions.selfInstallOverAdb, enabled = !homeState.adbBusy) {
+                                Text(if (homeState.adbBusy) "Working…" else "Download & self-install latest")
+                            }
+                        }
                     }
                 }
             }
