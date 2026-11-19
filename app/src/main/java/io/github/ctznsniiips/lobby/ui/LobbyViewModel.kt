@@ -598,24 +598,49 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
                 adbPairStatus = "Open \"Pair device with pairing code\" on the TV and leave it on screen — Lobby will read the code and pair.",
             )
         }
+        // Source 1 — the accessibility service: reads the 6-digit code (and the IP:port if the dialog shows it).
         io.github.ctznsniiips.lobby.device.AdbPairingBridge.start { scraped ->
-            // Called from the accessibility service thread; hop onto the VM scope. The service reads both the 6-digit
-            // code and the IP:port straight off the dialog, so auto-pair doesn't depend on background mDNS.
             viewModelScope.launch {
                 _state.update {
-                    val code = scraped.code ?: it.adbCode
-                    it.copy(
-                        adbCode = code,
-                        adbPairingHost = scraped.host ?: it.adbPairingHost,
-                        adbPairingPort = if (scraped.port != 0) scraped.port else it.adbPairingPort,
-                        adbPairStatus = if (it.adbBusy) it.adbPairStatus
-                        else if (scraped.code != null) "Read code ${scraped.code} — pairing…"
-                        else it.adbPairStatus,
+                    applyAutoPairProgress(
+                        it,
+                        code = scraped.code ?: it.adbCode,
+                        pairingHost = scraped.host ?: it.adbPairingHost,
+                        pairingPort = if (scraped.port != 0) scraped.port else it.adbPairingPort,
                     )
                 }
                 maybeAutoPair()
             }
         }
+        // Source 2 — mDNS: the reliable source for the pairing host/port (and the connect endpoint), since many
+        // pairing-code dialogs show only the code. Keeps running while Lobby is backgrounded; the process stays up.
+        wirelessAdb.watch { result ->
+            _state.update {
+                applyAutoPairProgress(
+                    it.copy(
+                        adbConnectHost = result.connectHost ?: it.adbConnectHost,
+                        adbConnectPort = if (result.connectPort != 0) result.connectPort else it.adbConnectPort,
+                    ),
+                    code = it.adbCode,
+                    pairingHost = result.pairingHost ?: it.adbPairingHost,
+                    pairingPort = if (result.pairingPort != 0) result.pairingPort else it.adbPairingPort,
+                )
+            }
+            viewModelScope.launch { maybeAutoPair() }
+        }
+    }
+
+    /** Merge newly-learned auto-pair facts into state and set a status that names what's still missing. */
+    private fun applyAutoPairProgress(s: LobbyState, code: String, pairingHost: String?, pairingPort: Int): LobbyState {
+        val haveEndpoint = pairingHost != null && pairingPort != 0
+        val status = when {
+            s.adbBusy -> s.adbPairStatus
+            code.length == 6 && haveEndpoint -> "Read code $code — pairing…"
+            code.length == 6 -> "Read code $code — finding this TV's pairing address…"
+            haveEndpoint -> "Pairing dialog found. Reading the code…"
+            else -> s.adbPairStatus
+        }
+        return s.copy(adbCode = code, adbPairingHost = pairingHost, adbPairingPort = pairingPort, adbPairStatus = status)
     }
 
     /** Fire the pair attempt once auto-read has the code and the pairing endpoint (both scraped), nothing in flight. */
