@@ -61,7 +61,7 @@ class HomeOverrideService : AccessibilityService() {
         if (AdbPairingBridge.listening) {
             val evtPkg = event.packageName?.toString()
             if (evtPkg != null && evtPkg != packageName) {
-                scrapeSixDigitCode(rootInActiveWindow)?.let { AdbPairingBridge.submit(it) }
+                scrapePairing(rootInActiveWindow)?.let { AdbPairingBridge.submit(it) }
             }
         }
         if (event.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
@@ -85,17 +85,30 @@ class HomeOverrideService : AccessibilityService() {
         launchLobby()
     }
 
-    /** Depth-first search for a text node that is exactly six digits — the pairing code, not the IP/port. */
-    private fun scrapeSixDigitCode(node: AccessibilityNodeInfo?): String? {
-        node ?: return null
-        val text = node.text?.toString()?.trim()
-        if (text != null && SIX_DIGITS.matches(text)) return text
-        for (i in 0 until node.childCount) {
-            val child = node.getChild(i) ?: continue
-            val found = scrapeSixDigitCode(child)
-            if (found != null) return found
+    /**
+     * Read the pairing dialog in one DFS: a text node that is exactly six digits is the code; a node matching
+     * "IP:port" is the pairing endpoint. Returns null if neither was found (not the pairing dialog, or not rendered yet).
+     */
+    private fun scrapePairing(root: AccessibilityNodeInfo?): AdbPairingBridge.Scraped? {
+        root ?: return null
+        var code: String? = null
+        var host: String? = null
+        var port = 0
+        fun visit(node: AccessibilityNodeInfo) {
+            val text = node.text?.toString()?.trim()
+            if (text != null) {
+                if (code == null && SIX_DIGITS.matches(text)) code = text
+                if (host == null) IP_PORT.find(text)?.let { m ->
+                    host = m.groupValues[1]
+                    port = m.groupValues[2].toIntOrNull() ?: 0
+                }
+            }
+            for (i in 0 until node.childCount) {
+                node.getChild(i)?.let { visit(it) }
+            }
         }
-        return null
+        visit(root)
+        return if (code != null || host != null) AdbPairingBridge.Scraped(code, host, port) else null
     }
 
     private fun launchLobby() {
@@ -110,5 +123,6 @@ class HomeOverrideService : AccessibilityService() {
 
     companion object {
         private val SIX_DIGITS = Regex("^\\d{6}$")
+        private val IP_PORT = Regex("(\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}):(\\d{1,5})")
     }
 }

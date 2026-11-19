@@ -509,6 +509,7 @@ private fun CategoryDetail(
                                 )
                                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                     Button(onClick = actions.startAutoPair, enabled = !homeState.adbBusy) { Text("Pair automatically") }
+                                    Button(onClick = actions.openDeveloperOptions) { Text("Open settings") }
                                     Button(onClick = actions.startAdbPairing, enabled = !homeState.adbBusy) { Text("Type code instead") }
                                 }
                             } else {
@@ -524,7 +525,10 @@ private fun CategoryDetail(
                                 }
                             }
                         } else {
-                            Button(onClick = actions.stopAdbPairing, enabled = !homeState.adbBusy) { Text("Cancel") }
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Button(onClick = actions.openDeveloperOptions) { Text("Open settings") }
+                                Button(onClick = actions.stopAdbPairing, enabled = !homeState.adbBusy) { Text("Cancel") }
+                            }
                         }
                         if (homeState.adbPairingActive) {
                             val focusManager = LocalFocusManager.current

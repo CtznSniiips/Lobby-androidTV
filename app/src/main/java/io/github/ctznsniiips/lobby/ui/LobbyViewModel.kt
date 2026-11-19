@@ -598,38 +598,31 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
                 adbPairStatus = "Open \"Pair device with pairing code\" on the TV and leave it on screen — Lobby will read the code and pair.",
             )
         }
-        io.github.ctznsniiips.lobby.device.AdbPairingBridge.start { code ->
-            // Called from the accessibility service thread; hop onto the VM scope.
+        io.github.ctznsniiips.lobby.device.AdbPairingBridge.start { scraped ->
+            // Called from the accessibility service thread; hop onto the VM scope. The service reads both the 6-digit
+            // code and the IP:port straight off the dialog, so auto-pair doesn't depend on background mDNS.
             viewModelScope.launch {
-                if (_state.value.adbCode != code) _state.update { it.copy(adbCode = code) }
+                _state.update {
+                    val code = scraped.code ?: it.adbCode
+                    it.copy(
+                        adbCode = code,
+                        adbPairingHost = scraped.host ?: it.adbPairingHost,
+                        adbPairingPort = if (scraped.port != 0) scraped.port else it.adbPairingPort,
+                        adbPairStatus = if (it.adbBusy) it.adbPairStatus
+                        else if (scraped.code != null) "Read code ${scraped.code} — pairing…"
+                        else it.adbPairStatus,
+                    )
+                }
                 maybeAutoPair()
             }
         }
-        wirelessAdb.watch { result ->
-            val status = when {
-                !result.supported -> result.note ?: "Not supported on this device."
-                result.pairingPort != 0 -> "Pairing dialog found. Reading the code…"
-                result.wirelessDebuggingOn -> "Wireless Debugging is on. Now open \"Pair device with pairing code\" on the TV."
-                else -> "Waiting… make sure Wireless Debugging is on under Developer options."
-            }
-            _state.update {
-                it.copy(
-                    adbConnectHost = result.connectHost ?: it.adbConnectHost,
-                    adbConnectPort = if (result.connectPort != 0) result.connectPort else it.adbConnectPort,
-                    adbPairingHost = result.pairingHost ?: it.adbPairingHost,
-                    adbPairingPort = if (result.pairingPort != 0) result.pairingPort else it.adbPairingPort,
-                    adbPairStatus = if (it.adbBusy) it.adbPairStatus else status,
-                )
-            }
-            viewModelScope.launch { maybeAutoPair() }
-        }
     }
 
-    /** Fire the pair attempt once auto-read has both the code and the pairing endpoint, and nothing's in flight. */
+    /** Fire the pair attempt once auto-read has the code and the pairing endpoint (both scraped), nothing in flight. */
     private fun maybeAutoPair() {
         val s = _state.value
         if (s.adbAutoRead && !s.adbBusy && s.adbCode.length == 6 && s.adbPairingPort != 0 &&
-            s.adbConnectHost != null && s.adbCode != adbLastTriedCode
+            s.adbPairingHost != null && s.adbCode != adbLastTriedCode
         ) {
             pairAndConnect()
         }
@@ -649,25 +642,21 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
     fun pairAndConnect() {
         val s = _state.value
         if (s.adbBusy) return
-        val host = s.adbConnectHost
+        val pairHost = s.adbPairingHost ?: s.adbConnectHost
         val pairingPort = s.adbPairingPort
+        val connectHost = s.adbConnectHost
         val connectPort = s.adbConnectPort
         val code = s.adbCode
         when {
-            host == null || connectPort == 0 -> {
-                _state.update { it.copy(adbPairStatus = "Scan first so Lobby knows this TV's ADB endpoint.") }
-                return
-            }
-            pairingPort == 0 -> {
-                _state.update { it.copy(adbPairStatus = "Open \"Pair device with pairing code\" on the TV, then Scan again to catch the pairing port.") }
-                return
-            }
             code.length != 6 -> {
                 _state.update { it.copy(adbPairStatus = "Enter the 6-digit code from the pairing dialog.") }
                 return
             }
+            pairHost == null || pairingPort == 0 -> {
+                _state.update { it.copy(adbPairStatus = "Open \"Pair device with pairing code\" on the TV so Lobby can read its address.") }
+                return
+            }
         }
-        val pairHost = s.adbPairingHost ?: host
         adbLastTriedCode = code
         _state.update { it.copy(adbBusy = true, adbPairStatus = "Pairing…") }
         viewModelScope.launch {
@@ -677,24 +666,29 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
                 } catch (e: Exception) {
                     return@withContext "Couldn't start the ADB client: ${e.message ?: e.javaClass.simpleName}"
                 }
-                // Stage 1: pair. "Connection refused" here means the pairing dialog's server is already gone — it was
-                // dismissed or backgrounded off-screen. Keep the dialog up (press HOME, not Back) and try again.
+                // Stage 1: pair against the dialog's own address (read off-screen or scanned). A refusal here means the
+                // pairing server is gone — the dialog was dismissed. Keep it on screen and try again.
                 val paired = try {
                     manager.pair(pairHost, pairingPort, code)
                 } catch (e: Exception) {
                     return@withContext "Couldn't reach the pairing server at $pairHost:$pairingPort (${e.message ?: e.javaClass.simpleName}). " +
-                        "The pairing dialog likely closed when you left it — reopen it, return with HOME, and try again quickly."
+                        "Keep the pairing dialog on screen and try again."
                 }
                 if (!paired) return@withContext "Pairing was refused — re-check the 6-digit code."
-                // Stage 2: connect to the (now-paired) daemon and run a harmless probe.
+                // Stage 2: connect to the (now-paired) daemon. Use the scanned connect endpoint if we have one;
+                // otherwise let the library auto-discover it (auto-pair never ran our own mDNS). Then a harmless probe.
                 try {
-                    manager.connect(host, connectPort)
+                    if (connectHost != null && connectPort != 0) {
+                        manager.connect(connectHost, connectPort)
+                    } else {
+                        manager.autoConnect(getApplication(), 10_000L)
+                    }
                     val probe = manager.openStream("shell:id")
                     val out = probe.openInputStream().bufferedReader().use { it.readText() }.trim()
                     probe.close()
                     "Connected. shell:id → ${out.ifBlank { "(no output)" }}"
                 } catch (e: Exception) {
-                    "Paired OK, but connecting to $host:$connectPort failed (${e.message ?: e.javaClass.simpleName})."
+                    "Paired OK, but connecting failed (${e.message ?: e.javaClass.simpleName}). Reopen Lobby and tap Pair again to finish connecting."
                 }
             }
             val ok = status.startsWith("Connected")
@@ -715,6 +709,10 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
 
     fun openAccessibilitySettings() {
         if (!device.openAccessibilitySettings()) say("Couldn't open Accessibility settings.")
+    }
+
+    fun openDeveloperOptions() {
+        if (!device.openDeveloperOptions()) say("Couldn't open Developer options.")
     }
 
     fun openHomeSetup() = _state.update { it.copy(homeSetup = true) }

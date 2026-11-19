@@ -79,6 +79,7 @@ class SettingsActions(
     val startAdbPairing: () -> Unit,
     val startAutoPair: () -> Unit,
     val stopAdbPairing: () -> Unit,
+    val openDeveloperOptions: () -> Unit,
     val setAdbCode: (String) -> Unit,
     val pairAdb: () -> Unit,
     val refreshRows: () -> Unit,
