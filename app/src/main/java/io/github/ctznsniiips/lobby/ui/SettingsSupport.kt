@@ -77,6 +77,7 @@ class SettingsActions(
     val setCombineContinueNextUp: (value: Boolean) -> Unit,
     val scanWirelessAdb: () -> Unit,
     val startAdbPairing: () -> Unit,
+    val startAutoPair: () -> Unit,
     val stopAdbPairing: () -> Unit,
     val setAdbCode: (String) -> Unit,
     val pairAdb: () -> Unit,

@@ -63,6 +63,7 @@ class MainActivity : ComponentActivity() {
             setCombineContinueNextUp = viewModel::setCombineContinueNextUp,
             scanWirelessAdb = viewModel::scanWirelessAdb,
             startAdbPairing = viewModel::startAdbPairing,
+            startAutoPair = viewModel::startAutoPair,
             stopAdbPairing = viewModel::stopAdbPairing,
             setAdbCode = viewModel::setAdbCode,
             pairAdb = viewModel::pairAndConnect,

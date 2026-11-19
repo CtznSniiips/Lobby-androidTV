@@ -163,12 +163,16 @@ data class LobbyState(
     val adbPairStatus: String? = null,
     /** True while Lobby is watching in the background for the pairing dialog to appear. */
     val adbPairingActive: Boolean = false,
+    /** True when the current pairing session is auto-reading the code via the accessibility service. */
+    val adbAutoRead: Boolean = false,
 )
 
 class LobbyViewModel(app: Application) : AndroidViewModel(app) {
     private val store = SessionStore(app)
     private val device = TvDevice(app)
     private val wirelessAdb = io.github.ctznsniiips.lobby.device.WirelessAdb(app)
+    /** The last code auto-pair attempted, so a failed attempt doesn't retry the same code on every screen update. */
+    private var adbLastTriedCode: String? = null
 
     private val _state = MutableStateFlow(LobbyState(lastAddress = store.lastOrigin().orEmpty(), screenSaverMinutes = store.screenSaverMinutes(), homePromptDismissed = store.homePromptDismissed(), hiddenApps = store.hiddenApps(), hiddenInputs = store.hiddenInputs(), homeFont = store.homeFont(), bgMode = store.bgMode(), wallpaper = store.wallpaper(), focusStyle = store.focusStyle(), material = store.material(), homeLayout = store.homeLayout(), appDisplay = store.appDisplay(), combineContinueNextUp = store.combineContinueNextUp(), quietOnIdleMinutes = store.quietOnIdleMinutes(), checkForUpdates = store.checkForUpdates(), showUpdateNotice = store.showUpdateNotice(), updateDismissedVersion = store.dismissedUpdateVersion(), currentVersion = device.appVersionName()))
     val state: StateFlow<LobbyState> = _state.asStateFlow()
@@ -572,9 +576,69 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /**
+     * Auto-pair: Lobby reads the 6-digit code off the live pairing dialog via its accessibility service and pairs in
+     * the background, so the dialog never has to leave the screen (and its server stays alive). Needs Lobby's
+     * accessibility service enabled — the same one that drives the Home override.
+     */
+    fun startAutoPair() {
+        if (_state.value.adbPairingActive) return
+        if (!device.isHomeOverrideEnabled()) {
+            _state.update {
+                it.copy(adbPairStatus = "Auto-read needs Lobby's accessibility service. Enable it, then try again — or use \"Start pairing\" to type the code.")
+            }
+            return
+        }
+        adbLastTriedCode = null
+        _state.update {
+            it.copy(
+                adbPairingActive = true,
+                adbAutoRead = true,
+                adbCode = "",
+                adbPairStatus = "Open \"Pair device with pairing code\" on the TV and leave it on screen — Lobby will read the code and pair.",
+            )
+        }
+        io.github.ctznsniiips.lobby.device.AdbPairingBridge.start { code ->
+            // Called from the accessibility service thread; hop onto the VM scope.
+            viewModelScope.launch {
+                if (_state.value.adbCode != code) _state.update { it.copy(adbCode = code) }
+                maybeAutoPair()
+            }
+        }
+        wirelessAdb.watch { result ->
+            val status = when {
+                !result.supported -> result.note ?: "Not supported on this device."
+                result.pairingPort != 0 -> "Pairing dialog found. Reading the code…"
+                result.wirelessDebuggingOn -> "Wireless Debugging is on. Now open \"Pair device with pairing code\" on the TV."
+                else -> "Waiting… make sure Wireless Debugging is on under Developer options."
+            }
+            _state.update {
+                it.copy(
+                    adbConnectHost = result.connectHost ?: it.adbConnectHost,
+                    adbConnectPort = if (result.connectPort != 0) result.connectPort else it.adbConnectPort,
+                    adbPairingHost = result.pairingHost ?: it.adbPairingHost,
+                    adbPairingPort = if (result.pairingPort != 0) result.pairingPort else it.adbPairingPort,
+                    adbPairStatus = if (it.adbBusy) it.adbPairStatus else status,
+                )
+            }
+            viewModelScope.launch { maybeAutoPair() }
+        }
+    }
+
+    /** Fire the pair attempt once auto-read has both the code and the pairing endpoint, and nothing's in flight. */
+    private fun maybeAutoPair() {
+        val s = _state.value
+        if (s.adbAutoRead && !s.adbBusy && s.adbCode.length == 6 && s.adbPairingPort != 0 &&
+            s.adbConnectHost != null && s.adbCode != adbLastTriedCode
+        ) {
+            pairAndConnect()
+        }
+    }
+
     fun stopAdbPairing() {
         wirelessAdb.stop()
-        _state.update { it.copy(adbPairingActive = false) }
+        io.github.ctznsniiips.lobby.device.AdbPairingBridge.stop()
+        _state.update { it.copy(adbPairingActive = false, adbAutoRead = false) }
     }
 
     /**
@@ -604,6 +668,7 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
             }
         }
         val pairHost = s.adbPairingHost ?: host
+        adbLastTriedCode = code
         _state.update { it.copy(adbBusy = true, adbPairStatus = "Pairing…") }
         viewModelScope.launch {
             val status = withContext(Dispatchers.IO) {
@@ -633,12 +698,16 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
                 }
             }
             val ok = status.startsWith("Connected")
-            if (ok) wirelessAdb.stop()
+            if (ok) {
+                wirelessAdb.stop()
+                io.github.ctznsniiips.lobby.device.AdbPairingBridge.stop()
+            }
             _state.update {
                 it.copy(
                     adbBusy = false,
                     adbPairStatus = status,
                     adbPairingActive = if (ok) false else it.adbPairingActive,
+                    adbAutoRead = if (ok) false else it.adbAutoRead,
                 )
             }
         }

@@ -6,6 +6,8 @@ import android.content.pm.PackageManager
 import android.os.SystemClock
 import android.view.KeyEvent
 import android.view.accessibility.AccessibilityEvent
+import android.view.accessibility.AccessibilityNodeInfo
+import io.github.ctznsniiips.lobby.device.AdbPairingBridge
 
 /**
  * Recaptures the remote's Home button on devices that keep it wired to the stock launcher even after Lobby is
@@ -53,6 +55,15 @@ class HomeOverrideService : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent) {
+        // Experimental auto-pair: while armed, read the 6-digit code off the live Wireless Debugging pairing dialog
+        // (any non-Lobby window) so Lobby can pair without the user leaving the dialog. Runs on content changes too,
+        // since the code can render a beat after the window opens.
+        if (AdbPairingBridge.listening) {
+            val evtPkg = event.packageName?.toString()
+            if (evtPkg != null && evtPkg != packageName) {
+                scrapeSixDigitCode(rootInActiveWindow)?.let { AdbPairingBridge.submit(it) }
+            }
+        }
         if (event.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
         val pkg = event.packageName?.toString() ?: return
         val cls = event.className?.toString() ?: return
@@ -74,6 +85,19 @@ class HomeOverrideService : AccessibilityService() {
         launchLobby()
     }
 
+    /** Depth-first search for a text node that is exactly six digits — the pairing code, not the IP/port. */
+    private fun scrapeSixDigitCode(node: AccessibilityNodeInfo?): String? {
+        node ?: return null
+        val text = node.text?.toString()?.trim()
+        if (text != null && SIX_DIGITS.matches(text)) return text
+        for (i in 0 until node.childCount) {
+            val child = node.getChild(i) ?: continue
+            val found = scrapeSixDigitCode(child)
+            if (found != null) return found
+        }
+        return null
+    }
+
     private fun launchLobby() {
         val intent = Intent(this, MainActivity::class.java).apply {
             addCategory(Intent.CATEGORY_HOME)
@@ -83,4 +107,8 @@ class HomeOverrideService : AccessibilityService() {
     }
 
     override fun onInterrupt() {}
+
+    companion object {
+        private val SIX_DIGITS = Regex("^\\d{6}$")
+    }
 }

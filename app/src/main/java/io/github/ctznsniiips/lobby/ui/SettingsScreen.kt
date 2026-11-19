@@ -499,20 +499,32 @@ private fun CategoryDetail(
                         // Pairing on a single-screen TV: the pairing server only lives while the system "Pair device with
                         // pairing code" dialog is showing. So Lobby watches in the background, and the user returns with
                         // HOME (which pauses the dialog, keeping the server alive) — not Back, which cancels it.
-                        Text(
-                            "Pairing (one time):\n" +
-                                "1. Tap Start pairing below.\n" +
-                                "2. On the TV, open Settings → System → Developer options → Wireless debugging → \"Pair device with pairing code\".\n" +
-                                "3. Note the 6-digit code, then press the HOME button (not Back) to return to Lobby.\n" +
-                                "4. Type the code here and tap Pair & connect.",
-                            fontSize = 13.sp, color = LobbyColors.soft, lineHeight = 19.sp, modifier = Modifier.fillMaxWidth(0.95f),
-                        )
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            if (!homeState.adbPairingActive) {
-                                Button(onClick = actions.startAdbPairing, enabled = !homeState.adbBusy) { Text("Start pairing") }
+                        if (!homeState.adbPairingActive) {
+                            if (homeState.homeOverrideEnabled) {
+                                Text(
+                                    "Auto-pair (recommended): tap Pair automatically, then on the TV open Settings → System → " +
+                                        "Developer options → Wireless debugging → \"Pair device with pairing code\" and leave it on " +
+                                        "screen. Lobby reads the code and pairs — no typing, no Home button.",
+                                    fontSize = 13.sp, color = LobbyColors.soft, lineHeight = 19.sp, modifier = Modifier.fillMaxWidth(0.95f),
+                                )
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    Button(onClick = actions.startAutoPair, enabled = !homeState.adbBusy) { Text("Pair automatically") }
+                                    Button(onClick = actions.startAdbPairing, enabled = !homeState.adbBusy) { Text("Type code instead") }
+                                }
                             } else {
-                                Button(onClick = actions.stopAdbPairing, enabled = !homeState.adbBusy) { Text("Cancel") }
+                                Text(
+                                    "Manual pairing: tap Start pairing, open \"Pair device with pairing code\" on the TV, note the " +
+                                        "6-digit code, press HOME (not Back) to return to Lobby, then type the code. (Enable Lobby's " +
+                                        "accessibility service to skip the typing — Lobby can then read the code itself.)",
+                                    fontSize = 13.sp, color = LobbyColors.soft, lineHeight = 19.sp, modifier = Modifier.fillMaxWidth(0.95f),
+                                )
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    Button(onClick = actions.startAdbPairing, enabled = !homeState.adbBusy) { Text("Start pairing") }
+                                    Button(onClick = actions.openAccessibilitySettings) { Text("Enable accessibility") }
+                                }
                             }
+                        } else {
+                            Button(onClick = actions.stopAdbPairing, enabled = !homeState.adbBusy) { Text("Cancel") }
                         }
                         if (homeState.adbPairingActive) {
                             val focusManager = LocalFocusManager.current
