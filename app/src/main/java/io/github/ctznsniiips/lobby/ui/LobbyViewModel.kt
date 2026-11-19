@@ -167,6 +167,8 @@ data class LobbyState(
     val adbAutoRead: Boolean = false,
     /** True once Lobby has paired+connected to its own ADB daemon this session (self-install becomes available). */
     val adbConnected: Boolean = false,
+    /** True if Lobby has paired with this TV before (identity on disk), so it can reconnect without pairing again. */
+    val adbPairedBefore: Boolean = false,
 )
 
 class LobbyViewModel(app: Application) : AndroidViewModel(app) {
@@ -502,7 +504,46 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
                 homeOverrideEnabled = enabled,
                 canSelfEnableHome = canWrite,
                 overrideBlocked = blocked,
+                adbPairedBefore = hasAdbIdentity(),
             )
+        }
+    }
+
+    /** True if Lobby has an ADB identity on disk — i.e. it has paired with this TV at least once before. */
+    private fun hasAdbIdentity(): Boolean {
+        val dir = getApplication<Application>().filesDir
+        return java.io.File(dir, "private.key").exists() && java.io.File(dir, "cert.pem").exists()
+    }
+
+    /**
+     * Reconnect to this TV's already-paired ADB daemon without pairing again. Pairing persists (our key/cert on disk,
+     * the daemon's trust of it), so after an update or restart Lobby just needs to re-establish the TLS connection.
+     */
+    fun reconnectAdb() {
+        if (_state.value.adbBusy || _state.value.adbConnected) return
+        _state.update { it.copy(adbBusy = true, adbPairStatus = "Reconnecting to this TV's ADB…") }
+        viewModelScope.launch {
+            val ok = withContext(Dispatchers.IO) {
+                try {
+                    val app = getApplication<Application>()
+                    val manager = io.github.ctznsniiips.lobby.device.LobbyAdbConnectionManager.getInstance(app)
+                    manager.autoConnect(app, 10_000L)
+                    val probe = manager.openStream("shell:id")
+                    probe.openInputStream().bufferedReader().use { it.readText() }
+                    probe.close()
+                    true
+                } catch (e: Exception) {
+                    false
+                }
+            }
+            _state.update {
+                it.copy(
+                    adbBusy = false,
+                    adbConnected = ok,
+                    adbPairStatus = if (ok) "Reconnected — this TV is already paired."
+                    else "Couldn't reconnect. Make sure Wireless Debugging is on, or re-pair below.",
+                )
+            }
         }
     }
 
@@ -750,8 +791,9 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
      */
     fun selfInstallOverAdb() {
         if (_state.value.adbBusy) return
-        _state.update { it.copy(adbBusy = true, adbPairStatus = "Downloading update…") }
+        _state.update { it.copy(adbBusy = true, downloadingUpdate = true, adbPairStatus = "Downloading update…") }
         viewModelScope.launch {
+            var connected = _state.value.adbConnected
             val status = withContext(Dispatchers.IO) {
                 try {
                     val app = getApplication<Application>()
@@ -760,10 +802,22 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
                     if (url != null) {
                         if (!UpdateChecker.download(url, file)) return@withContext "Couldn't download the update."
                     } else if (!file.exists()) {
-                        return@withContext "No update downloaded. Tap \"Check for updates\" first."
+                        return@withContext "No update available. Tap \"Check now\" first."
                     }
                     val manager = io.github.ctznsniiips.lobby.device.LobbyAdbConnectionManager.getInstance(app)
-                    try { manager.openStream("shell:true").close() } catch (e: Exception) { manager.autoConnect(app, 10_000L) }
+                    // Ensure a live connection. Pairing persists, so autoConnect reconnects without re-pairing; if it
+                    // can't, the TV isn't paired (or Wireless Debugging is off) and we send the user to pair.
+                    try {
+                        manager.openStream("shell:true").close()
+                    } catch (e: Exception) {
+                        try {
+                            manager.autoConnect(app, 10_000L)
+                        } catch (e2: Exception) {
+                            return@withContext "Couldn't reach this TV's ADB. Pair Lobby first under Settings → System → " +
+                                "Experimental, and make sure Wireless Debugging is on."
+                        }
+                    }
+                    connected = true
                     _state.update { it.copy(adbPairStatus = "Installing update over ADB…") }
                     val size = file.length()
                     // Use a package-install session instead of stdin streaming: libadb has no half-close, so a single
@@ -788,7 +842,10 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
                     "Install error: ${e.message ?: e.javaClass.simpleName}"
                 }
             }
-            _state.update { it.copy(adbBusy = false, adbPairStatus = status) }
+            val ok = status.startsWith("Update installed")
+            _state.update { it.copy(adbBusy = false, downloadingUpdate = false, adbConnected = connected, adbPairStatus = status) }
+            // Surface the outcome outside the experimental panel too (e.g. when triggered from the Updates section).
+            if (!ok) say(status)
         }
     }
 
@@ -920,23 +977,6 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
     fun openLatestRelease() {
         val url = _state.value.updateUrl ?: return
         if (!device.openUrl(url)) say("Couldn't open the releases page. Find it on GitHub: CtznSniiips/Lobby-androidTV.")
-    }
-
-    /** Downloads the latest release's APK and hands it to the system installer. Falls back to the page if there's no APK asset. */
-    fun downloadAndInstall() {
-        if (_state.value.downloadingUpdate) return
-        val url = _state.value.updateApkUrl ?: run { openLatestRelease(); return }
-        _state.update { it.copy(downloadingUpdate = true) }
-        viewModelScope.launch {
-            val file = File(getApplication<Application>().cacheDir, "lobby-update.apk")
-            val ok = UpdateChecker.download(url, file)
-            _state.update { it.copy(downloadingUpdate = false) }
-            if (!ok) {
-                say("Couldn't download the update.")
-            } else if (!device.installApk(file)) {
-                say("Downloaded, but couldn't open the installer.")
-            }
-        }
     }
 
     // ---- Lobby settings (this TV's own rows, limits and teams) ---------------------------------
