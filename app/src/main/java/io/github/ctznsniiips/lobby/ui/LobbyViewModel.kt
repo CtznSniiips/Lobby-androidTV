@@ -501,11 +501,12 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
             val summary = when {
                 !result.supported -> result.note ?: "Not supported on this device."
                 result.wirelessDebuggingOn -> buildString {
-                    append("Wireless Debugging detected")
+                    append("This TV's Wireless Debugging detected")
                     if (result.connectHost != null && result.connectPort != 0) {
                         append(" at ${result.connectHost}:${result.connectPort}")
                     }
                     if (result.pairingPort != 0) append(" · pairing dialog open on port ${result.pairingPort}")
+                    if (result.otherDevices > 0) append(" (ignored ${result.otherDevices} other device(s))")
                 }
                 else -> result.note ?: "No Wireless Debugging service found."
             }

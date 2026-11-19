@@ -26,12 +26,14 @@ import java.util.concurrent.atomic.AtomicBoolean
 class WirelessAdb(context: Context) {
 
     data class Result(
-        /** True if the "_adb-tls-connect._tcp" service was seen — i.e. Wireless Debugging is enabled. */
+        /** True if THIS device's own "_adb-tls-connect._tcp" service was seen — i.e. our Wireless Debugging is enabled. */
         val wirelessDebuggingOn: Boolean = false,
         val connectHost: String? = null,
         val connectPort: Int = 0,
-        /** Non-zero only while the pairing dialog is open. */
+        /** Non-zero only while the pairing dialog is open on THIS device. */
         val pairingPort: Int = 0,
+        /** How many OTHER devices on the LAN were advertising an ADB daemon (ignored — we only ever target ourselves). */
+        val otherDevices: Int = 0,
         val supported: Boolean = true,
         val note: String? = null,
     )
@@ -72,19 +74,29 @@ class WirelessAdb(context: Context) {
         var connectPort = 0
         var pairingPort = 0
         var sawConnect = false
+        val otherHosts = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+        val localIps = localAddresses()
         val done = AtomicBoolean(false)
 
         fun finish() {
             if (!done.compareAndSet(false, true)) return
             stop()
             connectListener.set(false)
+            val note = when {
+                sawConnect -> null
+                otherHosts.isNotEmpty() ->
+                    "This TV isn't advertising Wireless Debugging (saw ${otherHosts.size} other device(s), ignored). " +
+                        "Turn it on under Developer options → Wireless debugging."
+                else -> "No Wireless Debugging service found. Turn it on under Developer options → Wireless debugging."
+            }
             onResult(
                 Result(
                     wirelessDebuggingOn = sawConnect,
                     connectHost = connectHost,
                     connectPort = connectPort,
                     pairingPort = pairingPort,
-                    note = if (!sawConnect) "No Wireless Debugging service found. Turn it on under Developer options." else null,
+                    otherDevices = otherHosts.size,
+                    note = note,
                 )
             )
         }
@@ -105,13 +117,20 @@ class WirelessAdb(context: Context) {
 
                 override fun onServiceResolved(serviceInfo: NsdServiceInfo) {
                     val type = serviceInfo.serviceType ?: ""
-                    @Suppress("DEPRECATION") val host = serviceInfo.host?.hostAddress
+                    @Suppress("DEPRECATION") val host = serviceInfo.host?.hostAddress?.substringBefore('%')
                     val port = serviceInfo.port
+                    // Only ever accept an endpoint that belongs to THIS device: mDNS surfaces every device on the LAN
+                    // with Wireless Debugging on, but Lobby can only install on itself, so a neighbour's daemon is noise.
+                    val isOurs = host != null && localIps.contains(host)
                     if (type.contains("adb-tls-connect")) {
-                        sawConnect = true
-                        connectHost = host
-                        connectPort = port
-                    } else if (type.contains("adb-tls-pairing")) {
+                        if (isOurs) {
+                            sawConnect = true
+                            connectHost = host
+                            connectPort = port
+                        } else if (host != null) {
+                            otherHosts.add(host)
+                        }
+                    } else if (type.contains("adb-tls-pairing") && isOurs) {
                         pairingPort = port
                     }
                     resolving.set(false)
@@ -126,7 +145,7 @@ class WirelessAdb(context: Context) {
             override fun onDiscoveryStarted(serviceType: String) {}
             override fun onDiscoveryStopped(serviceType: String) {}
             override fun onServiceFound(serviceInfo: NsdServiceInfo) {
-                if (serviceInfo.serviceType?.contains("adb-tls-connect") == true) sawConnect = true
+                // Resolve it to learn its host/port; onServiceResolved decides whether it's ours.
                 resolveQueue.add(serviceInfo)
                 pumpResolves()
             }
@@ -149,6 +168,22 @@ class WirelessAdb(context: Context) {
 
         // One-shot: report whatever we have after the window closes.
         android.os.Handler(appContext.mainLooper).postDelayed({ finish() }, timeoutMs)
+    }
+
+    /** Every IP address bound to one of this device's own up interfaces, IPv6 zone id stripped, for self-matching. */
+    private fun localAddresses(): Set<String> {
+        val out = mutableSetOf<String>()
+        try {
+            for (ni in java.util.Collections.list(java.net.NetworkInterface.getNetworkInterfaces())) {
+                if (!ni.isUp) continue
+                for (addr in java.util.Collections.list(ni.inetAddresses)) {
+                    addr.hostAddress?.substringBefore('%')?.let { out.add(it) }
+                }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "localAddresses failed", e)
+        }
+        return out
     }
 
     fun stop() {
