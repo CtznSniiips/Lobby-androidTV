@@ -5,6 +5,11 @@ All notable changes to Lobby for Android TV are recorded here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.14.0] - 11/19/2026
+
+### Changed
+- Installing an update now re-checks GitHub for the current latest release at that moment and installs that, instead of whatever version an earlier update-check had cached. If you're already on the newest version it says so rather than reinstalling.
+
 ## [v0.13.0] - 11/19/2026
 
 ### Added
@@ -98,6 +103,7 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 - Fixed signing key via a GitHub Actions secret, so new builds install over older ones without uninstalling.
 
 [Unreleased]: https://github.com/CtznSniiips/Lobby-androidTV/compare/v0.12.0...HEAD
+[v0.14.0]: https://github.com/CtznSniiips/Lobby-androidTV/compare/v0.13.0...v0.14.0
 [v0.13.0]: https://github.com/CtznSniiips/Lobby-androidTV/compare/v0.12.0...v0.13.0
 [v0.12.0]: https://github.com/CtznSniiips/Lobby-androidTV/compare/v0.11.0...v0.12.0
 [v0.11.0]: https://github.com/CtznSniiips/Lobby-androidTV/compare/v0.10.0...v0.11.0

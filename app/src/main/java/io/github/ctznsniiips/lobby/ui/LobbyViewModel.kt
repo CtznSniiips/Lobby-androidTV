@@ -798,7 +798,24 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
                 try {
                     val app = getApplication<Application>()
                     val file = File(app.cacheDir, "lobby-update.apk")
-                    val url = _state.value.updateApkUrl
+                    // Re-fetch the latest release now, so we install the current latest rather than whatever the last
+                    // update-check captured (which may be stale). Refresh the UI's update info from it too.
+                    val fresh = UpdateChecker.latest()
+                    if (fresh != null) {
+                        _state.update {
+                            it.copy(
+                                latestVersion = fresh.version,
+                                updateUrl = fresh.url,
+                                updateNotes = fresh.notes.ifBlank { null },
+                                updateApkUrl = fresh.apkUrl,
+                                updateAvailable = UpdateChecker.isNewer(fresh.version, it.currentVersion),
+                            )
+                        }
+                        if (!UpdateChecker.isNewer(fresh.version, _state.value.currentVersion)) {
+                            return@withContext "Already on the latest version (${_state.value.currentVersion})."
+                        }
+                    }
+                    val url = fresh?.apkUrl ?: _state.value.updateApkUrl
                     if (url != null) {
                         if (!UpdateChecker.download(url, file)) return@withContext "Couldn't download the update."
                     } else if (!file.exists()) {
