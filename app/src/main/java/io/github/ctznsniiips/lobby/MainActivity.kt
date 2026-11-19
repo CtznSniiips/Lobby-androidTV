@@ -62,6 +62,8 @@ class MainActivity : ComponentActivity() {
             setAppDisplay = viewModel::setAppDisplay,
             setCombineContinueNextUp = viewModel::setCombineContinueNextUp,
             scanWirelessAdb = viewModel::scanWirelessAdb,
+            startAdbPairing = viewModel::startAdbPairing,
+            stopAdbPairing = viewModel::stopAdbPairing,
             setAdbCode = viewModel::setAdbCode,
             pairAdb = viewModel::pairAndConnect,
             refreshRows = viewModel::refreshHome,

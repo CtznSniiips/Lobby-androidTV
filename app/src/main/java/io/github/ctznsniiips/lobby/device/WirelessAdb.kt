@@ -9,19 +9,18 @@ import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
- * Experimental: finds Android's Wireless Debugging (ADB-over-TLS) endpoints on this device using mDNS.
+ * Experimental: finds Android's Wireless Debugging (ADB-over-TLS) endpoints on THIS device using mDNS.
  *
- * This is the first, standalone step of the self-update-over-ADB spike. Before Lobby can ever pair with and drive the
- * on-device ADB daemon to install its own updates, it has to prove it can even *see* that daemon — and find the host
- * and port Android assigns it, which are randomized and not shown anywhere the user can copy. This class answers only
- * that question. Pairing (SPAKE2 + TLS) and the ADB wire protocol come in a later phase on top of a vetted library.
+ * Two modes:
+ *  - [scan] — a one-shot probe that reports once, used to confirm Wireless Debugging is on and grab the connect host/port.
+ *  - [watch] — a continuous watch used during pairing. The catch on a single-screen TV is that Android only advertises
+ *    "_adb-tls-pairing._tcp" (and keeps its pairing server alive) WHILE the "Pair device with pairing code" dialog is
+ *    showing. Lobby can't be foreground at the same time, so instead it watches in the background, captures and holds
+ *    the pairing port the instant the dialog opens, and the user returns to Lobby with HOME (which only pauses the
+ *    dialog, leaving the server alive) rather than BACK (which dismisses it).
  *
- * Android advertises two Bonjour/mDNS service types on the loopback/LAN while Wireless Debugging is on:
- *   - "_adb-tls-connect._tcp"  — the connectable daemon; present whenever Wireless Debugging is enabled.
- *   - "_adb-tls-pairing._tcp"  — only while the "Pair device with pairing code" dialog is actually open.
- *
- * So discovering the connect service tells us Wireless Debugging is on and hands us host:port; discovering the pairing
- * service tells us the user currently has the pairing dialog up (and its one-shot port).
+ * Every endpoint is matched against this device's own interface addresses: mDNS surfaces every device on the LAN with
+ * Wireless Debugging on, but Lobby can only ever install on itself, so a neighbour's daemon is noise.
  */
 class WirelessAdb(context: Context) {
 
@@ -41,134 +40,156 @@ class WirelessAdb(context: Context) {
     private val appContext = context.applicationContext
     private val nsd = appContext.getSystemService(Context.NSD_SERVICE) as? NsdManager
 
-    private val connectListener = AtomicBoolean(false)
     private var connectDiscovery: NsdManager.DiscoveryListener? = null
     private var pairingDiscovery: NsdManager.DiscoveryListener? = null
-
-    // Resolves have to be serialized: on API < 34 a second concurrent resolve fails with FAILURE_ALREADY_ACTIVE.
     private val resolveQueue = ConcurrentLinkedQueue<NsdServiceInfo>()
     private val resolving = AtomicBoolean(false)
+    private val active = AtomicBoolean(false)
 
-    /**
-     * Runs discovery for [timeoutMs] and reports once with whatever was found. Safe to call again after it reports.
-     * [onResult] is posted off the NSD callback thread; callers should hop to their own thread/state as needed.
-     */
+    // State for the running session (one scan or watch at a time).
+    @Volatile private var sawConnect = false
+    @Volatile private var connectHost: String? = null
+    @Volatile private var connectPort = 0
+    @Volatile private var pairingPort = 0
+    private val otherHosts = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+    @Volatile private var localIps: Set<String> = emptySet()
+    @Volatile private var reporter: ((Result) -> Unit)? = null
+
+    /** One-shot detect: starts discovery, reports once after [timeoutMs], then stops. */
     fun scan(timeoutMs: Long = 4_000L, onResult: (Result) -> Unit) {
-        val manager = nsd
-        if (manager == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
-            onResult(
-                Result(
-                    supported = false,
-                    note = if (manager == null) "This device has no network service discovery."
-                    else "Wireless Debugging needs Android 11 or newer.",
-                )
-            )
-            return
+        when (begin(continuous = false)) {
+            StartResult.UNSUPPORTED -> { onResult(Result(supported = false, note = unsupportedNote())); return }
+            StartResult.BUSY -> { onResult(Result(note = "A scan is already running.")); return }
+            StartResult.FAILED -> { onResult(Result(supported = false, note = "Couldn't start discovery.")); return }
+            StartResult.OK -> {}
         }
-        if (!connectListener.compareAndSet(false, true)) {
-            onResult(Result(note = "A scan is already running."))
-            return
-        }
-
-        var connectHost: String? = null
-        var connectPort = 0
-        var pairingPort = 0
-        var sawConnect = false
-        val otherHosts = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
-        val localIps = localAddresses()
-        val done = AtomicBoolean(false)
-
-        fun finish() {
-            if (!done.compareAndSet(false, true)) return
+        android.os.Handler(appContext.mainLooper).postDelayed({
+            val r = snapshot()
             stop()
-            connectListener.set(false)
-            val note = when {
-                sawConnect -> null
-                otherHosts.isNotEmpty() ->
-                    "This TV isn't advertising Wireless Debugging (saw ${otherHosts.size} other device(s), ignored). " +
-                        "Turn it on under Developer options → Wireless debugging."
-                else -> "No Wireless Debugging service found. Turn it on under Developer options → Wireless debugging."
-            }
-            onResult(
-                Result(
-                    wirelessDebuggingOn = sawConnect,
-                    connectHost = connectHost,
-                    connectPort = connectPort,
-                    pairingPort = pairingPort,
-                    otherDevices = otherHosts.size,
-                    note = note,
-                )
-            )
+            onResult(r)
+        }, timeoutMs)
+    }
+
+    /** Continuous watch for the pairing flow: calls [onUpdate] now and whenever the known endpoints change, until [stop]. */
+    fun watch(onUpdate: (Result) -> Unit) {
+        when (begin(continuous = true)) {
+            StartResult.UNSUPPORTED -> { onUpdate(Result(supported = false, note = unsupportedNote())); return }
+            StartResult.BUSY -> { onUpdate(Result(note = "Already watching.")); return }
+            StartResult.FAILED -> { onUpdate(Result(supported = false, note = "Couldn't start discovery.")); return }
+            StartResult.OK -> { reporter = onUpdate; onUpdate(snapshot()) }
         }
+    }
 
-        fun pumpResolves() {
-            if (!resolving.compareAndSet(false, true)) return
-            val next = resolveQueue.poll()
-            if (next == null) {
-                resolving.set(false)
-                return
+    private enum class StartResult { OK, BUSY, UNSUPPORTED, FAILED }
+
+    private fun begin(continuous: Boolean): StartResult {
+        val manager = nsd ?: return StartResult.UNSUPPORTED
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return StartResult.UNSUPPORTED
+        if (!active.compareAndSet(false, true)) return StartResult.BUSY
+        sawConnect = false
+        connectHost = null
+        connectPort = 0
+        pairingPort = 0
+        otherHosts.clear()
+        resolveQueue.clear()
+        resolving.set(false)
+        reporter = null
+        localIps = localAddresses()
+        return try {
+            connectDiscovery = discoveryFor(manager).also {
+                manager.discoverServices("_adb-tls-connect._tcp", NsdManager.PROTOCOL_DNS_SD, it)
             }
-            @Suppress("DEPRECATION")
-            manager.resolveService(next, object : NsdManager.ResolveListener {
-                override fun onResolveFailed(serviceInfo: NsdServiceInfo, errorCode: Int) {
-                    resolving.set(false)
-                    pumpResolves()
-                }
-
-                override fun onServiceResolved(serviceInfo: NsdServiceInfo) {
-                    val type = serviceInfo.serviceType ?: ""
-                    @Suppress("DEPRECATION") val host = serviceInfo.host?.hostAddress?.substringBefore('%')
-                    val port = serviceInfo.port
-                    // Only ever accept an endpoint that belongs to THIS device: mDNS surfaces every device on the LAN
-                    // with Wireless Debugging on, but Lobby can only install on itself, so a neighbour's daemon is noise.
-                    val isOurs = host != null && localIps.contains(host)
-                    if (type.contains("adb-tls-connect")) {
-                        if (isOurs) {
-                            sawConnect = true
-                            connectHost = host
-                            connectPort = port
-                        } else if (host != null) {
-                            otherHosts.add(host)
-                        }
-                    } else if (type.contains("adb-tls-pairing") && isOurs) {
-                        pairingPort = port
-                    }
-                    resolving.set(false)
-                    pumpResolves()
-                }
-            })
+            pairingDiscovery = discoveryFor(manager).also {
+                manager.discoverServices("_adb-tls-pairing._tcp", NsdManager.PROTOCOL_DNS_SD, it)
+            }
+            StartResult.OK
+        } catch (e: Exception) {
+            Log.w(TAG, "discovery start failed", e)
+            active.set(false)
+            StartResult.FAILED
         }
+    }
 
-        fun discoveryFor(type: String): NsdManager.DiscoveryListener = object : NsdManager.DiscoveryListener {
+    private fun discoveryFor(manager: NsdManager): NsdManager.DiscoveryListener =
+        object : NsdManager.DiscoveryListener {
             override fun onStartDiscoveryFailed(serviceType: String, errorCode: Int) {}
             override fun onStopDiscoveryFailed(serviceType: String, errorCode: Int) {}
             override fun onDiscoveryStarted(serviceType: String) {}
             override fun onDiscoveryStopped(serviceType: String) {}
             override fun onServiceFound(serviceInfo: NsdServiceInfo) {
-                // Resolve it to learn its host/port; onServiceResolved decides whether it's ours.
                 resolveQueue.add(serviceInfo)
-                pumpResolves()
+                pumpResolves(manager)
             }
-            override fun onServiceLost(serviceInfo: NsdServiceInfo) {}
+            override fun onServiceLost(serviceInfo: NsdServiceInfo) {
+                // The pairing dialog was dismissed or the daemon went away: drop the stale pairing port.
+                if (serviceInfo.serviceType?.contains("adb-tls-pairing") == true && pairingPort != 0) {
+                    pairingPort = 0
+                    reporter?.invoke(snapshot())
+                }
+            }
         }
 
-        try {
-            connectDiscovery = discoveryFor("_adb-tls-connect._tcp").also {
-                manager.discoverServices("_adb-tls-connect._tcp", NsdManager.PROTOCOL_DNS_SD, it)
-            }
-            pairingDiscovery = discoveryFor("_adb-tls-pairing._tcp").also {
-                manager.discoverServices("_adb-tls-pairing._tcp", NsdManager.PROTOCOL_DNS_SD, it)
-            }
-        } catch (e: Exception) {
-            Log.w(TAG, "discovery start failed", e)
-            connectListener.set(false)
-            onResult(Result(supported = false, note = "Couldn't start discovery: ${e.message}"))
+    private fun pumpResolves(manager: NsdManager) {
+        if (!resolving.compareAndSet(false, true)) return
+        val next = resolveQueue.poll()
+        if (next == null) {
+            resolving.set(false)
             return
         }
+        @Suppress("DEPRECATION")
+        manager.resolveService(next, object : NsdManager.ResolveListener {
+            override fun onResolveFailed(serviceInfo: NsdServiceInfo, errorCode: Int) {
+                resolving.set(false)
+                pumpResolves(manager)
+            }
 
-        // One-shot: report whatever we have after the window closes.
-        android.os.Handler(appContext.mainLooper).postDelayed({ finish() }, timeoutMs)
+            override fun onServiceResolved(serviceInfo: NsdServiceInfo) {
+                val type = serviceInfo.serviceType ?: ""
+                @Suppress("DEPRECATION") val host = serviceInfo.host?.hostAddress?.substringBefore('%')
+                val port = serviceInfo.port
+                // Only ever accept an endpoint that belongs to THIS device.
+                val isOurs = host != null && localIps.contains(host)
+                var changed = false
+                if (type.contains("adb-tls-connect")) {
+                    if (isOurs) {
+                        sawConnect = true
+                        connectHost = host
+                        connectPort = port
+                        changed = true
+                    } else if (host != null) {
+                        changed = otherHosts.add(host)
+                    }
+                } else if (type.contains("adb-tls-pairing") && isOurs) {
+                    pairingPort = port
+                    changed = true
+                }
+                resolving.set(false)
+                if (changed) reporter?.invoke(snapshot())
+                pumpResolves(manager)
+            }
+        })
     }
+
+    private fun snapshot(): Result {
+        val note = when {
+            sawConnect -> null
+            otherHosts.isNotEmpty() ->
+                "This TV isn't advertising Wireless Debugging (saw ${otherHosts.size} other device(s), ignored). " +
+                    "Turn it on under Developer options → Wireless debugging."
+            else -> "No Wireless Debugging service found. Turn it on under Developer options → Wireless debugging."
+        }
+        return Result(
+            wirelessDebuggingOn = sawConnect,
+            connectHost = connectHost,
+            connectPort = connectPort,
+            pairingPort = pairingPort,
+            otherDevices = otherHosts.size,
+            note = note,
+        )
+    }
+
+    private fun unsupportedNote(): String =
+        if (nsd == null) "This device has no network service discovery." else "Wireless Debugging needs Android 11 or newer."
 
     /** Every IP address bound to one of this device's own up interfaces, IPv6 zone id stripped, for self-matching. */
     private fun localAddresses(): Set<String> {
@@ -187,13 +208,17 @@ class WirelessAdb(context: Context) {
     }
 
     fun stop() {
-        val manager = nsd ?: return
-        connectDiscovery?.let { runCatching { manager.stopServiceDiscovery(it) } }
-        pairingDiscovery?.let { runCatching { manager.stopServiceDiscovery(it) } }
+        val manager = nsd
+        reporter = null
+        if (manager != null) {
+            connectDiscovery?.let { runCatching { manager.stopServiceDiscovery(it) } }
+            pairingDiscovery?.let { runCatching { manager.stopServiceDiscovery(it) } }
+        }
         connectDiscovery = null
         pairingDiscovery = null
         resolveQueue.clear()
         resolving.set(false)
+        active.set(false)
     }
 
     companion object {

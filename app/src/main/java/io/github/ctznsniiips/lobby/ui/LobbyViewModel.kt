@@ -160,6 +160,8 @@ data class LobbyState(
     val adbCode: String = "",
     val adbBusy: Boolean = false,
     val adbPairStatus: String? = null,
+    /** True while Lobby is watching in the background for the pairing dialog to appear. */
+    val adbPairingActive: Boolean = false,
 )
 
 class LobbyViewModel(app: Application) : AndroidViewModel(app) {
@@ -535,6 +537,45 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /**
+     * Start watching in the background for the Wireless Debugging pairing dialog. The user taps this, then opens
+     * "Pair device with pairing code" on the TV, reads the 6-digit code, and presses HOME (not Back) to return to
+     * Lobby — Home only pauses the dialog, so its pairing server stays alive and the port Lobby captured stays valid.
+     */
+    fun startAdbPairing() {
+        if (_state.value.adbPairingActive) return
+        _state.update {
+            it.copy(
+                adbPairingActive = true,
+                adbPairStatus = "Waiting… turn on Wireless Debugging, then open \"Pair device with pairing code\" on the TV.",
+            )
+        }
+        wirelessAdb.watch { result ->
+            val status = when {
+                !result.supported -> result.note ?: "Not supported on this device."
+                result.pairingPort != 0 ->
+                    "Pairing dialog found. Press HOME to come back here, type the 6-digit code, then Pair & connect."
+                result.wirelessDebuggingOn ->
+                    "Wireless Debugging is on. Now open \"Pair device with pairing code\" on the TV."
+                else -> "Waiting… make sure Wireless Debugging is on under Developer options."
+            }
+            _state.update {
+                it.copy(
+                    adbConnectHost = result.connectHost ?: it.adbConnectHost,
+                    adbConnectPort = if (result.connectPort != 0) result.connectPort else it.adbConnectPort,
+                    adbPairingPort = if (result.pairingPort != 0) result.pairingPort else it.adbPairingPort,
+                    // Don't stomp on the live pair/connect status while a pairing attempt is actually running.
+                    adbPairStatus = if (it.adbBusy) it.adbPairStatus else status,
+                )
+            }
+        }
+    }
+
+    fun stopAdbPairing() {
+        wirelessAdb.stop()
+        _state.update { it.copy(adbPairingActive = false) }
+    }
+
+    /**
      * Experimental: pair with this device's own ADB daemon using the 6-digit code shown in the Wireless Debugging
      * "Pair device with pairing code" dialog, then connect and run a harmless probe command to prove the channel works.
      * Self-install (streaming the downloaded APK) is deliberately a separate, later step, gated on this succeeding.
@@ -576,7 +617,15 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
                     "Error: ${e.message ?: e.javaClass.simpleName}"
                 }
             }
-            _state.update { it.copy(adbBusy = false, adbPairStatus = status) }
+            val ok = status.startsWith("Connected")
+            if (ok) wirelessAdb.stop()
+            _state.update {
+                it.copy(
+                    adbBusy = false,
+                    adbPairStatus = status,
+                    adbPairingActive = if (ok) false else it.adbPairingActive,
+                )
+            }
         }
     }
 
@@ -742,6 +791,7 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
             updateSettings { it.copy(teamsOpen = false) }
             return
         }
+        if (_state.value.adbPairingActive) stopAdbPairing()
         saveJob?.cancel()
         val client = api
         _state.update { it.copy(settings = null) }

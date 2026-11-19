@@ -490,43 +490,56 @@ private fun CategoryDetail(
                         homeState.adbScanResult?.let {
                             Text(it, fontSize = 13.sp, color = LobbyColors.accent, lineHeight = 18.sp, modifier = Modifier.fillMaxWidth(0.9f))
                         }
-                        Button(onClick = actions.scanWirelessAdb, enabled = !homeState.adbScanning) {
+                        Button(onClick = actions.scanWirelessAdb, enabled = !homeState.adbScanning && !homeState.adbPairingActive) {
                             Text(if (homeState.adbScanning) "Scanning…" else "Scan for Wireless Debugging")
                         }
-                        // Pairing: enter the 6-digit code from the TV's "Pair device with pairing code" dialog, then
-                        // pair + connect to this device's own ADB daemon and run a harmless probe to prove the channel.
+                        // Pairing on a single-screen TV: the pairing server only lives while the system "Pair device with
+                        // pairing code" dialog is showing. So Lobby watches in the background, and the user returns with
+                        // HOME (which pauses the dialog, keeping the server alive) — not Back, which cancels it.
                         Text(
-                            "To pair: open \"Pair device with pairing code\" on the TV, Scan again to catch the pairing " +
-                                "port, enter the 6-digit code, then Pair & connect.",
-                            fontSize = 13.sp, color = LobbyColors.soft, lineHeight = 18.sp, modifier = Modifier.fillMaxWidth(0.9f),
+                            "Pairing (one time):\n" +
+                                "1. Tap Start pairing below.\n" +
+                                "2. On the TV, open Settings → System → Developer options → Wireless debugging → \"Pair device with pairing code\".\n" +
+                                "3. Note the 6-digit code, then press the HOME button (not Back) to return to Lobby.\n" +
+                                "4. Type the code here and tap Pair & connect.",
+                            fontSize = 13.sp, color = LobbyColors.soft, lineHeight = 19.sp, modifier = Modifier.fillMaxWidth(0.95f),
                         )
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            BasicTextField(
-                                value = homeState.adbCode,
-                                onValueChange = actions.setAdbCode,
-                                enabled = !homeState.adbBusy,
-                                singleLine = true,
-                                textStyle = TextStyle(color = LobbyColors.ink, fontSize = 20.sp),
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                modifier = Modifier
-                                    .width(140.dp)
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(LobbyColors.soft.copy(alpha = 0.15f))
-                                    .border(BorderStroke(1.dp, LobbyColors.soft), RoundedCornerShape(8.dp))
-                                    .padding(horizontal = 12.dp, vertical = 10.dp),
-                                decorationBox = { inner ->
-                                    if (homeState.adbCode.isEmpty()) {
-                                        Text("000000", fontSize = 20.sp, color = LobbyColors.soft)
-                                    }
-                                    inner()
-                                },
-                            )
-                            Button(onClick = actions.pairAdb, enabled = !homeState.adbBusy) {
-                                Text(if (homeState.adbBusy) "Working…" else "Pair & connect")
+                            if (!homeState.adbPairingActive) {
+                                Button(onClick = actions.startAdbPairing, enabled = !homeState.adbBusy) { Text("Start pairing") }
+                            } else {
+                                Button(onClick = actions.stopAdbPairing, enabled = !homeState.adbBusy) { Text("Cancel") }
+                            }
+                        }
+                        if (homeState.adbPairingActive) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                BasicTextField(
+                                    value = homeState.adbCode,
+                                    onValueChange = actions.setAdbCode,
+                                    enabled = !homeState.adbBusy,
+                                    singleLine = true,
+                                    textStyle = TextStyle(color = LobbyColors.ink, fontSize = 20.sp),
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                    modifier = Modifier
+                                        .width(140.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(LobbyColors.soft.copy(alpha = 0.15f))
+                                        .border(BorderStroke(1.dp, LobbyColors.soft), RoundedCornerShape(8.dp))
+                                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                                    decorationBox = { inner ->
+                                        if (homeState.adbCode.isEmpty()) {
+                                            Text("000000", fontSize = 20.sp, color = LobbyColors.soft)
+                                        }
+                                        inner()
+                                    },
+                                )
+                                Button(onClick = actions.pairAdb, enabled = !homeState.adbBusy && homeState.adbCode.length == 6) {
+                                    Text(if (homeState.adbBusy) "Working…" else "Pair & connect")
+                                }
                             }
                         }
                         homeState.adbPairStatus?.let {
-                            Text(it, fontSize = 13.sp, color = LobbyColors.accent, lineHeight = 18.sp, modifier = Modifier.fillMaxWidth(0.9f))
+                            Text(it, fontSize = 13.sp, color = LobbyColors.accent, lineHeight = 18.sp, modifier = Modifier.fillMaxWidth(0.95f))
                         }
                     }
                 }
