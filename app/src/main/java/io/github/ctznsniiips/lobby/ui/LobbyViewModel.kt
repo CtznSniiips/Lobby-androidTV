@@ -598,15 +598,19 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
                 adbPairStatus = "Open \"Pair device with pairing code\" on the TV and leave it on screen — Lobby will read the code and pair.",
             )
         }
-        // Source 1 — the accessibility service: reads the 6-digit code (and the IP:port if the dialog shows it).
+        // Source 1 — the accessibility service: the 6-digit code is what we need from it. Its IP:port is unreliable as
+        // the pairing endpoint: the Wireless debugging screen (shown before the dialog) displays the *connect* endpoint,
+        // and scraping that would make us pair against the wrong port. So only trust a scraped port we can confirm is
+        // NOT the connect port; the authoritative pairing port comes from mDNS (_adb-tls-pairing) below.
         io.github.ctznsniiips.lobby.device.AdbPairingBridge.start { scraped ->
             viewModelScope.launch {
                 _state.update {
+                    val scrapedIsPairing = scraped.port != 0 && it.adbConnectPort != 0 && scraped.port != it.adbConnectPort
                     applyAutoPairProgress(
                         it,
                         code = scraped.code ?: it.adbCode,
-                        pairingHost = scraped.host ?: it.adbPairingHost,
-                        pairingPort = if (scraped.port != 0) scraped.port else it.adbPairingPort,
+                        pairingHost = if (scrapedIsPairing) (scraped.host ?: it.adbPairingHost) else it.adbPairingHost,
+                        pairingPort = if (scrapedIsPairing) scraped.port else it.adbPairingPort,
                     )
                 }
                 maybeAutoPair()
