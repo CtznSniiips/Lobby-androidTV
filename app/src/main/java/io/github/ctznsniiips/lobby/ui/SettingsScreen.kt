@@ -465,8 +465,8 @@ private fun CategoryDetail(
                             }
                             Button(onClick = actions.checkForUpdatesNow, enabled = !homeState.downloadingUpdate) { Text("Check now") }
                             if (homeState.updateAvailable) {
-                                Button(onClick = actions.downloadAndInstall, enabled = !homeState.downloadingUpdate) {
-                                    Text(if (homeState.downloadingUpdate) "Downloading…" else "Download & install")
+                                Button(onClick = actions.selfInstallOverAdb, enabled = !homeState.adbBusy) {
+                                    Text(if (homeState.downloadingUpdate) "Installing…" else "Install over ADB")
                                 }
                             }
                         }
@@ -499,8 +499,29 @@ private fun CategoryDetail(
                         // Pairing on a single-screen TV: the pairing server only lives while the system "Pair device with
                         // pairing code" dialog is showing. So Lobby watches in the background, and the user returns with
                         // HOME (which pauses the dialog, keeping the server alive) — not Back, which cancels it.
-                        if (!homeState.adbPairingActive) {
-                            if (homeState.homeOverrideEnabled) {
+                        if (homeState.adbPairingActive) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Button(onClick = actions.openDeveloperOptions) { Text("Open settings") }
+                                Button(onClick = actions.stopAdbPairing, enabled = !homeState.adbBusy) { Text("Cancel") }
+                            }
+                        } else if (!homeState.adbConnected) {
+                            if (homeState.adbPairedBefore) {
+                                Text(
+                                    "This TV is already paired — just reconnect to install updates, no pairing needed. " +
+                                        "(If Wireless Debugging got turned off, turn it back on first.)",
+                                    fontSize = 13.sp, color = LobbyColors.soft, lineHeight = 19.sp, modifier = Modifier.fillMaxWidth(0.95f),
+                                )
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    Button(onClick = actions.reconnectAdb, enabled = !homeState.adbBusy) {
+                                        Text(if (homeState.adbBusy) "Connecting…" else "Connect")
+                                    }
+                                    Button(onClick = actions.openDeveloperOptions) { Text("Open settings") }
+                                    Button(
+                                        onClick = if (homeState.homeOverrideEnabled) actions.startAutoPair else actions.startAdbPairing,
+                                        enabled = !homeState.adbBusy,
+                                    ) { Text("Re-pair") }
+                                }
+                            } else if (homeState.homeOverrideEnabled) {
                                 Text(
                                     "Auto-pair (recommended): tap Pair automatically, then on the TV open Settings → System → " +
                                         "Developer options → Wireless debugging → \"Pair device with pairing code\" and leave it on " +
@@ -523,11 +544,6 @@ private fun CategoryDetail(
                                     Button(onClick = actions.startAdbPairing, enabled = !homeState.adbBusy) { Text("Start pairing") }
                                     Button(onClick = actions.openAccessibilitySettings) { Text("Enable accessibility") }
                                 }
-                            }
-                        } else {
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                Button(onClick = actions.openDeveloperOptions) { Text("Open settings") }
-                                Button(onClick = actions.stopAdbPairing, enabled = !homeState.adbBusy) { Text("Cancel") }
                             }
                         }
                         if (homeState.adbPairingActive) {
