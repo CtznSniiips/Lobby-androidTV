@@ -527,10 +527,11 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
                 try {
                     val app = getApplication<Application>()
                     val manager = io.github.ctznsniiips.lobby.device.LobbyAdbConnectionManager.getInstance(app)
-                    manager.autoConnect(app, 10_000L)
-                    val probe = manager.openStream("shell:id")
-                    probe.openInputStream().bufferedReader().use { it.readText() }
-                    probe.close()
+                    // autoConnect may throw if it's already connected from a prior attempt — ignore that and verify by
+                    // probing. adbRun opens a stream (throws only if we're truly not connected) and reads tolerantly,
+                    // so a stream-close race on the probe no longer makes a live connection look like a failure.
+                    runCatching { manager.autoConnect(app, 10_000L) }
+                    adbRun(manager, "shell:id")
                     true
                 } catch (e: Exception) {
                     false
