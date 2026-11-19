@@ -94,15 +94,18 @@ class HomeOverrideService : AccessibilityService() {
         var code: String? = null
         var host: String? = null
         var port = 0
-        fun visit(node: AccessibilityNodeInfo) {
-            val text = node.text?.toString()?.trim()
-            if (text != null) {
-                if (code == null && SIX_DIGITS.matches(text)) code = text
-                if (host == null) IP_PORT.find(text)?.let { m ->
-                    host = m.groupValues[1]
-                    port = m.groupValues[2].toIntOrNull() ?: 0
-                }
+        fun consider(raw: String?) {
+            val t = raw?.trim() ?: return
+            if (code == null && SIX_DIGITS.matches(t)) code = t
+            if (host == null) IP_PORT.find(t)?.let { m ->
+                host = m.groupValues[1]
+                port = m.groupValues[2].toIntOrNull() ?: 0
             }
+        }
+        fun visit(node: AccessibilityNodeInfo) {
+            // The value can live in text or contentDescription depending on the view, so check both.
+            consider(node.text?.toString())
+            consider(node.contentDescription?.toString())
             for (i in 0 until node.childCount) {
                 node.getChild(i)?.let { visit(it) }
             }
@@ -123,6 +126,6 @@ class HomeOverrideService : AccessibilityService() {
 
     companion object {
         private val SIX_DIGITS = Regex("^\\d{6}$")
-        private val IP_PORT = Regex("(\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}):(\\d{1,5})")
+        private val IP_PORT = Regex("(\\d{1,3}(?:\\.\\d{1,3}){3})\\s*:\\s*(\\d{2,5})")
     }
 }
