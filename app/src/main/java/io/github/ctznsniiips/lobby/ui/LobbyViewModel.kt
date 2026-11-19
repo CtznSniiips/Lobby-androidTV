@@ -149,11 +149,15 @@ data class LobbyState(
     val homePromptDismissed: Boolean = false,
     /** True while the make-Lobby-your-home-screen guide is open. */
     val homeSetup: Boolean = false,
+    /** Experimental Wireless-ADB spike: whether a discovery scan is running, and the last human-readable result. */
+    val adbScanning: Boolean = false,
+    val adbScanResult: String? = null,
 )
 
 class LobbyViewModel(app: Application) : AndroidViewModel(app) {
     private val store = SessionStore(app)
     private val device = TvDevice(app)
+    private val wirelessAdb = io.github.ctznsniiips.lobby.device.WirelessAdb(app)
 
     private val _state = MutableStateFlow(LobbyState(lastAddress = store.lastOrigin().orEmpty(), screenSaverMinutes = store.screenSaverMinutes(), homePromptDismissed = store.homePromptDismissed(), hiddenApps = store.hiddenApps(), hiddenInputs = store.hiddenInputs(), homeFont = store.homeFont(), bgMode = store.bgMode(), wallpaper = store.wallpaper(), focusStyle = store.focusStyle(), material = store.material(), homeLayout = store.homeLayout(), appDisplay = store.appDisplay(), combineContinueNextUp = store.combineContinueNextUp(), quietOnIdleMinutes = store.quietOnIdleMinutes(), checkForUpdates = store.checkForUpdates(), showUpdateNotice = store.showUpdateNotice(), updateDismissedVersion = store.dismissedUpdateVersion(), currentVersion = device.appVersionName()))
     val state: StateFlow<LobbyState> = _state.asStateFlow()
@@ -482,6 +486,30 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
                 canSelfEnableHome = canWrite,
                 overrideBlocked = blocked,
             )
+        }
+    }
+
+    /**
+     * Experimental spike: scan for Android's Wireless Debugging mDNS endpoints and report what we found. This proves
+     * (or disproves) that Lobby can detect wireless debugging and auto-find the connect host/port — the first unknown
+     * before we build the self-install path. Pairing + install land in a later phase on a vetted ADB library.
+     */
+    fun scanWirelessAdb() {
+        if (_state.value.adbScanning) return
+        _state.update { it.copy(adbScanning = true, adbScanResult = "Scanning for Wireless Debugging…") }
+        wirelessAdb.scan { result ->
+            val summary = when {
+                !result.supported -> result.note ?: "Not supported on this device."
+                result.wirelessDebuggingOn -> buildString {
+                    append("Wireless Debugging detected")
+                    if (result.connectHost != null && result.connectPort != 0) {
+                        append(" at ${result.connectHost}:${result.connectPort}")
+                    }
+                    if (result.pairingPort != 0) append(" · pairing dialog open on port ${result.pairingPort}")
+                }
+                else -> result.note ?: "No Wireless Debugging service found."
+            }
+            _state.update { it.copy(adbScanning = false, adbScanResult = summary) }
         }
     }
 

@@ -61,6 +61,7 @@ class MainActivity : ComponentActivity() {
             setHomeLayout = viewModel::setHomeLayout,
             setAppDisplay = viewModel::setAppDisplay,
             setCombineContinueNextUp = viewModel::setCombineContinueNextUp,
+            scanWirelessAdb = viewModel::scanWirelessAdb,
             refreshRows = viewModel::refreshHome,
             disconnect = viewModel::disconnect,
             back = viewModel::closeSettings,

@@ -474,6 +474,23 @@ private fun CategoryDetail(
                         }
                     }
                 }
+                item { SectionHeader("Experimental") }
+                item {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Self-update over ADB (preview)", fontSize = 16.sp, color = LobbyColors.ink)
+                        Text(
+                            "A spike toward Lobby installing its own updates. First it has to find this TV's Wireless " +
+                                "Debugging endpoint. Enable Wireless Debugging under Developer options, then scan.",
+                            fontSize = 13.sp, color = LobbyColors.soft, lineHeight = 18.sp,
+                        )
+                        homeState.adbScanResult?.let {
+                            Text(it, fontSize = 13.sp, color = LobbyColors.accent, lineHeight = 18.sp, modifier = Modifier.fillMaxWidth(0.9f))
+                        }
+                        Button(onClick = actions.scanWirelessAdb, enabled = !homeState.adbScanning) {
+                            Text(if (homeState.adbScanning) "Scanning…" else "Scan for Wireless Debugging")
+                        }
+                    }
+                }
             }
             // Emby & Seerr: the connection plus everything the plugin keeps for this TV, grouped like the Samsung app.
             SettingsCategory.Media -> {

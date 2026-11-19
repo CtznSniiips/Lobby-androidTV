@@ -75,6 +75,7 @@ class SettingsActions(
     val setHomeLayout: (id: String) -> Unit,
     val setAppDisplay: (id: String) -> Unit,
     val setCombineContinueNextUp: (value: Boolean) -> Unit,
+    val scanWirelessAdb: () -> Unit,
     val refreshRows: () -> Unit,
     val disconnect: () -> Unit,
     val back: () -> Unit,
