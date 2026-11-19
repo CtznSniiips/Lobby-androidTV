@@ -763,31 +763,41 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
                         return@withContext "No update downloaded. Tap \"Check for updates\" first."
                     }
                     val manager = io.github.ctznsniiips.lobby.device.LobbyAdbConnectionManager.getInstance(app)
+                    try { manager.openStream("shell:true").close() } catch (e: Exception) { manager.autoConnect(app, 10_000L) }
                     _state.update { it.copy(adbPairStatus = "Installing update over ADB…") }
-                    // Stream the APK to the package installer. -S <size> makes it read exactly that many bytes of
-                    // stdin, so no EOF half-close is needed. exec: (not shell:) avoids shell-protocol framing on binary.
                     val size = file.length()
-                    val stream = try {
-                        manager.openStream("exec:cmd package install -r -S $size")
-                    } catch (e: Exception) {
-                        manager.autoConnect(app, 10_000L)
-                        manager.openStream("exec:cmd package install -r -S $size")
-                    }
+                    // Use a package-install session instead of stdin streaming: libadb has no half-close, so a single
+                    // `install -S` stream can't signal EOF to commit. install-write takes the bytes (closing the stream
+                    // is the EOF), and install-commit is a separate stream whose result we can actually read.
+                    val create = adbRun(manager, "exec:pm install-create -r -S $size")
+                    val sessionId = Regex("\\[(\\d+)]").find(create)?.groupValues?.get(1)
+                        ?: return@withContext "Couldn't create install session: ${create.ifBlank { "(no output)" }}"
+                    val writeStream = manager.openStream("exec:pm install-write -S $size $sessionId base -")
                     file.inputStream().use { input ->
-                        val out = stream.openOutputStream()
+                        val out = writeStream.openOutputStream()
                         input.copyTo(out, 65_536)
                         out.flush()
                     }
-                    val result = stream.openInputStream().bufferedReader().use { it.readText() }.trim()
-                    stream.close()
-                    if (result.contains("Success", ignoreCase = true)) "Update installed over ADB. Lobby will restart."
-                    else "Install failed: ${result.ifBlank { "(no output from installer)" }}"
+                    writeStream.close() // EOF — the session now holds the APK
+                    // Commit. On success the installer kills and replaces Lobby (our visible success signal), so we may
+                    // never read this result; on failure Lobby stays up and the reason comes back here.
+                    val commit = adbRun(manager, "exec:pm install-commit $sessionId")
+                    if (commit.contains("Success", ignoreCase = true)) "Update installed over ADB. Lobby will restart."
+                    else "Install failed: ${commit.ifBlank { "(no output from installer)" }}"
                 } catch (e: Exception) {
                     "Install error: ${e.message ?: e.javaClass.simpleName}"
                 }
             }
             _state.update { it.copy(adbBusy = false, adbPairStatus = status) }
         }
+    }
+
+    /** Run an ADB service that takes no stdin (e.g. a shell/exec command) and return its full output. */
+    private fun adbRun(manager: io.github.muntashirakon.adb.AbsAdbConnectionManager, service: String): String {
+        val stream = manager.openStream(service)
+        val out = stream.openInputStream().bufferedReader().use { it.readText() }.trim()
+        stream.close()
+        return out
     }
 
     fun openAccessibilitySettings() {
