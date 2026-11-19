@@ -29,7 +29,8 @@ class WirelessAdb(context: Context) {
         val wirelessDebuggingOn: Boolean = false,
         val connectHost: String? = null,
         val connectPort: Int = 0,
-        /** Non-zero only while the pairing dialog is open on THIS device. */
+        /** The pairing service's own resolved host + port — valid only while the pairing dialog is open on THIS device. */
+        val pairingHost: String? = null,
         val pairingPort: Int = 0,
         /** How many OTHER devices on the LAN were advertising an ADB daemon (ignored — we only ever target ourselves). */
         val otherDevices: Int = 0,
@@ -50,6 +51,7 @@ class WirelessAdb(context: Context) {
     @Volatile private var sawConnect = false
     @Volatile private var connectHost: String? = null
     @Volatile private var connectPort = 0
+    @Volatile private var pairingHost: String? = null
     @Volatile private var pairingPort = 0
     private val otherHosts = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
     @Volatile private var localIps: Set<String> = emptySet()
@@ -89,6 +91,7 @@ class WirelessAdb(context: Context) {
         sawConnect = false
         connectHost = null
         connectPort = 0
+        pairingHost = null
         pairingPort = 0
         otherHosts.clear()
         resolveQueue.clear()
@@ -123,6 +126,7 @@ class WirelessAdb(context: Context) {
             override fun onServiceLost(serviceInfo: NsdServiceInfo) {
                 // The pairing dialog was dismissed or the daemon went away: drop the stale pairing port.
                 if (serviceInfo.serviceType?.contains("adb-tls-pairing") == true && pairingPort != 0) {
+                    pairingHost = null
                     pairingPort = 0
                     reporter?.invoke(snapshot())
                 }
@@ -160,6 +164,7 @@ class WirelessAdb(context: Context) {
                         changed = otherHosts.add(host)
                     }
                 } else if (type.contains("adb-tls-pairing") && isOurs) {
+                    pairingHost = host
                     pairingPort = port
                     changed = true
                 }
@@ -182,6 +187,7 @@ class WirelessAdb(context: Context) {
             wirelessDebuggingOn = sawConnect,
             connectHost = connectHost,
             connectPort = connectPort,
+            pairingHost = pairingHost,
             pairingPort = pairingPort,
             otherDevices = otherHosts.size,
             note = note,

@@ -152,9 +152,10 @@ data class LobbyState(
     /** Experimental Wireless-ADB spike: whether a discovery scan is running, and the last human-readable result. */
     val adbScanning: Boolean = false,
     val adbScanResult: String? = null,
-    /** This device's own ADB endpoint, filled in by a successful scan (host + connect port + pairing port). */
+    /** This device's own ADB endpoint, filled in by a successful scan (host + connect port + pairing host/port). */
     val adbConnectHost: String? = null,
     val adbConnectPort: Int = 0,
+    val adbPairingHost: String? = null,
     val adbPairingPort: Int = 0,
     /** The 6-digit pairing code the user is typing, and the pair/connect state + last status line. */
     val adbCode: String = "",
@@ -562,6 +563,7 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
                 it.copy(
                     adbConnectHost = result.connectHost ?: it.adbConnectHost,
                     adbConnectPort = if (result.connectPort != 0) result.connectPort else it.adbConnectPort,
+                    adbPairingHost = result.pairingHost ?: it.adbPairingHost,
                     adbPairingPort = if (result.pairingPort != 0) result.pairingPort else it.adbPairingPort,
                     // Don't stomp on the live pair/connect status while a pairing attempt is actually running.
                     adbPairStatus = if (it.adbBusy) it.adbPairStatus else status,
@@ -601,20 +603,33 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
                 return
             }
         }
+        val pairHost = s.adbPairingHost ?: host
         _state.update { it.copy(adbBusy = true, adbPairStatus = "Pairing…") }
         viewModelScope.launch {
             val status = withContext(Dispatchers.IO) {
+                val manager = try {
+                    io.github.ctznsniiips.lobby.device.LobbyAdbConnectionManager.getInstance(getApplication())
+                } catch (e: Exception) {
+                    return@withContext "Couldn't start the ADB client: ${e.message ?: e.javaClass.simpleName}"
+                }
+                // Stage 1: pair. "Connection refused" here means the pairing dialog's server is already gone — it was
+                // dismissed or backgrounded off-screen. Keep the dialog up (press HOME, not Back) and try again.
+                val paired = try {
+                    manager.pair(pairHost, pairingPort, code)
+                } catch (e: Exception) {
+                    return@withContext "Couldn't reach the pairing server at $pairHost:$pairingPort (${e.message ?: e.javaClass.simpleName}). " +
+                        "The pairing dialog likely closed when you left it — reopen it, return with HOME, and try again quickly."
+                }
+                if (!paired) return@withContext "Pairing was refused — re-check the 6-digit code."
+                // Stage 2: connect to the (now-paired) daemon and run a harmless probe.
                 try {
-                    val manager = io.github.ctznsniiips.lobby.device.LobbyAdbConnectionManager.getInstance(getApplication())
-                    val paired = manager.pair(host, pairingPort, code)
-                    if (!paired) return@withContext "Pairing failed — double-check the code and that the dialog is still open."
                     manager.connect(host, connectPort)
                     val probe = manager.openStream("shell:id")
                     val out = probe.openInputStream().bufferedReader().use { it.readText() }.trim()
                     probe.close()
                     "Connected. shell:id → ${out.ifBlank { "(no output)" }}"
                 } catch (e: Exception) {
-                    "Error: ${e.message ?: e.javaClass.simpleName}"
+                    "Paired OK, but connecting to $host:$connectPort failed (${e.message ?: e.javaClass.simpleName})."
                 }
             }
             val ok = status.startsWith("Connected")
