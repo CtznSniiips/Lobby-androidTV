@@ -5,6 +5,17 @@ All notable changes to Lobby for Android TV are recorded here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.13.0] - 11/19/2026
+
+### Added
+- Lobby can now update itself over the air, on the device, with no PC. It pairs once with this TV's Wireless Debugging, then installs its own updates straight through ADB — no installer prompt and no unknown-sources wall. Pairing is under Settings → System → Experimental: tap **Pair automatically**, open the TV's "Pair device with pairing code" dialog, and Lobby reads the code off the screen and pairs itself (needs Lobby's accessibility service on). Pairing persists, so after that a single **Connect** reconnects without pairing again. Because the ADB install is a trusted-source install, it also stops updates from re-locking the Home override.
+
+### Changed
+- Applying an update now always goes through ADB (the Updates section's button is **Install over ADB**). The update check, notice, and release notes are unchanged.
+
+### Removed
+- The old installer-prompt update path (hand the APK to the system package installer) is gone in favour of the ADB self-install.
+
 ## [v0.12.0] - 11/18/2026
 
 ### Fixed
@@ -87,6 +98,7 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 - Fixed signing key via a GitHub Actions secret, so new builds install over older ones without uninstalling.
 
 [Unreleased]: https://github.com/CtznSniiips/Lobby-androidTV/compare/v0.12.0...HEAD
+[v0.13.0]: https://github.com/CtznSniiips/Lobby-androidTV/compare/v0.12.0...v0.13.0
 [v0.12.0]: https://github.com/CtznSniiips/Lobby-androidTV/compare/v0.11.0...v0.12.0
 [v0.11.0]: https://github.com/CtznSniiips/Lobby-androidTV/compare/v0.10.0...v0.11.0
 [v0.10.0]: https://github.com/CtznSniiips/Lobby-androidTV/compare/v0.9.0...v0.10.0
