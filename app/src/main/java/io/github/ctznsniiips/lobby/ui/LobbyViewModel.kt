@@ -635,6 +635,9 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
         val haveEndpoint = pairingHost != null && pairingPort != 0
         val status = when {
             s.adbBusy -> s.adbPairStatus
+            // Once we've actually attempted this code, keep the result on screen — don't let the next screen-scrape
+            // reset it back to "pairing…" and hide a pair/connect error.
+            adbLastTriedCode != null && code == adbLastTriedCode -> s.adbPairStatus
             code.length == 6 && haveEndpoint -> "Read code $code — pairing…"
             code.length == 6 -> "Read code $code — finding this TV's pairing address…"
             haveEndpoint -> "Pairing dialog found. Reading the code…"
