@@ -134,6 +134,10 @@ class TvDevice(private val context: Context) {
     /** Android's Accessibility settings, where the user turns the Home-button override on or off. */
     fun openAccessibilitySettings(): Boolean = start(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
 
+    /** Developer options, where Wireless debugging lives. Falls back to the top-level Settings if unavailable. */
+    fun openDeveloperOptions(): Boolean =
+        start(Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS)) || openSystemSettings()
+
     /**
      * Whether Lobby holds WRITE_SECURE_SETTINGS. A normal app can't get this through the UI; it's granted once over
      * adb (`pm grant`), after which Lobby can enable its own accessibility service without the restricted toggle.

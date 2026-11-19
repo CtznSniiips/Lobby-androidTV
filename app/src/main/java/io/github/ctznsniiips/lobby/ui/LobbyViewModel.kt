@@ -149,11 +149,32 @@ data class LobbyState(
     val homePromptDismissed: Boolean = false,
     /** True while the make-Lobby-your-home-screen guide is open. */
     val homeSetup: Boolean = false,
+    /** Experimental Wireless-ADB spike: whether a discovery scan is running, and the last human-readable result. */
+    val adbScanning: Boolean = false,
+    val adbScanResult: String? = null,
+    /** This device's own ADB endpoint, filled in by a successful scan (host + connect port + pairing host/port). */
+    val adbConnectHost: String? = null,
+    val adbConnectPort: Int = 0,
+    val adbPairingHost: String? = null,
+    val adbPairingPort: Int = 0,
+    /** The 6-digit pairing code the user is typing, and the pair/connect state + last status line. */
+    val adbCode: String = "",
+    val adbBusy: Boolean = false,
+    val adbPairStatus: String? = null,
+    /** True while Lobby is watching in the background for the pairing dialog to appear. */
+    val adbPairingActive: Boolean = false,
+    /** True when the current pairing session is auto-reading the code via the accessibility service. */
+    val adbAutoRead: Boolean = false,
+    /** True once Lobby has paired+connected to its own ADB daemon this session (self-install becomes available). */
+    val adbConnected: Boolean = false,
 )
 
 class LobbyViewModel(app: Application) : AndroidViewModel(app) {
     private val store = SessionStore(app)
     private val device = TvDevice(app)
+    private val wirelessAdb = io.github.ctznsniiips.lobby.device.WirelessAdb(app)
+    /** The last code auto-pair attempted, so a failed attempt doesn't retry the same code on every screen update. */
+    private var adbLastTriedCode: String? = null
 
     private val _state = MutableStateFlow(LobbyState(lastAddress = store.lastOrigin().orEmpty(), screenSaverMinutes = store.screenSaverMinutes(), homePromptDismissed = store.homePromptDismissed(), hiddenApps = store.hiddenApps(), hiddenInputs = store.hiddenInputs(), homeFont = store.homeFont(), bgMode = store.bgMode(), wallpaper = store.wallpaper(), focusStyle = store.focusStyle(), material = store.material(), homeLayout = store.homeLayout(), appDisplay = store.appDisplay(), combineContinueNextUp = store.combineContinueNextUp(), quietOnIdleMinutes = store.quietOnIdleMinutes(), checkForUpdates = store.checkForUpdates(), showUpdateNotice = store.showUpdateNotice(), updateDismissedVersion = store.dismissedUpdateVersion(), currentVersion = device.appVersionName()))
     val state: StateFlow<LobbyState> = _state.asStateFlow()
@@ -485,8 +506,296 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /**
+     * Experimental spike: scan for Android's Wireless Debugging mDNS endpoints and report what we found. This proves
+     * (or disproves) that Lobby can detect wireless debugging and auto-find the connect host/port — the first unknown
+     * before we build the self-install path. Pairing + install land in a later phase on a vetted ADB library.
+     */
+    fun scanWirelessAdb() {
+        if (_state.value.adbScanning) return
+        _state.update { it.copy(adbScanning = true, adbScanResult = "Scanning for Wireless Debugging…") }
+        wirelessAdb.scan { result ->
+            val summary = when {
+                !result.supported -> result.note ?: "Not supported on this device."
+                result.wirelessDebuggingOn -> buildString {
+                    append("This TV's Wireless Debugging detected")
+                    if (result.connectHost != null && result.connectPort != 0) {
+                        append(" at ${result.connectHost}:${result.connectPort}")
+                    }
+                    if (result.pairingPort != 0) append(" · pairing dialog open on port ${result.pairingPort}")
+                    if (result.otherDevices > 0) append(" (ignored ${result.otherDevices} other device(s))")
+                }
+                else -> result.note ?: "No Wireless Debugging service found."
+            }
+            _state.update {
+                it.copy(
+                    adbScanning = false,
+                    adbScanResult = summary,
+                    adbConnectHost = result.connectHost ?: it.adbConnectHost,
+                    adbConnectPort = if (result.connectPort != 0) result.connectPort else it.adbConnectPort,
+                    adbPairingPort = result.pairingPort,
+                )
+            }
+        }
+    }
+
+    fun setAdbCode(code: String) {
+        _state.update { it.copy(adbCode = code.filter { c -> c.isDigit() }.take(6)) }
+    }
+
+    /**
+     * Start watching in the background for the Wireless Debugging pairing dialog. The user taps this, then opens
+     * "Pair device with pairing code" on the TV, reads the 6-digit code, and presses HOME (not Back) to return to
+     * Lobby — Home only pauses the dialog, so its pairing server stays alive and the port Lobby captured stays valid.
+     */
+    fun startAdbPairing() {
+        if (_state.value.adbPairingActive) return
+        _state.update {
+            it.copy(
+                adbPairingActive = true,
+                adbPairStatus = "Waiting… turn on Wireless Debugging, then open \"Pair device with pairing code\" on the TV.",
+            )
+        }
+        wirelessAdb.watch { result ->
+            val status = when {
+                !result.supported -> result.note ?: "Not supported on this device."
+                result.pairingPort != 0 ->
+                    "Pairing dialog found. Press HOME to come back here, type the 6-digit code, then Pair & connect."
+                result.wirelessDebuggingOn ->
+                    "Wireless Debugging is on. Now open \"Pair device with pairing code\" on the TV."
+                else -> "Waiting… make sure Wireless Debugging is on under Developer options."
+            }
+            _state.update {
+                it.copy(
+                    adbConnectHost = result.connectHost ?: it.adbConnectHost,
+                    adbConnectPort = if (result.connectPort != 0) result.connectPort else it.adbConnectPort,
+                    adbPairingHost = result.pairingHost ?: it.adbPairingHost,
+                    adbPairingPort = if (result.pairingPort != 0) result.pairingPort else it.adbPairingPort,
+                    // Don't stomp on the live pair/connect status while a pairing attempt is actually running.
+                    adbPairStatus = if (it.adbBusy) it.adbPairStatus else status,
+                )
+            }
+        }
+    }
+
+    /**
+     * Auto-pair: Lobby reads the 6-digit code off the live pairing dialog via its accessibility service and pairs in
+     * the background, so the dialog never has to leave the screen (and its server stays alive). Needs Lobby's
+     * accessibility service enabled — the same one that drives the Home override.
+     */
+    fun startAutoPair() {
+        if (_state.value.adbPairingActive) return
+        if (!device.isHomeOverrideEnabled()) {
+            _state.update {
+                it.copy(adbPairStatus = "Auto-read needs Lobby's accessibility service. Enable it, then try again — or use \"Start pairing\" to type the code.")
+            }
+            return
+        }
+        adbLastTriedCode = null
+        _state.update {
+            it.copy(
+                adbPairingActive = true,
+                adbAutoRead = true,
+                adbCode = "",
+                adbPairStatus = "Open \"Pair device with pairing code\" on the TV and leave it on screen — Lobby will read the code and pair.",
+            )
+        }
+        // Source 1 — the accessibility service: the 6-digit code is what we need from it. Its IP:port is unreliable as
+        // the pairing endpoint: the Wireless debugging screen (shown before the dialog) displays the *connect* endpoint,
+        // and scraping that would make us pair against the wrong port. So only trust a scraped port we can confirm is
+        // NOT the connect port; the authoritative pairing port comes from mDNS (_adb-tls-pairing) below.
+        io.github.ctznsniiips.lobby.device.AdbPairingBridge.start { scraped ->
+            viewModelScope.launch {
+                _state.update {
+                    val scrapedIsPairing = scraped.port != 0 && it.adbConnectPort != 0 && scraped.port != it.adbConnectPort
+                    applyAutoPairProgress(
+                        it,
+                        code = scraped.code ?: it.adbCode,
+                        pairingHost = if (scrapedIsPairing) (scraped.host ?: it.adbPairingHost) else it.adbPairingHost,
+                        pairingPort = if (scrapedIsPairing) scraped.port else it.adbPairingPort,
+                    )
+                }
+                maybeAutoPair()
+            }
+        }
+        // Source 2 — mDNS: the reliable source for the pairing host/port (and the connect endpoint), since many
+        // pairing-code dialogs show only the code. Keeps running while Lobby is backgrounded; the process stays up.
+        wirelessAdb.watch { result ->
+            _state.update {
+                applyAutoPairProgress(
+                    it.copy(
+                        adbConnectHost = result.connectHost ?: it.adbConnectHost,
+                        adbConnectPort = if (result.connectPort != 0) result.connectPort else it.adbConnectPort,
+                    ),
+                    code = it.adbCode,
+                    pairingHost = result.pairingHost ?: it.adbPairingHost,
+                    pairingPort = if (result.pairingPort != 0) result.pairingPort else it.adbPairingPort,
+                )
+            }
+            viewModelScope.launch { maybeAutoPair() }
+        }
+    }
+
+    /** Merge newly-learned auto-pair facts into state and set a status that names what's still missing. */
+    private fun applyAutoPairProgress(s: LobbyState, code: String, pairingHost: String?, pairingPort: Int): LobbyState {
+        val haveEndpoint = pairingHost != null && pairingPort != 0
+        val status = when {
+            s.adbBusy -> s.adbPairStatus
+            // Once we've actually attempted this code, keep the result on screen — don't let the next screen-scrape
+            // reset it back to "pairing…" and hide a pair/connect error.
+            adbLastTriedCode != null && code == adbLastTriedCode -> s.adbPairStatus
+            code.length == 6 && haveEndpoint -> "Read code $code — pairing…"
+            code.length == 6 -> "Read code $code — finding this TV's pairing address…"
+            haveEndpoint -> "Pairing dialog found. Reading the code…"
+            else -> s.adbPairStatus
+        }
+        return s.copy(adbCode = code, adbPairingHost = pairingHost, adbPairingPort = pairingPort, adbPairStatus = status)
+    }
+
+    /** Fire the pair attempt once auto-read has the code and the pairing endpoint (both scraped), nothing in flight. */
+    private fun maybeAutoPair() {
+        val s = _state.value
+        if (s.adbAutoRead && !s.adbBusy && s.adbCode.length == 6 && s.adbPairingPort != 0 &&
+            s.adbPairingHost != null && s.adbCode != adbLastTriedCode
+        ) {
+            pairAndConnect()
+        }
+    }
+
+    fun stopAdbPairing() {
+        wirelessAdb.stop()
+        io.github.ctznsniiips.lobby.device.AdbPairingBridge.stop()
+        _state.update { it.copy(adbPairingActive = false, adbAutoRead = false) }
+    }
+
+    /**
+     * Experimental: pair with this device's own ADB daemon using the 6-digit code shown in the Wireless Debugging
+     * "Pair device with pairing code" dialog, then connect and run a harmless probe command to prove the channel works.
+     * Self-install (streaming the downloaded APK) is deliberately a separate, later step, gated on this succeeding.
+     */
+    fun pairAndConnect() {
+        val s = _state.value
+        if (s.adbBusy) return
+        val pairHost = s.adbPairingHost ?: s.adbConnectHost
+        val pairingPort = s.adbPairingPort
+        val connectHost = s.adbConnectHost
+        val connectPort = s.adbConnectPort
+        val code = s.adbCode
+        when {
+            code.length != 6 -> {
+                _state.update { it.copy(adbPairStatus = "Enter the 6-digit code from the pairing dialog.") }
+                return
+            }
+            pairHost == null || pairingPort == 0 -> {
+                _state.update { it.copy(adbPairStatus = "Open \"Pair device with pairing code\" on the TV so Lobby can read its address.") }
+                return
+            }
+        }
+        adbLastTriedCode = code
+        _state.update { it.copy(adbBusy = true, adbPairStatus = "Pairing…") }
+        viewModelScope.launch {
+            val status = withContext(Dispatchers.IO) {
+                val manager = try {
+                    io.github.ctznsniiips.lobby.device.LobbyAdbConnectionManager.getInstance(getApplication())
+                } catch (e: Exception) {
+                    return@withContext "Couldn't start the ADB client: ${e.message ?: e.javaClass.simpleName}"
+                }
+                // Stage 1: pair against the dialog's own address (read off-screen or scanned). A refusal here means the
+                // pairing server is gone — the dialog was dismissed. Keep it on screen and try again.
+                val paired = try {
+                    manager.pair(pairHost, pairingPort, code)
+                } catch (e: Exception) {
+                    return@withContext "Couldn't reach the pairing server at $pairHost:$pairingPort (${e.message ?: e.javaClass.simpleName}). " +
+                        "Keep the pairing dialog on screen and try again."
+                }
+                if (!paired) return@withContext "Pairing was refused — re-check the 6-digit code."
+                // Stage 2: connect to the (now-paired) daemon. Use the scanned connect endpoint if we have one;
+                // otherwise let the library auto-discover it (auto-pair never ran our own mDNS). Then a harmless probe.
+                try {
+                    if (connectHost != null && connectPort != 0) {
+                        manager.connect(connectHost, connectPort)
+                    } else {
+                        manager.autoConnect(getApplication(), 10_000L)
+                    }
+                    val probe = manager.openStream("shell:id")
+                    val out = probe.openInputStream().bufferedReader().use { it.readText() }.trim()
+                    probe.close()
+                    "Connected. shell:id → ${out.ifBlank { "(no output)" }}"
+                } catch (e: Exception) {
+                    "Paired OK, but connecting failed (${e.message ?: e.javaClass.simpleName}). Reopen Lobby and tap Pair again to finish connecting."
+                }
+            }
+            val ok = status.startsWith("Connected")
+            if (ok) {
+                wirelessAdb.stop()
+                io.github.ctznsniiips.lobby.device.AdbPairingBridge.stop()
+            }
+            _state.update {
+                it.copy(
+                    adbBusy = false,
+                    adbPairStatus = status,
+                    adbPairingActive = if (ok) false else it.adbPairingActive,
+                    adbAutoRead = if (ok) false else it.adbAutoRead,
+                    adbConnected = if (ok) true else it.adbConnected,
+                )
+            }
+        }
+    }
+
+    /**
+     * Self-install the latest update over the ADB connection: download the APK, then stream it to
+     * `cmd package install`. Pairing is one-time and persisted, so this reconnects on its own (autoConnect) without the
+     * pairing dance. A trusted-source ADB install also clears the restricted-settings wall, so updates stop re-locking
+     * the Home override.
+     */
+    fun selfInstallOverAdb() {
+        if (_state.value.adbBusy) return
+        _state.update { it.copy(adbBusy = true, adbPairStatus = "Downloading update…") }
+        viewModelScope.launch {
+            val status = withContext(Dispatchers.IO) {
+                try {
+                    val app = getApplication<Application>()
+                    val file = File(app.cacheDir, "lobby-update.apk")
+                    val url = _state.value.updateApkUrl
+                    if (url != null) {
+                        if (!UpdateChecker.download(url, file)) return@withContext "Couldn't download the update."
+                    } else if (!file.exists()) {
+                        return@withContext "No update downloaded. Tap \"Check for updates\" first."
+                    }
+                    val manager = io.github.ctznsniiips.lobby.device.LobbyAdbConnectionManager.getInstance(app)
+                    _state.update { it.copy(adbPairStatus = "Installing update over ADB…") }
+                    // Stream the APK to the package installer. -S <size> makes it read exactly that many bytes of
+                    // stdin, so no EOF half-close is needed. exec: (not shell:) avoids shell-protocol framing on binary.
+                    val size = file.length()
+                    val stream = try {
+                        manager.openStream("exec:cmd package install -r -S $size")
+                    } catch (e: Exception) {
+                        manager.autoConnect(app, 10_000L)
+                        manager.openStream("exec:cmd package install -r -S $size")
+                    }
+                    file.inputStream().use { input ->
+                        val out = stream.openOutputStream()
+                        input.copyTo(out, 65_536)
+                        out.flush()
+                    }
+                    val result = stream.openInputStream().bufferedReader().use { it.readText() }.trim()
+                    stream.close()
+                    if (result.contains("Success", ignoreCase = true)) "Update installed over ADB. Lobby will restart."
+                    else "Install failed: ${result.ifBlank { "(no output from installer)" }}"
+                } catch (e: Exception) {
+                    "Install error: ${e.message ?: e.javaClass.simpleName}"
+                }
+            }
+            _state.update { it.copy(adbBusy = false, adbPairStatus = status) }
+        }
+    }
+
     fun openAccessibilitySettings() {
         if (!device.openAccessibilitySettings()) say("Couldn't open Accessibility settings.")
+    }
+
+    fun openDeveloperOptions() {
+        if (!device.openDeveloperOptions()) say("Couldn't open Developer options.")
     }
 
     fun openHomeSetup() = _state.update { it.copy(homeSetup = true) }
@@ -647,6 +956,7 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
             updateSettings { it.copy(teamsOpen = false) }
             return
         }
+        if (_state.value.adbPairingActive) stopAdbPairing()
         saveJob?.cancel()
         val client = api
         _state.update { it.copy(settings = null) }

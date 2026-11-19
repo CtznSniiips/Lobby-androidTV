@@ -20,6 +20,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.border
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.core.graphics.drawable.toBitmap
@@ -470,6 +477,103 @@ private fun CategoryDetail(
                             }
                             Button(onClick = { actions.setShowUpdateNotice(!homeState.showUpdateNotice) }) {
                                 Text(if (homeState.showUpdateNotice) "On" else "Off")
+                            }
+                        }
+                    }
+                }
+                item { SectionHeader("Experimental") }
+                item {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Self-update over ADB (preview)", fontSize = 16.sp, color = LobbyColors.ink)
+                        Text(
+                            "A spike toward Lobby installing its own updates. First it has to find this TV's Wireless " +
+                                "Debugging endpoint. Enable Wireless Debugging under Developer options, then scan.",
+                            fontSize = 13.sp, color = LobbyColors.soft, lineHeight = 18.sp,
+                        )
+                        homeState.adbScanResult?.let {
+                            Text(it, fontSize = 13.sp, color = LobbyColors.accent, lineHeight = 18.sp, modifier = Modifier.fillMaxWidth(0.9f))
+                        }
+                        Button(onClick = actions.scanWirelessAdb, enabled = !homeState.adbScanning && !homeState.adbPairingActive) {
+                            Text(if (homeState.adbScanning) "Scanning…" else "Scan for Wireless Debugging")
+                        }
+                        // Pairing on a single-screen TV: the pairing server only lives while the system "Pair device with
+                        // pairing code" dialog is showing. So Lobby watches in the background, and the user returns with
+                        // HOME (which pauses the dialog, keeping the server alive) — not Back, which cancels it.
+                        if (!homeState.adbPairingActive) {
+                            if (homeState.homeOverrideEnabled) {
+                                Text(
+                                    "Auto-pair (recommended): tap Pair automatically, then on the TV open Settings → System → " +
+                                        "Developer options → Wireless debugging → \"Pair device with pairing code\" and leave it on " +
+                                        "screen. Lobby reads the code and pairs — no typing, no Home button.",
+                                    fontSize = 13.sp, color = LobbyColors.soft, lineHeight = 19.sp, modifier = Modifier.fillMaxWidth(0.95f),
+                                )
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    Button(onClick = actions.startAutoPair, enabled = !homeState.adbBusy) { Text("Pair automatically") }
+                                    Button(onClick = actions.openDeveloperOptions) { Text("Open settings") }
+                                    Button(onClick = actions.startAdbPairing, enabled = !homeState.adbBusy) { Text("Type code instead") }
+                                }
+                            } else {
+                                Text(
+                                    "Manual pairing: tap Start pairing, open \"Pair device with pairing code\" on the TV, note the " +
+                                        "6-digit code, press HOME (not Back) to return to Lobby, then type the code. (Enable Lobby's " +
+                                        "accessibility service to skip the typing — Lobby can then read the code itself.)",
+                                    fontSize = 13.sp, color = LobbyColors.soft, lineHeight = 19.sp, modifier = Modifier.fillMaxWidth(0.95f),
+                                )
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    Button(onClick = actions.startAdbPairing, enabled = !homeState.adbBusy) { Text("Start pairing") }
+                                    Button(onClick = actions.openAccessibilitySettings) { Text("Enable accessibility") }
+                                }
+                            }
+                        } else {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Button(onClick = actions.openDeveloperOptions) { Text("Open settings") }
+                                Button(onClick = actions.stopAdbPairing, enabled = !homeState.adbBusy) { Text("Cancel") }
+                            }
+                        }
+                        if (homeState.adbPairingActive) {
+                            val focusManager = LocalFocusManager.current
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                BasicTextField(
+                                    value = homeState.adbCode,
+                                    onValueChange = actions.setAdbCode,
+                                    enabled = !homeState.adbBusy,
+                                    singleLine = true,
+                                    textStyle = TextStyle(color = LobbyColors.ink, fontSize = 20.sp),
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
+                                    keyboardActions = KeyboardActions(onDone = {
+                                        // Release D-pad focus from the field (Compose-on-TV traps it otherwise), then pair.
+                                        focusManager.clearFocus()
+                                        if (homeState.adbCode.length == 6) actions.pairAdb()
+                                    }),
+                                    modifier = Modifier
+                                        .width(140.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(LobbyColors.soft.copy(alpha = 0.15f))
+                                        .border(BorderStroke(1.dp, LobbyColors.soft), RoundedCornerShape(8.dp))
+                                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                                    decorationBox = { inner ->
+                                        if (homeState.adbCode.isEmpty()) {
+                                            Text("000000", fontSize = 20.sp, color = LobbyColors.soft)
+                                        }
+                                        inner()
+                                    },
+                                )
+                                Button(onClick = actions.pairAdb, enabled = !homeState.adbBusy && homeState.adbCode.length == 6) {
+                                    Text(if (homeState.adbBusy) "Working…" else "Pair & connect")
+                                }
+                            }
+                        }
+                        homeState.adbPairStatus?.let {
+                            Text(it, fontSize = 13.sp, color = LobbyColors.accent, lineHeight = 18.sp, modifier = Modifier.fillMaxWidth(0.95f))
+                        }
+                        if (homeState.adbConnected) {
+                            Text(
+                                "Connected to this TV's ADB. Lobby can now install its own updates — no installer prompt, " +
+                                    "and the trusted install keeps the Home override from re-locking.",
+                                fontSize = 13.sp, color = LobbyColors.soft, lineHeight = 18.sp, modifier = Modifier.fillMaxWidth(0.95f),
+                            )
+                            Button(onClick = actions.selfInstallOverAdb, enabled = !homeState.adbBusy) {
+                                Text(if (homeState.adbBusy) "Working…" else "Download & self-install latest")
                             }
                         }
                     }

@@ -82,4 +82,11 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
     implementation("com.jakewharton.retrofit:retrofit2-kotlinx-serialization-converter:1.0.0")
+
+    // Experimental: embedded ADB client for self-install over Wireless Debugging (pulls bouncycastle + spake2 via JitPack).
+    implementation("com.github.MuntashirAkon:libadb-android:3.1.1")
+    implementation("com.github.MuntashirAkon:sun-security-android:1.1")
+    // Bundled Conscrypt: the pairing handshake's exportKeyingMaterial isn't exposed by every device's platform
+    // Conscrypt (NoSuchMethodException on this TV), so ship a known Conscrypt that libadb detects and uses instead.
+    implementation("org.conscrypt:conscrypt-android:2.5.3")
 }

@@ -6,6 +6,8 @@ import android.content.pm.PackageManager
 import android.os.SystemClock
 import android.view.KeyEvent
 import android.view.accessibility.AccessibilityEvent
+import android.view.accessibility.AccessibilityNodeInfo
+import io.github.ctznsniiips.lobby.device.AdbPairingBridge
 
 /**
  * Recaptures the remote's Home button on devices that keep it wired to the stock launcher even after Lobby is
@@ -53,6 +55,15 @@ class HomeOverrideService : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent) {
+        // Experimental auto-pair: while armed, read the 6-digit code off the live Wireless Debugging pairing dialog
+        // (any non-Lobby window) so Lobby can pair without the user leaving the dialog. Runs on content changes too,
+        // since the code can render a beat after the window opens.
+        if (AdbPairingBridge.listening) {
+            val evtPkg = event.packageName?.toString()
+            if (evtPkg != null && evtPkg != packageName) {
+                scrapePairing(rootInActiveWindow)?.let { AdbPairingBridge.submit(it) }
+            }
+        }
         if (event.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
         val pkg = event.packageName?.toString() ?: return
         val cls = event.className?.toString() ?: return
@@ -74,6 +85,35 @@ class HomeOverrideService : AccessibilityService() {
         launchLobby()
     }
 
+    /**
+     * Read the pairing dialog in one DFS: a text node that is exactly six digits is the code; a node matching
+     * "IP:port" is the pairing endpoint. Returns null if neither was found (not the pairing dialog, or not rendered yet).
+     */
+    private fun scrapePairing(root: AccessibilityNodeInfo?): AdbPairingBridge.Scraped? {
+        root ?: return null
+        var code: String? = null
+        var host: String? = null
+        var port = 0
+        fun consider(raw: String?) {
+            val t = raw?.trim() ?: return
+            if (code == null && SIX_DIGITS.matches(t)) code = t
+            if (host == null) IP_PORT.find(t)?.let { m ->
+                host = m.groupValues[1]
+                port = m.groupValues[2].toIntOrNull() ?: 0
+            }
+        }
+        fun visit(node: AccessibilityNodeInfo) {
+            // The value can live in text or contentDescription depending on the view, so check both.
+            consider(node.text?.toString())
+            consider(node.contentDescription?.toString())
+            for (i in 0 until node.childCount) {
+                node.getChild(i)?.let { visit(it) }
+            }
+        }
+        visit(root)
+        return if (code != null || host != null) AdbPairingBridge.Scraped(code, host, port) else null
+    }
+
     private fun launchLobby() {
         val intent = Intent(this, MainActivity::class.java).apply {
             addCategory(Intent.CATEGORY_HOME)
@@ -83,4 +123,9 @@ class HomeOverrideService : AccessibilityService() {
     }
 
     override fun onInterrupt() {}
+
+    companion object {
+        private val SIX_DIGITS = Regex("^\\d{6}$")
+        private val IP_PORT = Regex("(\\d{1,3}(?:\\.\\d{1,3}){3})\\s*:\\s*(\\d{2,5})")
+    }
 }
