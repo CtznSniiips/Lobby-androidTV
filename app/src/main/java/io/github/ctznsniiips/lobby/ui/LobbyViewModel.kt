@@ -152,6 +152,14 @@ data class LobbyState(
     /** Experimental Wireless-ADB spike: whether a discovery scan is running, and the last human-readable result. */
     val adbScanning: Boolean = false,
     val adbScanResult: String? = null,
+    /** This device's own ADB endpoint, filled in by a successful scan (host + connect port + pairing port). */
+    val adbConnectHost: String? = null,
+    val adbConnectPort: Int = 0,
+    val adbPairingPort: Int = 0,
+    /** The 6-digit pairing code the user is typing, and the pair/connect state + last status line. */
+    val adbCode: String = "",
+    val adbBusy: Boolean = false,
+    val adbPairStatus: String? = null,
 )
 
 class LobbyViewModel(app: Application) : AndroidViewModel(app) {
@@ -510,7 +518,65 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 else -> result.note ?: "No Wireless Debugging service found."
             }
-            _state.update { it.copy(adbScanning = false, adbScanResult = summary) }
+            _state.update {
+                it.copy(
+                    adbScanning = false,
+                    adbScanResult = summary,
+                    adbConnectHost = result.connectHost ?: it.adbConnectHost,
+                    adbConnectPort = if (result.connectPort != 0) result.connectPort else it.adbConnectPort,
+                    adbPairingPort = result.pairingPort,
+                )
+            }
+        }
+    }
+
+    fun setAdbCode(code: String) {
+        _state.update { it.copy(adbCode = code.filter { c -> c.isDigit() }.take(6)) }
+    }
+
+    /**
+     * Experimental: pair with this device's own ADB daemon using the 6-digit code shown in the Wireless Debugging
+     * "Pair device with pairing code" dialog, then connect and run a harmless probe command to prove the channel works.
+     * Self-install (streaming the downloaded APK) is deliberately a separate, later step, gated on this succeeding.
+     */
+    fun pairAndConnect() {
+        val s = _state.value
+        if (s.adbBusy) return
+        val host = s.adbConnectHost
+        val pairingPort = s.adbPairingPort
+        val connectPort = s.adbConnectPort
+        val code = s.adbCode
+        when {
+            host == null || connectPort == 0 -> {
+                _state.update { it.copy(adbPairStatus = "Scan first so Lobby knows this TV's ADB endpoint.") }
+                return
+            }
+            pairingPort == 0 -> {
+                _state.update { it.copy(adbPairStatus = "Open \"Pair device with pairing code\" on the TV, then Scan again to catch the pairing port.") }
+                return
+            }
+            code.length != 6 -> {
+                _state.update { it.copy(adbPairStatus = "Enter the 6-digit code from the pairing dialog.") }
+                return
+            }
+        }
+        _state.update { it.copy(adbBusy = true, adbPairStatus = "Pairing…") }
+        viewModelScope.launch {
+            val status = withContext(Dispatchers.IO) {
+                try {
+                    val manager = io.github.ctznsniiips.lobby.device.LobbyAdbConnectionManager.getInstance(getApplication())
+                    val paired = manager.pair(host, pairingPort, code)
+                    if (!paired) return@withContext "Pairing failed — double-check the code and that the dialog is still open."
+                    manager.connect(host, connectPort)
+                    val probe = manager.openStream("shell:id")
+                    val out = probe.openInputStream().bufferedReader().use { it.readText() }.trim()
+                    probe.close()
+                    "Connected. shell:id → ${out.ifBlank { "(no output)" }}"
+                } catch (e: Exception) {
+                    "Error: ${e.message ?: e.javaClass.simpleName}"
+                }
+            }
+            _state.update { it.copy(adbBusy = false, adbPairStatus = status) }
         }
     }
 

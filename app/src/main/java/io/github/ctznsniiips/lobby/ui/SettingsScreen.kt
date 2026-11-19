@@ -20,6 +20,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.border
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.core.graphics.drawable.toBitmap
@@ -488,6 +492,41 @@ private fun CategoryDetail(
                         }
                         Button(onClick = actions.scanWirelessAdb, enabled = !homeState.adbScanning) {
                             Text(if (homeState.adbScanning) "Scanning…" else "Scan for Wireless Debugging")
+                        }
+                        // Pairing: enter the 6-digit code from the TV's "Pair device with pairing code" dialog, then
+                        // pair + connect to this device's own ADB daemon and run a harmless probe to prove the channel.
+                        Text(
+                            "To pair: open \"Pair device with pairing code\" on the TV, Scan again to catch the pairing " +
+                                "port, enter the 6-digit code, then Pair & connect.",
+                            fontSize = 13.sp, color = LobbyColors.soft, lineHeight = 18.sp, modifier = Modifier.fillMaxWidth(0.9f),
+                        )
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            BasicTextField(
+                                value = homeState.adbCode,
+                                onValueChange = actions.setAdbCode,
+                                enabled = !homeState.adbBusy,
+                                singleLine = true,
+                                textStyle = TextStyle(color = LobbyColors.ink, fontSize = 20.sp),
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                modifier = Modifier
+                                    .width(140.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(LobbyColors.soft.copy(alpha = 0.15f))
+                                    .border(BorderStroke(1.dp, LobbyColors.soft), RoundedCornerShape(8.dp))
+                                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                                decorationBox = { inner ->
+                                    if (homeState.adbCode.isEmpty()) {
+                                        Text("000000", fontSize = 20.sp, color = LobbyColors.soft)
+                                    }
+                                    inner()
+                                },
+                            )
+                            Button(onClick = actions.pairAdb, enabled = !homeState.adbBusy) {
+                                Text(if (homeState.adbBusy) "Working…" else "Pair & connect")
+                            }
+                        }
+                        homeState.adbPairStatus?.let {
+                            Text(it, fontSize = 13.sp, color = LobbyColors.accent, lineHeight = 18.sp, modifier = Modifier.fillMaxWidth(0.9f))
                         }
                     }
                 }
