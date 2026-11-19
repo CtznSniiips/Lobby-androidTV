@@ -481,13 +481,13 @@ private fun CategoryDetail(
                         }
                     }
                 }
-                item { SectionHeader("Experimental") }
+                item { SectionHeader("Self-update over ADB") }
                 item {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("Self-update over ADB (preview)", fontSize = 16.sp, color = LobbyColors.ink)
+                        Text("Install updates on-device", fontSize = 16.sp, color = LobbyColors.ink)
                         Text(
-                            "A spike toward Lobby installing its own updates. First it has to find this TV's Wireless " +
-                                "Debugging endpoint. Enable Wireless Debugging under Developer options, then scan.",
+                            "Pair Lobby once with this TV's Wireless Debugging and it can install its own updates — no " +
+                                "PC, no installer prompt. Enable Wireless Debugging under Developer options, then scan.",
                             fontSize = 13.sp, color = LobbyColors.soft, lineHeight = 18.sp,
                         )
                         homeState.adbScanResult?.let {
