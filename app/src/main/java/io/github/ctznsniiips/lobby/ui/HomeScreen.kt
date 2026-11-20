@@ -1457,15 +1457,15 @@ private fun AppDock(
         }
         }
         // Scroll affordance: a chevron at each edge of the dock when more apps sit off-screen that way.
-        val arrowColor = if (light) Color(0xCC000000) else LobbyColors.ink
+        val arrowColor = (if (light) Color(0xCC000000) else LobbyColors.ink).copy(alpha = 0.55f)
         if (dockScroll.value > 0) {
             Text(
                 "❮",
                 color = arrowColor,
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
-                style = TextStyle(shadow = Shadow(Color(0xAA000000), blurRadius = 6f)),
-                modifier = Modifier.align(Alignment.CenterStart).padding(start = 3.dp),
+                style = TextStyle(shadow = Shadow(Color(0x66000000), blurRadius = 6f)),
+                modifier = Modifier.align(Alignment.CenterStart).padding(start = 9.dp),
             )
         }
         if (dockScroll.value < dockScroll.maxValue) {
@@ -1474,8 +1474,8 @@ private fun AppDock(
                 color = arrowColor,
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
-                style = TextStyle(shadow = Shadow(Color(0xAA000000), blurRadius = 6f)),
-                modifier = Modifier.align(Alignment.CenterEnd).padding(end = 3.dp),
+                style = TextStyle(shadow = Shadow(Color(0x66000000), blurRadius = 6f)),
+                modifier = Modifier.align(Alignment.CenterEnd).padding(end = 9.dp),
             )
         }
     }
