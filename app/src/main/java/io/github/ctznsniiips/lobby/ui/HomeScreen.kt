@@ -1227,6 +1227,7 @@ private fun AppDock(
     onMove: (packageName: String, direction: Int) -> Unit = { _, _ -> },
 ) {
     val list = remember(apps) { apps.distinctBy { it.packageName } }
+    val dockScroll = rememberScrollState()
     // Long-press puts a tile into "move mode": left/right then reposition it, centre/back commits. Null when idle.
     var movingPackage by remember { mutableStateOf<String?>(null) }
     // A tile that's no longer present (uninstalled, or hidden) can't stay in move mode.
@@ -1352,7 +1353,7 @@ private fun AppDock(
         }
         Row(
             Modifier
-                .horizontalScroll(rememberScrollState())
+                .horizontalScroll(dockScroll)
                 .padding(horizontal = 14.dp, vertical = 6.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
@@ -1446,6 +1447,28 @@ private fun AppDock(
             }
           }
         }
+        }
+        // Scroll affordance: a chevron at each edge of the dock when more apps sit off-screen that way.
+        val arrowColor = if (light) Color(0xCC000000) else LobbyColors.ink
+        if (dockScroll.value > 0) {
+            Text(
+                "❮",
+                color = arrowColor,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                style = TextStyle(shadow = Shadow(Color(0xAA000000), blurRadius = 6f)),
+                modifier = Modifier.align(Alignment.CenterStart).padding(start = 3.dp),
+            )
+        }
+        if (dockScroll.value < dockScroll.maxValue) {
+            Text(
+                "❯",
+                color = arrowColor,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                style = TextStyle(shadow = Shadow(Color(0xAA000000), blurRadius = 6f)),
+                modifier = Modifier.align(Alignment.CenterEnd).padding(end = 3.dp),
+            )
         }
     }
     }
