@@ -156,15 +156,9 @@ private val APP_LIST_WIDTH = 300.dp
  *  that the tile row scrolls horizontally. */
 private val DOCK_MAX_WIDTH = 884.dp
 
-/**
- * Pins a focused child's leading edge to the viewport's leading edge in a single scroll pass. Provided to the home
- * rows' vertical LazyColumn so moving focus down into a row settles it at the fixed spot immediately, instead of the
- * old focusedRowId + animateScrollToItem effect, which raced the framework's own focus bring-into-view and left an
- * intermediate layout that only resolved on the next horizontal move.
- */
-private val PinToTopBringIntoView = object : BringIntoViewSpec {
-    override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float = offset
-}
+/** Height of a row's header (title + the LazyRow's top gap) above its cards, used to pin the whole row — title
+ *  included — rather than clipping the title off the top. */
+private val ROW_HEADER_PAD = 24.dp
 
 /**
  * The stock minimal-scroll behaviour. Re-provided inside each row's horizontal LazyRow so cards keep their usual
@@ -352,6 +346,16 @@ fun HomeScreen(
                 ?.filter { it.items.isNotEmpty() }
                 .orEmpty()
             val rowsState = rememberLazyListState()
+            // Pin the focused ROW (title included) to a fixed spot in one scroll pass. The framework's focus
+            // bring-into-view carries the focused card's bounds, so offsetting by the row header lifts the whole row —
+            // not just the card — to the top, replacing the old focusedRowId + animateScrollToItem effect that raced
+            // this same bring-into-view and left an intermediate layout until the next horizontal move.
+            val rowHeaderPx = with(LocalDensity.current) { ROW_HEADER_PAD.toPx() }
+            val pinRowSpec = remember(rowHeaderPx) {
+                object : BringIntoViewSpec {
+                    override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float = offset - rowHeaderPx
+                }
+            }
             Box(
                 Modifier
                     .fillMaxSize()
@@ -376,9 +380,9 @@ fun HomeScreen(
                         // scrolled at all.
                     },
             ) {
-                // Pin the focused row's top to the viewport top in one pass (see PinToTopBringIntoView). The inner
-                // LazyRows restore the default spec so cards keep their minimal-scroll horizontal behaviour.
-                CompositionLocalProvider(LocalBringIntoViewSpec provides PinToTopBringIntoView) {
+                // Pin the focused row (title included) to a fixed spot in one pass. The inner LazyRows restore the
+                // default spec so cards keep their minimal-scroll horizontal behaviour.
+                CompositionLocalProvider(LocalBringIntoViewSpec provides pinRowSpec) {
                 LazyColumn(
                     state = rowsState,
                     modifier = Modifier.fillMaxSize().padding(start = ROWS_INSET),
@@ -1003,63 +1007,39 @@ internal fun MediaRow(row: HomeRow, address: ServerAddress, onItem: (HomeItem) -
             modifier = Modifier.padding(start = ROW_H_PAD),
         )
         val listState = rememberLazyListState()
-        Box {
-            // Default bring-into-view inside the row: the vertical LazyColumn is provided a pin-to-top spec, which
-            // descendants would otherwise inherit and yank each focused card to the left edge.
-            CompositionLocalProvider(LocalBringIntoViewSpec provides DefaultBringIntoView) {
-                LazyRow(
-                    state = listState,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    // Small top gap keeps the title close to its cards; the bottom gap gives a focused card room to scale.
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(start = ROW_H_PAD, end = ROW_H_PAD, top = 3.dp, bottom = ROW_V_PAD),
-                    modifier = Modifier
-                        .graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)
-                        .drawWithContent {
-                            drawContent()
-                            // Fade whichever edge still has cards scrolled off, so they dissolve at the cut.
-                            val fade = (40.dp.toPx() / size.width).coerceIn(0f, 0.5f)
-                            if (listState.canScrollBackward) {
-                                drawRect(Brush.horizontalGradient(0f to Color.Transparent, fade to Color.White), blendMode = BlendMode.DstIn)
-                            }
-                            if (listState.canScrollForward) {
-                                drawRect(Brush.horizontalGradient((1f - fade) to Color.White, 1f to Color.Transparent), blendMode = BlendMode.DstIn)
-                            }
-                        },
-                ) {
-                    val cards = row.items.distinctBy { it.id }
-                    itemsIndexed(cards, key = { _, it -> it.id }) { index, item ->
-                        // The leftmost card sends Left to a defined target (the rail, or the app list) instead of letting
-                        // Compose hunt for the nearest focusable, which otherwise lands invisibly on an app in the dock.
-                        val cardModifier = if (index == 0 && leftFocus != null) {
-                            Modifier.focusProperties { left = leftFocus }
-                        } else {
-                            Modifier
+        // Default bring-into-view inside the row: the vertical LazyColumn is provided a pin-to-row spec, which
+        // descendants would otherwise inherit and yank each focused card to the left edge.
+        CompositionLocalProvider(LocalBringIntoViewSpec provides DefaultBringIntoView) {
+            LazyRow(
+                state = listState,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                // Small top gap keeps the title close to its cards; the bottom gap gives a focused card room to scale.
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(start = ROW_H_PAD, end = ROW_H_PAD, top = 3.dp, bottom = ROW_V_PAD),
+                modifier = Modifier
+                    .graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)
+                    .drawWithContent {
+                        drawContent()
+                        // Fade whichever edge still has cards scrolled off, so they dissolve at the cut.
+                        val fade = (40.dp.toPx() / size.width).coerceIn(0f, 0.5f)
+                        if (listState.canScrollBackward) {
+                            drawRect(Brush.horizontalGradient(0f to Color.Transparent, fade to Color.White), blendMode = BlendMode.DstIn)
                         }
-                        MediaCard(item, address, poster, row.id == "seerr-trending", onItem, onFocused, cardModifier)
+                        if (listState.canScrollForward) {
+                            drawRect(Brush.horizontalGradient((1f - fade) to Color.White, 1f to Color.Transparent), blendMode = BlendMode.DstIn)
+                        }
+                    },
+            ) {
+                val cards = row.items.distinctBy { it.id }
+                itemsIndexed(cards, key = { _, it -> it.id }) { index, item ->
+                    // The leftmost card sends Left to a defined target (the rail, or the app list) instead of letting
+                    // Compose hunt for the nearest focusable, which otherwise lands invisibly on an app in the dock.
+                    val cardModifier = if (index == 0 && leftFocus != null) {
+                        Modifier.focusProperties { left = leftFocus }
+                    } else {
+                        Modifier
                     }
+                    MediaCard(item, address, poster, row.id == "seerr-trending", onItem, onFocused, cardModifier)
                 }
-            }
-            // Scroll affordance matching the dock: a chevron at each edge when more cards sit off-screen that way.
-            val arrowColor = LobbyColors.ink.copy(alpha = 0.55f)
-            if (listState.canScrollBackward) {
-                Text(
-                    "❮",
-                    color = arrowColor,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    style = TextStyle(shadow = Shadow(Color(0x66000000), blurRadius = 6f)),
-                    modifier = Modifier.align(Alignment.CenterStart).padding(start = 9.dp),
-                )
-            }
-            if (listState.canScrollForward) {
-                Text(
-                    "❯",
-                    color = arrowColor,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    style = TextStyle(shadow = Shadow(Color(0x66000000), blurRadius = 6f)),
-                    modifier = Modifier.align(Alignment.CenterEnd).padding(end = 9.dp),
-                )
             }
         }
     }
