@@ -20,6 +20,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.border
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -483,25 +486,25 @@ private fun CategoryDetail(
                 }
                 item { SectionHeader("Self-update over ADB") }
                 item {
+                    // When pairing starts, the "Pair automatically" button disappears; move focus to "Open settings"
+                    // (the next step) instead of letting the D-pad jump up the list.
+                    val openSettingsFocus = remember { FocusRequester() }
+                    LaunchedEffect(homeState.adbPairingActive) {
+                        if (homeState.adbPairingActive) runCatching { openSettingsFocus.requestFocus() }
+                    }
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text("Install updates on-device", fontSize = 16.sp, color = LobbyColors.ink)
                         Text(
                             "Pair Lobby once with this TV's Wireless Debugging and it can install its own updates — no " +
-                                "PC, no installer prompt. Enable Wireless Debugging under Developer options, then scan.",
+                                "PC, no installer prompt. Enable Wireless Debugging under Developer options, then pair below.",
                             fontSize = 13.sp, color = LobbyColors.soft, lineHeight = 18.sp,
                         )
-                        homeState.adbScanResult?.let {
-                            Text(it, fontSize = 13.sp, color = LobbyColors.accent, lineHeight = 18.sp, modifier = Modifier.fillMaxWidth(0.9f))
-                        }
-                        Button(onClick = actions.scanWirelessAdb, enabled = !homeState.adbScanning && !homeState.adbPairingActive) {
-                            Text(if (homeState.adbScanning) "Scanning…" else "Scan for Wireless Debugging")
-                        }
                         // Pairing on a single-screen TV: the pairing server only lives while the system "Pair device with
                         // pairing code" dialog is showing. So Lobby watches in the background, and the user returns with
                         // HOME (which pauses the dialog, keeping the server alive) — not Back, which cancels it.
                         if (homeState.adbPairingActive) {
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                Button(onClick = actions.openDeveloperOptions) { Text("Open settings") }
+                                Button(onClick = actions.openDeveloperOptions, modifier = Modifier.focusRequester(openSettingsFocus)) { Text("Open settings") }
                                 Button(onClick = actions.stopAdbPairing, enabled = !homeState.adbBusy) { Text("Cancel") }
                             }
                         } else if (!homeState.adbConnected) {
