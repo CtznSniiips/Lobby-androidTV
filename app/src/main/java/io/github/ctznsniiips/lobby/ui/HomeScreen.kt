@@ -146,6 +146,9 @@ private const val ROTATE_MS = 8000L
 // Room for a focused card to grow into without the row clipping it, especially the first card in a row.
 private val ROW_H_PAD = 14.dp
 private val ROW_V_PAD = 10.dp
+// Width of the soft fade on a row edge that still has cards scrolled off-screen. The focused card is kept at least
+// this far from either edge so it never sits inside the fade.
+private val ROW_EDGE_FADE = 40.dp
 // The hero text and greeting are inset to clear the floating rail; the rows start much further left.
 private val HERO_INSET = 76.dp
 private val ROWS_INSET = 16.dp
@@ -362,14 +365,12 @@ fun HomeScreen(
                     .graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)
                     .drawWithContent {
                         drawContent()
-                        // Watch fades the top edge so rows dissolve under the hero as they scroll up — but only once
-                        // there's something scrolled up there. At rest the first row sits at the top, so fading it
-                        // would just shadow its title; keep the top opaque until the list can actually scroll back.
-                        val stops = when {
-                            heroLess -> arrayOf(0f to Color.White, 0.90f to Color.White, 1f to Color.Transparent)
-                            rowsState.canScrollBackward ->
-                                arrayOf(0f to Color.Transparent, 0.10f to Color.White, 0.88f to Color.White, 1f to Color.Transparent)
-                            else -> arrayOf(0f to Color.White, 0.88f to Color.White, 1f to Color.Transparent)
+                        // Only the bottom edge fades (so a cut-off bottom row dissolves). The focused row is pinned to
+                        // the top, so its title sits in the top band — fading the top would just shadow that title.
+                        val stops = if (heroLess) {
+                            arrayOf(0f to Color.White, 0.90f to Color.White, 1f to Color.Transparent)
+                        } else {
+                            arrayOf(0f to Color.White, 0.88f to Color.White, 1f to Color.Transparent)
                         }
                         drawRect(
                             Brush.verticalGradient(*stops),
@@ -1007,9 +1008,26 @@ internal fun MediaRow(row: HomeRow, address: ServerAddress, onItem: (HomeItem) -
             modifier = Modifier.padding(start = ROW_H_PAD),
         )
         val listState = rememberLazyListState()
-        // Default bring-into-view inside the row: the vertical LazyColumn is provided a pin-to-row spec, which
-        // descendants would otherwise inherit and yank each focused card to the left edge.
-        CompositionLocalProvider(LocalBringIntoViewSpec provides DefaultBringIntoView) {
+        // Keep the focused card clear of the edge fade: bring it into view with the fade width (plus a hair) of space
+        // between the card and whichever edge it's heading toward, instead of the default minimal scroll that leaves it
+        // right at the cut. Clamping at the list ends means arrowing back to the first card settles flush at the start
+        // with no left fade, matching the resting state. (The vertical LazyColumn's pin-to-row spec is overridden here.)
+        val cardClearPx = with(LocalDensity.current) { (ROW_EDGE_FADE + 4.dp).toPx() }
+        val rowBringIntoView = remember(cardClearPx) {
+            object : BringIntoViewSpec {
+                override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float {
+                    val leadingEdge = offset - cardClearPx
+                    val trailingEdge = offset + size + cardClearPx
+                    return when {
+                        leadingEdge >= 0f && trailingEdge <= containerSize -> 0f
+                        leadingEdge < 0f && trailingEdge > containerSize -> 0f
+                        kotlin.math.abs(leadingEdge) < kotlin.math.abs(trailingEdge - containerSize) -> leadingEdge
+                        else -> trailingEdge - containerSize
+                    }
+                }
+            }
+        }
+        CompositionLocalProvider(LocalBringIntoViewSpec provides rowBringIntoView) {
             LazyRow(
                 state = listState,
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -1020,7 +1038,7 @@ internal fun MediaRow(row: HomeRow, address: ServerAddress, onItem: (HomeItem) -
                     .drawWithContent {
                         drawContent()
                         // Fade whichever edge still has cards scrolled off, so they dissolve at the cut.
-                        val fade = (40.dp.toPx() / size.width).coerceIn(0f, 0.5f)
+                        val fade = (ROW_EDGE_FADE.toPx() / size.width).coerceIn(0f, 0.5f)
                         if (listState.canScrollBackward) {
                             drawRect(Brush.horizontalGradient(0f to Color.Transparent, fade to Color.White), blendMode = BlendMode.DstIn)
                         }
