@@ -60,7 +60,6 @@ class MainActivity : ComponentActivity() {
             setHomeLayout = viewModel::setHomeLayout,
             setAppDisplay = viewModel::setAppDisplay,
             setCombineContinueNextUp = viewModel::setCombineContinueNextUp,
-            scanWirelessAdb = viewModel::scanWirelessAdb,
             startAdbPairing = viewModel::startAdbPairing,
             startAutoPair = viewModel::startAutoPair,
             stopAdbPairing = viewModel::stopAdbPairing,
