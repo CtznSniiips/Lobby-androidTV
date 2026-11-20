@@ -149,10 +149,7 @@ data class LobbyState(
     val homePromptDismissed: Boolean = false,
     /** True while the make-Lobby-your-home-screen guide is open. */
     val homeSetup: Boolean = false,
-    /** Experimental Wireless-ADB spike: whether a discovery scan is running, and the last human-readable result. */
-    val adbScanning: Boolean = false,
-    val adbScanResult: String? = null,
-    /** This device's own ADB endpoint, filled in by a successful scan (host + connect port + pairing host/port). */
+    /** This device's own ADB endpoint, filled in by discovery (host + connect port + pairing host/port). */
     val adbConnectHost: String? = null,
     val adbConnectPort: Int = 0,
     val adbPairingHost: String? = null,
@@ -543,39 +540,6 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
                     adbConnected = ok,
                     adbPairStatus = if (ok) "Reconnected — this TV is already paired."
                     else "Couldn't reconnect. Make sure Wireless Debugging is on, or re-pair below.",
-                )
-            }
-        }
-    }
-
-    /**
-     * Experimental spike: scan for Android's Wireless Debugging mDNS endpoints and report what we found. This proves
-     * (or disproves) that Lobby can detect wireless debugging and auto-find the connect host/port — the first unknown
-     * before we build the self-install path. Pairing + install land in a later phase on a vetted ADB library.
-     */
-    fun scanWirelessAdb() {
-        if (_state.value.adbScanning) return
-        _state.update { it.copy(adbScanning = true, adbScanResult = "Scanning for Wireless Debugging…") }
-        wirelessAdb.scan { result ->
-            val summary = when {
-                !result.supported -> result.note ?: "Not supported on this device."
-                result.wirelessDebuggingOn -> buildString {
-                    append("This TV's Wireless Debugging detected")
-                    if (result.connectHost != null && result.connectPort != 0) {
-                        append(" at ${result.connectHost}:${result.connectPort}")
-                    }
-                    if (result.pairingPort != 0) append(" · pairing dialog open on port ${result.pairingPort}")
-                    if (result.otherDevices > 0) append(" (ignored ${result.otherDevices} other device(s))")
-                }
-                else -> result.note ?: "No Wireless Debugging service found."
-            }
-            _state.update {
-                it.copy(
-                    adbScanning = false,
-                    adbScanResult = summary,
-                    adbConnectHost = result.connectHost ?: it.adbConnectHost,
-                    adbConnectPort = if (result.connectPort != 0) result.connectPort else it.adbConnectPort,
-                    adbPairingPort = result.pairingPort,
                 )
             }
         }

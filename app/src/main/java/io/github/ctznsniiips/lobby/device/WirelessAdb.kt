@@ -57,24 +57,9 @@ class WirelessAdb(context: Context) {
     @Volatile private var localIps: Set<String> = emptySet()
     @Volatile private var reporter: ((Result) -> Unit)? = null
 
-    /** One-shot detect: starts discovery, reports once after [timeoutMs], then stops. */
-    fun scan(timeoutMs: Long = 4_000L, onResult: (Result) -> Unit) {
-        when (begin(continuous = false)) {
-            StartResult.UNSUPPORTED -> { onResult(Result(supported = false, note = unsupportedNote())); return }
-            StartResult.BUSY -> { onResult(Result(note = "A scan is already running.")); return }
-            StartResult.FAILED -> { onResult(Result(supported = false, note = "Couldn't start discovery.")); return }
-            StartResult.OK -> {}
-        }
-        android.os.Handler(appContext.mainLooper).postDelayed({
-            val r = snapshot()
-            stop()
-            onResult(r)
-        }, timeoutMs)
-    }
-
     /** Continuous watch for the pairing flow: calls [onUpdate] now and whenever the known endpoints change, until [stop]. */
     fun watch(onUpdate: (Result) -> Unit) {
-        when (begin(continuous = true)) {
+        when (begin()) {
             StartResult.UNSUPPORTED -> { onUpdate(Result(supported = false, note = unsupportedNote())); return }
             StartResult.BUSY -> { onUpdate(Result(note = "Already watching.")); return }
             StartResult.FAILED -> { onUpdate(Result(supported = false, note = "Couldn't start discovery.")); return }
@@ -84,7 +69,7 @@ class WirelessAdb(context: Context) {
 
     private enum class StartResult { OK, BUSY, UNSUPPORTED, FAILED }
 
-    private fun begin(continuous: Boolean): StartResult {
+    private fun begin(): StartResult {
         val manager = nsd ?: return StartResult.UNSUPPORTED
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return StartResult.UNSUPPORTED
         if (!active.compareAndSet(false, true)) return StartResult.BUSY
