@@ -8,6 +8,8 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -146,6 +148,10 @@ private val HERO_INSET = 76.dp
 private val ROWS_INSET = 16.dp
 /** Width reserved on the left for the vertical app list in the List layout (rail + list + a gap). */
 private val APP_LIST_WIDTH = 300.dp
+
+/** Max width of the bottom app dock — sized to show 9 tiles on a 1080p screen (14 + 9×88 + 8×8 + 14 dp); beyond
+ *  that the tile row scrolls horizontally. */
+private val DOCK_MAX_WIDTH = 884.dp
 
 /**
  * Home, laid out like the Samsung app: the focused (or featured) title's backdrop fills the screen, a slim rail of
@@ -1273,6 +1279,9 @@ private fun AppDock(
       }
     Box(
         Modifier
+            // Cap the dock so it shows at most DOCK_MAX_APPS tiles (sized for a 1080p screen); more than that and the
+            // tile row scrolls horizontally, bringing an off-screen focused tile into view automatically.
+            .widthIn(max = DOCK_MAX_WIDTH)
             .shadow(if (glass) 16.dp else 6.dp, shape, clip = false)
             .clip(shape)
             // Mostly a top-lit hairline, fading to almost nothing around the sides — not a full bright rim.
@@ -1342,7 +1351,9 @@ private fun AppDock(
             }
         }
         Row(
-            Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
+            Modifier
+                .horizontalScroll(rememberScrollState())
+                .padding(horizontal = 14.dp, vertical = 6.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
         list.forEachIndexed { i, app ->
