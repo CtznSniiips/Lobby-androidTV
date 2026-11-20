@@ -1,4 +1,4 @@
-@file:OptIn(ExperimentalTvMaterial3Api::class)
+@file:OptIn(ExperimentalTvMaterial3Api::class, ExperimentalFoundationApi::class)
 
 package io.github.ctznsniiips.lobby.ui
 
@@ -33,7 +33,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
 import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.unit.IntSize
@@ -41,6 +40,10 @@ import kotlin.math.roundToInt
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.gestures.BringIntoViewSpec
+import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
@@ -152,6 +155,33 @@ private val APP_LIST_WIDTH = 300.dp
 /** Max width of the bottom app dock — sized to show 9 tiles on a 1080p screen (14 + 9×88 + 8×8 + 14 dp); beyond
  *  that the tile row scrolls horizontally. */
 private val DOCK_MAX_WIDTH = 884.dp
+
+/**
+ * Pins a focused child's leading edge to the viewport's leading edge in a single scroll pass. Provided to the home
+ * rows' vertical LazyColumn so moving focus down into a row settles it at the fixed spot immediately, instead of the
+ * old focusedRowId + animateScrollToItem effect, which raced the framework's own focus bring-into-view and left an
+ * intermediate layout that only resolved on the next horizontal move.
+ */
+private val PinToTopBringIntoView = object : BringIntoViewSpec {
+    override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float = offset
+}
+
+/**
+ * The stock minimal-scroll behaviour. Re-provided inside each row's horizontal LazyRow so cards keep their usual
+ * bring-into-view (they'd otherwise inherit the pin-to-top spec above and jump to the left edge when focused).
+ */
+private val DefaultBringIntoView = object : BringIntoViewSpec {
+    override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float {
+        val leadingEdge = offset
+        val trailingEdge = offset + size
+        return when {
+            leadingEdge >= 0f && trailingEdge <= containerSize -> 0f
+            leadingEdge < 0f && trailingEdge > containerSize -> 0f
+            kotlin.math.abs(leadingEdge) < kotlin.math.abs(trailingEdge - containerSize) -> leadingEdge
+            else -> trailingEdge - containerSize
+        }
+    }
+}
 
 /**
  * Home, laid out like the Samsung app: the focused (or featured) title's backdrop fills the screen, a slim rail of
@@ -322,13 +352,6 @@ fun HomeScreen(
                 ?.filter { it.items.isNotEmpty() }
                 .orEmpty()
             val rowsState = rememberLazyListState()
-            val rowsScope = rememberCoroutineScope()
-            var focusedRowId by remember { mutableStateOf<String?>(null) }
-            val preItems = (if (showConnectBanner) 1 else 0) + (if (showUpdateBanner) 1 else 0) + (if (showHomePrompt) 1 else 0) + (if (state.homeError != null) 1 else 0)
-            LaunchedEffect(focusedRowId, rowList.size) {
-                val idx = rowList.indexOfFirst { it.id == focusedRowId }
-                if (idx >= 0) rowsScope.launch { rowsState.animateScrollToItem(preItems + idx) }
-            }
             Box(
                 Modifier
                     .fillMaxSize()
@@ -348,14 +371,14 @@ fun HomeScreen(
                             Brush.verticalGradient(*stops),
                             blendMode = BlendMode.DstIn,
                         )
-                        // Rows run off the right edge; fade that edge so they dissolve instead of hard-clipping.
-                        val rightFade = (40.dp.toPx() / size.width).coerceIn(0f, 0.5f)
-                        drawRect(
-                            Brush.horizontalGradient(0f to Color.White, (1f - rightFade) to Color.White, 1f to Color.Transparent),
-                            blendMode = BlendMode.DstIn,
-                        )
+                        // The horizontal edge fades now live per-row (MediaRow), so each row fades only the side it has
+                        // actually scrolled off — a global fade here would shadow the first card of rows that aren't
+                        // scrolled at all.
                     },
             ) {
+                // Pin the focused row's top to the viewport top in one pass (see PinToTopBringIntoView). The inner
+                // LazyRows restore the default spec so cards keep their minimal-scroll horizontal behaviour.
+                CompositionLocalProvider(LocalBringIntoViewSpec provides PinToTopBringIntoView) {
                 LazyColumn(
                     state = rowsState,
                     modifier = Modifier.fillMaxSize().padding(start = ROWS_INSET),
@@ -386,14 +409,13 @@ fun HomeScreen(
                     // Left from a row's first card goes to a real target: the app list in List, otherwise the rail.
                     val rowLeftFocus = if (hasAppList) dockFocus else searchFocus
                     items(rowList, key = { it.id }) { row ->
-                        Box(Modifier.onFocusChanged { if (it.hasFocus) focusedRowId = row.id }) {
-                            MediaRow(row, address, onItem, onFocused = { browsed = it }, leftFocus = rowLeftFocus)
-                        }
+                        MediaRow(row, address, onItem, onFocused = { browsed = it }, leftFocus = rowLeftFocus)
                     }
 
                     if (state.inputs.isNotEmpty()) {
                         item { Box(Modifier.onFocusChanged { if (it.hasFocus) browsed = null }) { InputRow(state.inputs, onInput) } }
                     }
+                }
                 }
             }
         }
@@ -980,21 +1002,64 @@ internal fun MediaRow(row: HomeRow, address: ServerAddress, onItem: (HomeItem) -
             color = titleColor,
             modifier = Modifier.padding(start = ROW_H_PAD),
         )
-        LazyRow(
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            // Small top gap keeps the title close to its cards; the bottom gap gives a focused card room to scale.
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(start = ROW_H_PAD, end = ROW_H_PAD, top = 3.dp, bottom = ROW_V_PAD),
-        ) {
-            val cards = row.items.distinctBy { it.id }
-            itemsIndexed(cards, key = { _, it -> it.id }) { index, item ->
-                // The leftmost card sends Left to a defined target (the rail, or the app list) instead of letting
-                // Compose hunt for the nearest focusable, which otherwise lands invisibly on an app in the dock.
-                val cardModifier = if (index == 0 && leftFocus != null) {
-                    Modifier.focusProperties { left = leftFocus }
-                } else {
-                    Modifier
+        val listState = rememberLazyListState()
+        Box {
+            // Default bring-into-view inside the row: the vertical LazyColumn is provided a pin-to-top spec, which
+            // descendants would otherwise inherit and yank each focused card to the left edge.
+            CompositionLocalProvider(LocalBringIntoViewSpec provides DefaultBringIntoView) {
+                LazyRow(
+                    state = listState,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    // Small top gap keeps the title close to its cards; the bottom gap gives a focused card room to scale.
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(start = ROW_H_PAD, end = ROW_H_PAD, top = 3.dp, bottom = ROW_V_PAD),
+                    modifier = Modifier
+                        .graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)
+                        .drawWithContent {
+                            drawContent()
+                            // Fade whichever edge still has cards scrolled off, so they dissolve at the cut.
+                            val fade = (40.dp.toPx() / size.width).coerceIn(0f, 0.5f)
+                            if (listState.canScrollBackward) {
+                                drawRect(Brush.horizontalGradient(0f to Color.Transparent, fade to Color.White), blendMode = BlendMode.DstIn)
+                            }
+                            if (listState.canScrollForward) {
+                                drawRect(Brush.horizontalGradient((1f - fade) to Color.White, 1f to Color.Transparent), blendMode = BlendMode.DstIn)
+                            }
+                        },
+                ) {
+                    val cards = row.items.distinctBy { it.id }
+                    itemsIndexed(cards, key = { _, it -> it.id }) { index, item ->
+                        // The leftmost card sends Left to a defined target (the rail, or the app list) instead of letting
+                        // Compose hunt for the nearest focusable, which otherwise lands invisibly on an app in the dock.
+                        val cardModifier = if (index == 0 && leftFocus != null) {
+                            Modifier.focusProperties { left = leftFocus }
+                        } else {
+                            Modifier
+                        }
+                        MediaCard(item, address, poster, row.id == "seerr-trending", onItem, onFocused, cardModifier)
+                    }
                 }
-                MediaCard(item, address, poster, row.id == "seerr-trending", onItem, onFocused, cardModifier)
+            }
+            // Scroll affordance matching the dock: a chevron at each edge when more cards sit off-screen that way.
+            val arrowColor = LobbyColors.ink.copy(alpha = 0.55f)
+            if (listState.canScrollBackward) {
+                Text(
+                    "❮",
+                    color = arrowColor,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    style = TextStyle(shadow = Shadow(Color(0x66000000), blurRadius = 6f)),
+                    modifier = Modifier.align(Alignment.CenterStart).padding(start = 9.dp),
+                )
+            }
+            if (listState.canScrollForward) {
+                Text(
+                    "❯",
+                    color = arrowColor,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    style = TextStyle(shadow = Shadow(Color(0x66000000), blurRadius = 6f)),
+                    modifier = Modifier.align(Alignment.CenterEnd).padding(end = 9.dp),
+                )
             }
         }
     }
@@ -1152,9 +1217,13 @@ private fun InputRow(inputs: List<TvInput>, onInput: (TvInput) -> Unit) {
         verticalArrangement = Arrangement.spacedBy(0.dp),
     ) {
         Text("Inputs", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.1).sp, color = titleColor, modifier = Modifier.padding(start = ROW_H_PAD))
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp), contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = ROW_H_PAD, vertical = ROW_V_PAD)) {
-            items(inputs, key = { it.id }) { input ->
-                Button(onClick = { onInput(input) }) { Text(input.label, fontSize = 14.sp) }
+        // Restore the default horizontal bring-into-view (the rows' LazyColumn provides a pin-to-top spec descendants
+        // would otherwise inherit, snapping each focused chip to the left edge).
+        CompositionLocalProvider(LocalBringIntoViewSpec provides DefaultBringIntoView) {
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp), contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = ROW_H_PAD, vertical = ROW_V_PAD)) {
+                items(inputs, key = { it.id }) { input ->
+                    Button(onClick = { onInput(input) }) { Text(input.label, fontSize = 14.sp) }
+                }
             }
         }
     }
