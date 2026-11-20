@@ -348,6 +348,12 @@ fun HomeScreen(
                             Brush.verticalGradient(*stops),
                             blendMode = BlendMode.DstIn,
                         )
+                        // Rows run off the right edge; fade that edge so they dissolve instead of hard-clipping.
+                        val rightFade = (40.dp.toPx() / size.width).coerceIn(0f, 0.5f)
+                        drawRect(
+                            Brush.horizontalGradient(0f to Color.White, (1f - rightFade) to Color.White, 1f to Color.Transparent),
+                            blendMode = BlendMode.DstIn,
+                        )
                     },
             ) {
                 LazyColumn(
@@ -1355,6 +1361,18 @@ private fun AppDock(
         }
         Row(
             Modifier
+                .graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)
+                .drawWithContent {
+                    drawContent()
+                    // Short fade on whichever edge still has apps scrolled off-screen, so tiles dissolve at the cut.
+                    val fade = (36.dp.toPx() / size.width).coerceIn(0f, 0.5f)
+                    if (dockScroll.value > 0) {
+                        drawRect(Brush.horizontalGradient(0f to Color.Transparent, fade to Color.White), blendMode = BlendMode.DstIn)
+                    }
+                    if (dockScroll.value < dockScroll.maxValue) {
+                        drawRect(Brush.horizontalGradient((1f - fade) to Color.White, 1f to Color.Transparent), blendMode = BlendMode.DstIn)
+                    }
+                }
                 .horizontalScroll(dockScroll)
                 .padding(horizontal = 14.dp, vertical = 6.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
