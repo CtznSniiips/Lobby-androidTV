@@ -58,9 +58,21 @@ Because an app can't lift its own restriction (that needs shell privileges the a
 2. `adb install -r Lobby-<version>.apk` — the `-r` keeps your data.
 3. Settings → Accessibility → turn on **Lobby Home button**.
 
-> **Updating re-locks it.** Updating Lobby from *inside the app* re-installs it from an untrusted source, which re-applies the restriction and switches the override back off. On a locked-down box you then have to `adb install` again to restore it — so on those devices, update Lobby with `adb install` rather than the in-app updater.
+### Keeping the override across updates
 
-**The self-heal shortcut (works on some devices, not all).** If your device lets an app write the accessibility setting, grant Lobby `WRITE_SECURE_SETTINGS` once over ADB and it will re-enable its own override after each update. On many boxes you must also lift the restriction with an AppOp — the equivalent of the "Allow restricted settings" button that Google TV's UI doesn't expose:
+Updating Lobby from a source Android doesn't trust re-applies the restriction and switches the override back off. **Lobby's updater avoids this by installing over ADB** — a trusted install, the same as `adb install` — so the override (and Lobby's trusted status) carries across updates instead of re-locking, and you never need a PC after the one-time setup.
+
+Set it up once, entirely on the TV:
+
+1. Turn on **Wireless debugging** under Developer options (Settings → System → Developer options).
+2. Turn on Lobby's accessibility service (Settings → Accessibility → **Lobby Home button**) — it's how Lobby reads the pairing code. Installing over `adb install` first, as above, is what lets you turn it on.
+3. In Lobby, open **Settings → System → Self-update over ADB** and tap **Pair automatically**, then open the TV's **Pair device with pairing code** dialog and leave it on screen. Lobby reads the 6-digit code off the dialog and pairs itself — no typing, no second device.
+
+After that, Lobby pairs just once (it reconnects on its own) and installs its own updates over ADB from the couch. The update check, notice and release are unchanged; only the install path moved to ADB. On the Updates screen, **Install over ADB** does the same thing.
+
+### If you'd rather not pair: the self-heal shortcut
+
+An alternative for devices where you don't want to use the self-updater. If your device lets an app write the accessibility setting, grant Lobby `WRITE_SECURE_SETTINGS` once over ADB and it will re-enable its own override after each update. On many boxes you must also lift the restriction with an AppOp — the equivalent of the "Allow restricted settings" button that Google TV's UI doesn't expose:
 
 ```
 adb shell pm grant io.github.ctznsniiips.lobby android.permission.WRITE_SECURE_SETTINGS
