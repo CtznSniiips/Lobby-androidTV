@@ -16,6 +16,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.ctznsniiips.lobby.ui.AppsScreen
+import io.github.ctznsniiips.lobby.data.ServerAddress
 import io.github.ctznsniiips.lobby.ui.ConnectScreen
 import io.github.ctznsniiips.lobby.ui.DetailsScreen
 import io.github.ctznsniiips.lobby.ui.HomeScreen
@@ -102,16 +103,53 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             val state by viewModel.state.collectAsStateWithLifecycle()
-            LobbyTheme(font = state.homeFont, bgMode = state.bgMode, focusStyle = state.focusStyle, material = state.material) {
+            // Before the server is connected, the dock view uses the Misty-coast photo background.
+            val effectiveBgMode = if (state.paired == null) "photo" else state.bgMode
+            LobbyTheme(font = state.homeFont, bgMode = effectiveBgMode, focusStyle = state.focusStyle, material = state.material) {
                 val paired = state.paired
                 Box(Modifier.fillMaxSize()) {
                 if (paired == null) {
-                    ConnectScreen(
-                        state = state.connect,
-                        initialAddress = state.lastAddress,
-                        onConnect = viewModel::connect,
-                        onCancel = viewModel::cancelPairing,
-                    )
+                    // First launch / disconnected: no blocking connect screen. Show a usable dock (apps + inputs) on
+                    // the Misty-coast photo background with a connect banner; the pairing screen and app grid open over it.
+                    when {
+                        state.connectOpen -> ConnectScreen(
+                            state = state.connect,
+                            initialAddress = state.lastAddress,
+                            onConnect = viewModel::connect,
+                            onCancel = viewModel::cancelPairing,
+                        )
+                        state.appGridOpen -> {
+                            BackHandler(onBack = viewModel::closeAppGrid)
+                            AppsScreen(
+                                apps = state.appGrid,
+                                message = state.message,
+                                onApp = viewModel::launchAppFromGrid,
+                                onMessageShown = viewModel::clearMessage,
+                            )
+                        }
+                        else -> HomeScreen(
+                            state = state.copy(homeLayout = "dock", bgMode = "photo", wallpaper = "misty"),
+                            address = ServerAddress("", ""),
+                            onItem = {},
+                            onApp = viewModel::launchApp,
+                            onInput = viewModel::launchInput,
+                            onSearch = viewModel::openConnect,
+                            onScreenSaver = { viewModel.startScreenSaver() },
+                            showHomePrompt = false,
+                            onHomeSetup = {},
+                            onHomePromptDismiss = {},
+                            onRefresh = {},
+                            onLobbySettings = viewModel::openConnect,
+                            onSettings = viewModel::openSystemSettings,
+                            onDisconnect = {},
+                            onMessageShown = viewModel::clearMessage,
+                            onOpenApps = viewModel::openAppGrid,
+                            onMoveApp = viewModel::moveDockApp,
+                            showConnectBanner = !state.connectBannerDismissed,
+                            onConnect = viewModel::openConnect,
+                            onConnectDismiss = viewModel::dismissConnectBanner,
+                        )
+                    }
                 } else if (state.homeSetup) {
                     BackHandler(onBack = viewModel::closeHomeSetup)
                     HomeSetupScreen(

@@ -77,6 +77,10 @@ data class DetailsState(
 data class LobbyState(
     val paired: PairedServer? = null,
     val connect: ConnectState = ConnectState(),
+    /** While disconnected: whether the Connect (pairing) screen is open over the dock, and whether the first-launch
+     *  connect banner has been dismissed for this session. */
+    val connectOpen: Boolean = false,
+    val connectBannerDismissed: Boolean = false,
     val home: HomeResponse? = null,
     val loading: Boolean = false,
     val homeError: String? = null,
@@ -196,9 +200,18 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
 
     init {
         refreshHomeStatus()
-        store.load()?.let { onPaired(it, save = false) }
+        val restored = store.load()?.also { onPaired(it, save = false) }
+        // No server yet (first launch, or after a disconnect): still load the device's apps/inputs so the dock view
+        // is usable right away instead of a blank connect screen.
+        if (restored == null) _state.update { withDevices(it) }
         if (store.checkForUpdates()) checkForUpdatesNow()
     }
+
+    /** Open the pairing screen over the dock (from the first-launch connect banner or the rail). */
+    fun openConnect() = _state.update { it.copy(connectOpen = true) }
+
+    /** Hide the first-launch connect banner for this session; the user can still connect from the rail later. */
+    fun dismissConnectBanner() = _state.update { it.copy(connectBannerDismissed = true) }
 
     // ---- Pairing ------------------------------------------------------------------------------
 
@@ -252,6 +265,7 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
     fun cancelPairing() {
         pairingJob?.cancel()
         setConnect(ConnectState())
+        _state.update { it.copy(connectOpen = false) }
     }
 
     fun disconnect() {
@@ -268,7 +282,7 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
     private fun onPaired(server: PairedServer, save: Boolean) {
         if (save) store.save(server)
         api = LobbyApiFactory.create(server.address, server.token)
-        _state.update { withDevices(it.copy(paired = server, connect = ConnectState(), lastAddress = server.address.origin)) }
+        _state.update { withDevices(it.copy(paired = server, connect = ConnectState(), connectOpen = false, lastAddress = server.address.origin)) }
         refreshHome()
     }
 
