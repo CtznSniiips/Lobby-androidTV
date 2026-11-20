@@ -1230,6 +1230,8 @@ private fun AppDock(
     val dockScroll = rememberScrollState()
     // Long-press puts a tile into "move mode": left/right then reposition it, centre/back commits. Null when idle.
     var movingPackage by remember { mutableStateOf<String?>(null) }
+    // Swallows the long-press's own key-up so releasing it doesn't immediately finalize the move.
+    var justEntered by remember { mutableStateOf(false) }
     // A tile that's no longer present (uninstalled, or hidden) can't stay in move mode.
     if (movingPackage != null && list.none { it.packageName == movingPackage }) movingPackage = null
     val shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp)
@@ -1369,7 +1371,7 @@ private fun AppDock(
             val moving = movingPackage == app.packageName
             Surface(
                 onClick = { if (moving) movingPackage = null else onApp(app) },
-                onLongClick = { movingPackage = if (moving) null else app.packageName },
+                onLongClick = { if (moving) { movingPackage = null } else { movingPackage = app.packageName; justEntered = true } },
                 interactionSource = tileInteraction,
                 shape = ClickableSurfaceDefaults.shape(tileShape),
                 colors = ClickableSurfaceDefaults.colors(
@@ -1385,9 +1387,15 @@ private fun AppDock(
                     .onPreviewKeyEvent { ev ->
                         if (!moving) return@onPreviewKeyEvent false
                         when (ev.key) {
-                            Key.DirectionLeft -> { if (ev.type == KeyEventType.KeyDown) onMove(app.packageName, -1); true }
-                            Key.DirectionRight -> { if (ev.type == KeyEventType.KeyDown) onMove(app.packageName, 1); true }
-                            Key.DirectionCenter, Key.Enter, Key.Back -> { if (ev.type == KeyEventType.KeyUp) movingPackage = null; true }
+                            Key.DirectionLeft -> { if (ev.type == KeyEventType.KeyDown) { justEntered = false; onMove(app.packageName, -1) }; true }
+                            Key.DirectionRight -> { if (ev.type == KeyEventType.KeyDown) { justEntered = false; onMove(app.packageName, 1) }; true }
+                            Key.DirectionCenter, Key.Enter -> {
+                                // The key-up ending the long-press that STARTED move mode must not finalize it: swallow
+                                // that first release, then a real button press commits the new position.
+                                if (ev.type == KeyEventType.KeyUp) { if (justEntered) justEntered = false else movingPackage = null }
+                                true
+                            }
+                            Key.Back -> { if (ev.type == KeyEventType.KeyUp) movingPackage = null; true }
                             Key.DirectionUp, Key.DirectionDown -> true
                             else -> false
                         }
@@ -1491,6 +1499,8 @@ private fun AppList(
     val light = LobbyColors.palette.light
     // Long-press puts a row into "move mode": up/down then reposition it, centre/back commits. Null when idle.
     var movingPackage by remember { mutableStateOf<String?>(null) }
+    // Swallows the long-press's own key-up so releasing it doesn't immediately finalize the move.
+    var justEntered by remember { mutableStateOf(false) }
     if (movingPackage != null && list.none { it.packageName == movingPackage }) movingPackage = null
     Box(Modifier.width(228.dp).fillMaxHeight()) {
       LazyColumn(
@@ -1506,7 +1516,7 @@ private fun AppList(
             val rowShape = androidx.compose.foundation.shape.RoundedCornerShape(10.dp)
             Surface(
                 onClick = { if (moving) movingPackage = null else onApp(app) },
-                onLongClick = { movingPackage = if (moving) null else app.packageName },
+                onLongClick = { if (moving) { movingPackage = null } else { movingPackage = app.packageName; justEntered = true } },
                 interactionSource = tileInteraction,
                 shape = ClickableSurfaceDefaults.shape(rowShape),
                 colors = ClickableSurfaceDefaults.colors(
@@ -1521,9 +1531,15 @@ private fun AppList(
                     .onPreviewKeyEvent { ev ->
                         if (!moving) return@onPreviewKeyEvent false
                         when (ev.key) {
-                            Key.DirectionUp -> { if (ev.type == KeyEventType.KeyDown) onMove(app.packageName, -1); true }
-                            Key.DirectionDown -> { if (ev.type == KeyEventType.KeyDown) onMove(app.packageName, 1); true }
-                            Key.DirectionCenter, Key.Enter, Key.Back -> { if (ev.type == KeyEventType.KeyUp) movingPackage = null; true }
+                            Key.DirectionUp -> { if (ev.type == KeyEventType.KeyDown) { justEntered = false; onMove(app.packageName, -1) }; true }
+                            Key.DirectionDown -> { if (ev.type == KeyEventType.KeyDown) { justEntered = false; onMove(app.packageName, 1) }; true }
+                            Key.DirectionCenter, Key.Enter -> {
+                                // The key-up ending the long-press that STARTED move mode must not finalize it: swallow
+                                // that first release, then a real button press commits the new position.
+                                if (ev.type == KeyEventType.KeyUp) { if (justEntered) justEntered = false else movingPackage = null }
+                                true
+                            }
+                            Key.Back -> { if (ev.type == KeyEventType.KeyUp) movingPackage = null; true }
                             Key.DirectionLeft, Key.DirectionRight -> true
                             else -> false
                         }
