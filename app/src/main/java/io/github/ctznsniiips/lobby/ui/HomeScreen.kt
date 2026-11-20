@@ -175,6 +175,9 @@ fun HomeScreen(
     onUpdateDismiss: () -> Unit = {},
     onOpenApps: () -> Unit = {},
     onMoveApp: (packageName: String, direction: Int) -> Unit = { _, _ -> },
+    showConnectBanner: Boolean = false,
+    onConnect: () -> Unit = {},
+    onConnectDismiss: () -> Unit = {},
     preview: Boolean = false,
 ) {
     val home = state.home
@@ -315,7 +318,7 @@ fun HomeScreen(
             val rowsState = rememberLazyListState()
             val rowsScope = rememberCoroutineScope()
             var focusedRowId by remember { mutableStateOf<String?>(null) }
-            val preItems = (if (showUpdateBanner) 1 else 0) + (if (showHomePrompt) 1 else 0) + (if (state.homeError != null) 1 else 0)
+            val preItems = (if (showConnectBanner) 1 else 0) + (if (showUpdateBanner) 1 else 0) + (if (showHomePrompt) 1 else 0) + (if (state.homeError != null) 1 else 0)
             LaunchedEffect(focusedRowId, rowList.size) {
                 val idx = rowList.indexOfFirst { it.id == focusedRowId }
                 if (idx >= 0) rowsScope.launch { rowsState.animateScrollToItem(preItems + idx) }
@@ -347,6 +350,10 @@ fun HomeScreen(
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(top = 8.dp, bottom = if (hasBottomDock) 12.dp else 28.dp),
                     verticalArrangement = Arrangement.spacedBy(2.dp),
                 ) {
+                    if (showConnectBanner) {
+                        item { ConnectBanner(onConnect, onConnectDismiss) }
+                    }
+
                     if (showUpdateBanner) {
                         item { UpdateBanner(updateVersion, onUpdate, onUpdateDismiss) }
                     }
@@ -817,6 +824,30 @@ fun MessageToast(message: String?, onShown: () -> Unit, modifier: Modifier = Mod
 }
 
 /** First-run nudge: shown on Home until Lobby is the home app or the user says "Not now". */
+@Composable
+private fun ConnectBanner(onConnect: () -> Unit, onDismiss: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(androidx.compose.foundation.shape.RoundedCornerShape(14.dp))
+            .background(MaterialTheme.colorScheme.surface)
+            .padding(20.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text("Connect to your media server", fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+            Text(
+                "Link Lobby to your Emby or Jellyfin server to see Continue Watching, your library and more. You can also do this later in Lobby settings.",
+                fontSize = 14.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Button(onClick = onConnect) { Text("Connect") }
+        Button(onClick = onDismiss) { Text("Later") }
+    }
+}
+
 @Composable
 private fun HomePrompt(onSetup: () -> Unit, onDismiss: () -> Unit) {
     Row(
