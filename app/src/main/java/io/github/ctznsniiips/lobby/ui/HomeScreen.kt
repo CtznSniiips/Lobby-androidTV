@@ -362,14 +362,12 @@ fun HomeScreen(
                     .graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)
                     .drawWithContent {
                         drawContent()
-                        // Watch fades the top edge so rows dissolve under the hero as they scroll up — but only once
-                        // there's something scrolled up there. At rest the first row sits at the top, so fading it
-                        // would just shadow its title; keep the top opaque until the list can actually scroll back.
-                        val stops = when {
-                            heroLess -> arrayOf(0f to Color.White, 0.90f to Color.White, 1f to Color.Transparent)
-                            rowsState.canScrollBackward ->
-                                arrayOf(0f to Color.Transparent, 0.10f to Color.White, 0.88f to Color.White, 1f to Color.Transparent)
-                            else -> arrayOf(0f to Color.White, 0.88f to Color.White, 1f to Color.Transparent)
+                        // Only the bottom edge fades (so a cut-off bottom row dissolves). The focused row is pinned to
+                        // the top, so its title sits in the top band — fading the top would just shadow that title.
+                        val stops = if (heroLess) {
+                            arrayOf(0f to Color.White, 0.90f to Color.White, 1f to Color.Transparent)
+                        } else {
+                            arrayOf(0f to Color.White, 0.88f to Color.White, 1f to Color.Transparent)
                         }
                         drawRect(
                             Brush.verticalGradient(*stops),
