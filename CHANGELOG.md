@@ -9,6 +9,9 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Changed
 - First launch is no longer a blocking "connect your server" screen. Lobby now opens straight to a usable Dock view (your apps and inputs) on the Misty-coast photo background, with a banner inviting you to connect your Emby/Jellyfin server — or dismiss it and set up later. Connecting for the first time switches to the full Watch layout on the dark background.
+- The bottom app dock now caps at 9 apps on screen (sized for 1080p); if you show more than that, the dock scrolls left/right and follows focus to the off-screen apps, with a small chevron at each edge indicating there are more.
+- Reworked rearranging apps: long-press to pick an app up, then **let go** — you can now move it with the D-pad and press the button again to drop it, instead of having to keep the button held down the whole time.
+- Content rows and the app dock now fade out softly at an edge where they run off-screen, instead of hard-clipping.
 
 ## [v0.14.4] - 11/19/2026
 

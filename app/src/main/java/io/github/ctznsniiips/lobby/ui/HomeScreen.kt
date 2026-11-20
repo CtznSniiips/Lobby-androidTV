@@ -8,6 +8,8 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -146,6 +148,10 @@ private val HERO_INSET = 76.dp
 private val ROWS_INSET = 16.dp
 /** Width reserved on the left for the vertical app list in the List layout (rail + list + a gap). */
 private val APP_LIST_WIDTH = 300.dp
+
+/** Max width of the bottom app dock — sized to show 9 tiles on a 1080p screen (14 + 9×88 + 8×8 + 14 dp); beyond
+ *  that the tile row scrolls horizontally. */
+private val DOCK_MAX_WIDTH = 884.dp
 
 /**
  * Home, laid out like the Samsung app: the focused (or featured) title's backdrop fills the screen, a slim rail of
@@ -340,6 +346,12 @@ fun HomeScreen(
                         }
                         drawRect(
                             Brush.verticalGradient(*stops),
+                            blendMode = BlendMode.DstIn,
+                        )
+                        // Rows run off the right edge; fade that edge so they dissolve instead of hard-clipping.
+                        val rightFade = (40.dp.toPx() / size.width).coerceIn(0f, 0.5f)
+                        drawRect(
+                            Brush.horizontalGradient(0f to Color.White, (1f - rightFade) to Color.White, 1f to Color.Transparent),
                             blendMode = BlendMode.DstIn,
                         )
                     },
@@ -1221,8 +1233,11 @@ private fun AppDock(
     onMove: (packageName: String, direction: Int) -> Unit = { _, _ -> },
 ) {
     val list = remember(apps) { apps.distinctBy { it.packageName } }
+    val dockScroll = rememberScrollState()
     // Long-press puts a tile into "move mode": left/right then reposition it, centre/back commits. Null when idle.
     var movingPackage by remember { mutableStateOf<String?>(null) }
+    // Swallows the long-press's own key-up so releasing it doesn't immediately finalize the move.
+    var justEntered by remember { mutableStateOf(false) }
     // A tile that's no longer present (uninstalled, or hidden) can't stay in move mode.
     if (movingPackage != null && list.none { it.packageName == movingPackage }) movingPackage = null
     val shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp)
@@ -1273,6 +1288,9 @@ private fun AppDock(
       }
     Box(
         Modifier
+            // Cap the dock so it shows at most DOCK_MAX_APPS tiles (sized for a 1080p screen); more than that and the
+            // tile row scrolls horizontally, bringing an off-screen focused tile into view automatically.
+            .widthIn(max = DOCK_MAX_WIDTH)
             .shadow(if (glass) 16.dp else 6.dp, shape, clip = false)
             .clip(shape)
             // Mostly a top-lit hairline, fading to almost nothing around the sides — not a full bright rim.
@@ -1342,7 +1360,21 @@ private fun AppDock(
             }
         }
         Row(
-            Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
+            Modifier
+                .graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)
+                .drawWithContent {
+                    drawContent()
+                    // Short fade on whichever edge still has apps scrolled off-screen, so tiles dissolve at the cut.
+                    val fade = (36.dp.toPx() / size.width).coerceIn(0f, 0.5f)
+                    if (dockScroll.value > 0) {
+                        drawRect(Brush.horizontalGradient(0f to Color.Transparent, fade to Color.White), blendMode = BlendMode.DstIn)
+                    }
+                    if (dockScroll.value < dockScroll.maxValue) {
+                        drawRect(Brush.horizontalGradient((1f - fade) to Color.White, 1f to Color.Transparent), blendMode = BlendMode.DstIn)
+                    }
+                }
+                .horizontalScroll(dockScroll)
+                .padding(horizontal = 14.dp, vertical = 6.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
         list.forEachIndexed { i, app ->
@@ -1357,7 +1389,7 @@ private fun AppDock(
             val moving = movingPackage == app.packageName
             Surface(
                 onClick = { if (moving) movingPackage = null else onApp(app) },
-                onLongClick = { movingPackage = if (moving) null else app.packageName },
+                onLongClick = { if (moving) { movingPackage = null } else { movingPackage = app.packageName; justEntered = true } },
                 interactionSource = tileInteraction,
                 shape = ClickableSurfaceDefaults.shape(tileShape),
                 colors = ClickableSurfaceDefaults.colors(
@@ -1373,9 +1405,15 @@ private fun AppDock(
                     .onPreviewKeyEvent { ev ->
                         if (!moving) return@onPreviewKeyEvent false
                         when (ev.key) {
-                            Key.DirectionLeft -> { if (ev.type == KeyEventType.KeyDown) onMove(app.packageName, -1); true }
-                            Key.DirectionRight -> { if (ev.type == KeyEventType.KeyDown) onMove(app.packageName, 1); true }
-                            Key.DirectionCenter, Key.Enter, Key.Back -> { if (ev.type == KeyEventType.KeyUp) movingPackage = null; true }
+                            Key.DirectionLeft -> { if (ev.type == KeyEventType.KeyDown) { justEntered = false; onMove(app.packageName, -1) }; true }
+                            Key.DirectionRight -> { if (ev.type == KeyEventType.KeyDown) { justEntered = false; onMove(app.packageName, 1) }; true }
+                            Key.DirectionCenter, Key.Enter -> {
+                                // The key-up ending the long-press that STARTED move mode must not finalize it: swallow
+                                // that first release, then a real button press commits the new position.
+                                if (ev.type == KeyEventType.KeyUp) { if (justEntered) justEntered = false else movingPackage = null }
+                                true
+                            }
+                            Key.Back -> { if (ev.type == KeyEventType.KeyUp) movingPackage = null; true }
                             Key.DirectionUp, Key.DirectionDown -> true
                             else -> false
                         }
@@ -1436,6 +1474,28 @@ private fun AppDock(
           }
         }
         }
+        // Scroll affordance: a chevron at each edge of the dock when more apps sit off-screen that way.
+        val arrowColor = (if (light) Color(0xCC000000) else LobbyColors.ink).copy(alpha = 0.55f)
+        if (dockScroll.value > 0) {
+            Text(
+                "❮",
+                color = arrowColor,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                style = TextStyle(shadow = Shadow(Color(0x66000000), blurRadius = 6f)),
+                modifier = Modifier.align(Alignment.CenterStart).padding(start = 9.dp),
+            )
+        }
+        if (dockScroll.value < dockScroll.maxValue) {
+            Text(
+                "❯",
+                color = arrowColor,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                style = TextStyle(shadow = Shadow(Color(0x66000000), blurRadius = 6f)),
+                modifier = Modifier.align(Alignment.CenterEnd).padding(end = 9.dp),
+            )
+        }
     }
     }
 }
@@ -1457,6 +1517,8 @@ private fun AppList(
     val light = LobbyColors.palette.light
     // Long-press puts a row into "move mode": up/down then reposition it, centre/back commits. Null when idle.
     var movingPackage by remember { mutableStateOf<String?>(null) }
+    // Swallows the long-press's own key-up so releasing it doesn't immediately finalize the move.
+    var justEntered by remember { mutableStateOf(false) }
     if (movingPackage != null && list.none { it.packageName == movingPackage }) movingPackage = null
     Box(Modifier.width(228.dp).fillMaxHeight()) {
       LazyColumn(
@@ -1472,7 +1534,7 @@ private fun AppList(
             val rowShape = androidx.compose.foundation.shape.RoundedCornerShape(10.dp)
             Surface(
                 onClick = { if (moving) movingPackage = null else onApp(app) },
-                onLongClick = { movingPackage = if (moving) null else app.packageName },
+                onLongClick = { if (moving) { movingPackage = null } else { movingPackage = app.packageName; justEntered = true } },
                 interactionSource = tileInteraction,
                 shape = ClickableSurfaceDefaults.shape(rowShape),
                 colors = ClickableSurfaceDefaults.colors(
@@ -1487,9 +1549,15 @@ private fun AppList(
                     .onPreviewKeyEvent { ev ->
                         if (!moving) return@onPreviewKeyEvent false
                         when (ev.key) {
-                            Key.DirectionUp -> { if (ev.type == KeyEventType.KeyDown) onMove(app.packageName, -1); true }
-                            Key.DirectionDown -> { if (ev.type == KeyEventType.KeyDown) onMove(app.packageName, 1); true }
-                            Key.DirectionCenter, Key.Enter, Key.Back -> { if (ev.type == KeyEventType.KeyUp) movingPackage = null; true }
+                            Key.DirectionUp -> { if (ev.type == KeyEventType.KeyDown) { justEntered = false; onMove(app.packageName, -1) }; true }
+                            Key.DirectionDown -> { if (ev.type == KeyEventType.KeyDown) { justEntered = false; onMove(app.packageName, 1) }; true }
+                            Key.DirectionCenter, Key.Enter -> {
+                                // The key-up ending the long-press that STARTED move mode must not finalize it: swallow
+                                // that first release, then a real button press commits the new position.
+                                if (ev.type == KeyEventType.KeyUp) { if (justEntered) justEntered = false else movingPackage = null }
+                                true
+                            }
+                            Key.Back -> { if (ev.type == KeyEventType.KeyUp) movingPackage = null; true }
                             Key.DirectionLeft, Key.DirectionRight -> true
                             else -> false
                         }
