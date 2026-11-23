@@ -131,8 +131,28 @@ class TvDevice(private val context: Context) {
         return enabled.split(':').mapNotNull { ComponentName.unflattenFromString(it) }.any { it == ours }
     }
 
-    /** Android's Accessibility settings, where the user turns the Home-button override on or off. */
-    fun openAccessibilitySettings(): Boolean = start(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+    /**
+     * Android's Accessibility settings, where the user turns the Home-button override on or off. Most TVs honour the
+     * standard action, but some builds (e.g. NVIDIA Shield on Android 11) don't register it: the action resolves only
+     * to the system's fallback resolver, which shows "You don't have an app that can do this". Try the standard action
+     * and the TV Settings' own accessibility activity, skipping any that resolves only to that fallback, then land on
+     * top-level Settings (Accessibility lives under Device settings there) so the user can still finish by hand.
+     */
+    fun openAccessibilitySettings(): Boolean {
+        val candidates = listOf(
+            Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS),
+            Intent(Intent.ACTION_MAIN).setClassName("com.android.tv.settings", "com.android.tv.settings.accessibility.AccessibilityActivity"),
+            Intent(Intent.ACTION_MAIN).setClassName("com.android.tv.settings", "com.android.tv.settings.system.AccessibilityActivity"),
+        )
+        for (intent in candidates) {
+            // resolveActivity returns the system resolver (package "android") when nothing real handles the intent;
+            // firing that is what triggers the toast, so only start an intent backed by an actual app.
+            val target = intent.resolveActivity(pm) ?: continue
+            if (target.packageName == "android") continue
+            if (start(intent)) return true
+        }
+        return openSystemSettings()
+    }
 
     /** Developer options, where Wireless debugging lives. Falls back to the top-level Settings if unavailable. */
     fun openDeveloperOptions(): Boolean =

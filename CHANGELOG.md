@@ -5,6 +5,11 @@ All notable changes to Lobby for Android TV are recorded here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.16.0] - 11/22/2026
+
+### Fixed
+- The "Accessibility settings" shortcut no longer dead-ends with "You don't have an app that can do this" on TVs (such as the NVIDIA Shield on Android 11) that don't register the standard accessibility-settings action. Lobby now skips an action that resolves only to the system fallback and opens Settings instead, where Accessibility lives under Device settings.
+
 ## [v0.15.0] - 11/20/2026
 
 ### Changed
@@ -135,6 +140,7 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 - Fixed signing key via a GitHub Actions secret, so new builds install over older ones without uninstalling.
 
 [Unreleased]: https://github.com/CtznSniiips/Lobby-androidTV/compare/v0.12.0...HEAD
+[v0.16.0]: https://github.com/CtznSniiips/Lobby-androidTV/compare/v0.15.0...v0.16.0
 [v0.15.0]: https://github.com/CtznSniiips/Lobby-androidTV/compare/v0.14.4...v0.15.0
 [v0.14.4]: https://github.com/CtznSniiips/Lobby-androidTV/compare/v0.14.3...v0.14.4
 [v0.14.3]: https://github.com/CtznSniiips/Lobby-androidTV/compare/v0.14.2...v0.14.3
