@@ -65,6 +65,7 @@ class MainActivity : ComponentActivity() {
             startAutoPair = viewModel::startAutoPair,
             stopAdbPairing = viewModel::stopAdbPairing,
             reconnectAdb = viewModel::reconnectAdb,
+            connectNetworkDebugging = viewModel::connectNetworkDebugging,
             selfInstallOverAdb = viewModel::selfInstallOverAdb,
             openDeveloperOptions = viewModel::openDeveloperOptions,
             setAdbCode = viewModel::setAdbCode,
