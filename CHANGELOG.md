@@ -11,7 +11,7 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 - On-device updates now work on TVs that have classic "Network debugging" (port 5555) instead of the Android 11 pairing flow — notably the NVIDIA Shield. Turn Network debugging on, tap "Connect via Network debugging", accept the "Allow debugging" prompt on screen, and Lobby connects to its own ADB and installs updates as usual (no pairing code).
 
 ### Fixed
-- The "Accessibility settings" shortcut no longer dead-ends with "You don't have an app that can do this" on TVs (such as the NVIDIA Shield on Android 11) that don't register the standard accessibility-settings action. Lobby now skips an action that resolves only to the system fallback and opens Settings instead, where Accessibility lives under Device settings.
+- The "Accessibility settings" shortcut no longer dead-ends with "You don't have an app that can do this" on the NVIDIA Shield (Android 11), whose settings app hands the standard accessibility action to a broken handler. Lobby now opens top-level Settings on NVIDIA devices, where Accessibility lives under Device settings.
 
 ## [v0.15.0] - 11/20/2026
 

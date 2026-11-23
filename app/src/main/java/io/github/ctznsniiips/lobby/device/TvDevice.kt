@@ -133,23 +133,16 @@ class TvDevice(private val context: Context) {
 
     /**
      * Android's Accessibility settings, where the user turns the Home-button override on or off. Most TVs honour the
-     * standard action, but some builds (e.g. NVIDIA Shield on Android 11) don't register it: the action resolves only
-     * to the system's fallback resolver, which shows "You don't have an app that can do this". Try the standard action
-     * and the TV Settings' own accessibility activity, skipping any that resolves only to that fallback, then land on
-     * top-level Settings (Accessibility lives under Device settings there) so the user can still finish by hand.
+     * standard action and open straight to Accessibility. NVIDIA Shield (Android 11) is the exception: it hands the
+     * action to a broken handler that just shows "You don't have an app that can do this" (not the generic resolver,
+     * so it can't be filtered by resolution). Skip the deep-link on NVIDIA and open top-level Settings instead, where
+     * Accessibility lives under Device settings, so the user can finish by hand.
      */
     fun openAccessibilitySettings(): Boolean {
-        val candidates = listOf(
-            Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS),
-            Intent(Intent.ACTION_MAIN).setClassName("com.android.tv.settings", "com.android.tv.settings.accessibility.AccessibilityActivity"),
-            Intent(Intent.ACTION_MAIN).setClassName("com.android.tv.settings", "com.android.tv.settings.system.AccessibilityActivity"),
-        )
-        for (intent in candidates) {
-            // resolveActivity returns the system resolver (package "android") when nothing real handles the intent;
-            // firing that is what triggers the toast, so only start an intent backed by an actual app.
-            val target = intent.resolveActivity(pm) ?: continue
-            if (target.packageName == "android") continue
-            if (start(intent)) return true
+        if (!Build.MANUFACTURER.equals("NVIDIA", ignoreCase = true) &&
+            start(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+        ) {
+            return true
         }
         return openSystemSettings()
     }
