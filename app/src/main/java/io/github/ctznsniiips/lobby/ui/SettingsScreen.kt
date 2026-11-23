@@ -549,6 +549,18 @@ private fun CategoryDetail(
                                 }
                             }
                         }
+                        // Classic "Network debugging" path for TVs with no pairing step (e.g. NVIDIA Shield, which
+                        // connects over port 5555). Offered alongside pairing, since Lobby can't tell the two apart.
+                        if (!homeState.adbConnected && !homeState.adbPairingActive) {
+                            Text(
+                                "No pairing option (e.g. NVIDIA Shield)? Turn on \"Network debugging\" in Developer options, " +
+                                    "tap Connect, and accept \"Allow debugging\" on screen when it appears — then tap Connect once more.",
+                                fontSize = 13.sp, color = LobbyColors.soft, lineHeight = 19.sp, modifier = Modifier.fillMaxWidth(0.95f),
+                            )
+                            Button(onClick = actions.connectNetworkDebugging, enabled = !homeState.adbBusy) {
+                                Text(if (homeState.adbBusy) "Connecting…" else "Connect via Network debugging")
+                            }
+                        }
                         if (homeState.adbPairingActive) {
                             val focusManager = LocalFocusManager.current
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {

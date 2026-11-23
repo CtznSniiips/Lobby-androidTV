@@ -131,8 +131,21 @@ class TvDevice(private val context: Context) {
         return enabled.split(':').mapNotNull { ComponentName.unflattenFromString(it) }.any { it == ours }
     }
 
-    /** Android's Accessibility settings, where the user turns the Home-button override on or off. */
-    fun openAccessibilitySettings(): Boolean = start(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+    /**
+     * Android's Accessibility settings, where the user turns the Home-button override on or off. Most TVs honour the
+     * standard action and open straight to Accessibility. NVIDIA Shield (Android 11) is the exception: it hands the
+     * action to a broken handler that just shows "You don't have an app that can do this" (not the generic resolver,
+     * so it can't be filtered by resolution). Skip the deep-link on NVIDIA and open top-level Settings instead, where
+     * Accessibility lives under Device settings, so the user can finish by hand.
+     */
+    fun openAccessibilitySettings(): Boolean {
+        if (!Build.MANUFACTURER.equals("NVIDIA", ignoreCase = true) &&
+            start(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+        ) {
+            return true
+        }
+        return openSystemSettings()
+    }
 
     /** Developer options, where Wireless debugging lives. Falls back to the top-level Settings if unavailable. */
     fun openDeveloperOptions(): Boolean =

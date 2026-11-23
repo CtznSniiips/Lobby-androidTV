@@ -530,32 +530,30 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
      * Reconnect to this TV's already-paired ADB daemon without pairing again. Pairing persists (our key/cert on disk,
      * the daemon's trust of it), so after an update or restart Lobby just needs to re-establish the TLS connection.
      */
-    fun reconnectAdb() {
+    /** The "Connect" button for a TV that paired before: reconnect over the paired Wireless Debugging. */
+    fun reconnectAdb() = connectAdb("Reconnecting to this TV's ADB…", "Reconnected — this TV is already paired.")
+
+    /**
+     * Connect over classic "Network debugging" (port 5555) for TVs with no pairing step — notably the NVIDIA Shield.
+     * The first attempt pops the on-screen "Allow debugging from this computer" prompt; once accepted, tapping again
+     * (or Update) authorises and connects.
+     */
+    fun connectNetworkDebugging() =
+        connectAdb("Connecting over Network debugging…", "Connected over Network debugging — Lobby can now install its own updates.")
+
+    private fun connectAdb(progress: String, success: String) {
         if (_state.value.adbBusy || _state.value.adbConnected) return
-        _state.update { it.copy(adbBusy = true, adbPairStatus = "Reconnecting to this TV's ADB…") }
+        _state.update { it.copy(adbBusy = true, adbPairStatus = progress) }
         viewModelScope.launch {
-            val ok = withContext(Dispatchers.IO) {
+            val app = getApplication<Application>()
+            val err = withContext(Dispatchers.IO) {
                 try {
-                    val app = getApplication<Application>()
-                    val manager = io.github.ctznsniiips.lobby.device.LobbyAdbConnectionManager.getInstance(app)
-                    // autoConnect may throw if it's already connected from a prior attempt — ignore that and verify by
-                    // probing. adbRun opens a stream (throws only if we're truly not connected) and reads tolerantly,
-                    // so a stream-close race on the probe no longer makes a live connection look like a failure.
-                    runCatching { manager.autoConnect(app, 10_000L) }
-                    adbRun(manager, "shell:id")
-                    true
+                    ensureAdbConnection(io.github.ctznsniiips.lobby.device.LobbyAdbConnectionManager.getInstance(app), app)
                 } catch (e: Exception) {
-                    false
+                    "Couldn't connect: ${e.message ?: e.javaClass.simpleName}"
                 }
             }
-            _state.update {
-                it.copy(
-                    adbBusy = false,
-                    adbConnected = ok,
-                    adbPairStatus = if (ok) "Reconnected — this TV is already paired."
-                    else "Couldn't reconnect. Make sure Wireless Debugging is on, or re-pair below.",
-                )
-            }
+            _state.update { it.copy(adbBusy = false, adbConnected = err == null, adbPairStatus = err ?: success) }
         }
     }
 
@@ -801,18 +799,9 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
                         return@withContext "No update available. Tap \"Check now\" first."
                     }
                     val manager = io.github.ctznsniiips.lobby.device.LobbyAdbConnectionManager.getInstance(app)
-                    // Ensure a live connection. Pairing persists, so autoConnect reconnects without re-pairing; if it
-                    // can't, the TV isn't paired (or Wireless Debugging is off) and we send the user to pair.
-                    try {
-                        manager.openStream("shell:true").close()
-                    } catch (e: Exception) {
-                        try {
-                            manager.autoConnect(app, 10_000L)
-                        } catch (e2: Exception) {
-                            return@withContext "Couldn't reach this TV's ADB. Pair Lobby first under Settings → System → " +
-                                "Experimental, and make sure Wireless Debugging is on."
-                        }
-                    }
+                    // Ensure a live connection: an existing stream, paired Wireless Debugging (autoConnect), or classic
+                    // Network debugging on 5555 (Shield). A non-null result is the user-facing reason it couldn't.
+                    ensureAdbConnection(manager, app)?.let { return@withContext it }
                     connected = true
                     _state.update { it.copy(adbPairStatus = "Installing update over ADB…") }
                     val size = file.length()
@@ -892,6 +881,42 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
             runCatching { stream.close() }
         }
         return sb.toString().trim()
+    }
+
+    /**
+     * Make sure there's a live ADB connection to this TV, trying in order: an existing stream; paired Wireless
+     * Debugging over mDNS (autoConnect — Android 11 pairing flow); and a classic connect to this device's own adbd on
+     * port 5555 ("Network debugging", e.g. the NVIDIA Shield, which has no pairing step). The first classic attempt
+     * pops the on-screen "Allow debugging" prompt and may not land until it's accepted, so a retry then authorises.
+     * Returns null on success, or a user-facing reason it couldn't connect.
+     */
+    private fun ensureAdbConnection(manager: io.github.muntashirakon.adb.AbsAdbConnectionManager, app: Application): String? {
+        // Already connected?
+        if (runCatching { manager.openStream("shell:true").close() }.isSuccess) return null
+        // Paired Wireless Debugging. autoConnect may throw if a prior attempt half-connected; the probe is the truth.
+        runCatching { manager.autoConnect(app, 10_000L) }
+        if (runCatching { adbRun(manager, "shell:true") }.isSuccess) return null
+        // Classic Network debugging on 5555: connect to our own adbd. 127.0.0.1 first, then any LAN address.
+        for (host in listOf("127.0.0.1") + localIpv4s()) {
+            runCatching { manager.connect(host, 5555) }
+            if (runCatching { adbRun(manager, "shell:true") }.isSuccess) return null
+        }
+        return "Couldn't reach this TV's ADB. Pair Lobby under Settings → System → Experimental (Wireless Debugging), " +
+            "or — on a TV with \"Network debugging\" instead of pairing (e.g. NVIDIA Shield) — turn it on, tap Connect, " +
+            "and accept \"Allow debugging\" on screen, then try again."
+    }
+
+    /** This device's own non-loopback IPv4 addresses, as classic-ADB connect targets (port 5555). */
+    private fun localIpv4s(): List<String> = try {
+        java.util.Collections.list(java.net.NetworkInterface.getNetworkInterfaces())
+            .asSequence()
+            .filter { it.isUp && !it.isLoopback }
+            .flatMap { java.util.Collections.list(it.inetAddresses).asSequence() }
+            .filterIsInstance<java.net.Inet4Address>()
+            .mapNotNull { it.hostAddress?.substringBefore('%') }
+            .toList()
+    } catch (e: Exception) {
+        emptyList()
     }
 
     fun openAccessibilitySettings() {

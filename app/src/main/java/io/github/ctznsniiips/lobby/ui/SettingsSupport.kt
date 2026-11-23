@@ -78,6 +78,7 @@ class SettingsActions(
     val startAutoPair: () -> Unit,
     val stopAdbPairing: () -> Unit,
     val reconnectAdb: () -> Unit,
+    val connectNetworkDebugging: () -> Unit,
     val selfInstallOverAdb: () -> Unit,
     val openDeveloperOptions: () -> Unit,
     val setAdbCode: (String) -> Unit,
