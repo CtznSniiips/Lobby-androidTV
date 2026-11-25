@@ -188,6 +188,8 @@ data class TitleDetailsResponse(
     @SerialName("Creators") val creators: List<String> = emptyList(),
     @SerialName("Networks") val networks: List<String> = emptyList(),
     @SerialName("Cast") val cast: List<TitlePerson> = emptyList(),
+    /** Seerr display name of whoever requested this title, when it has been requested. */
+    @SerialName("RequestedBy") val requestedBy: String? = null,
 )
 
 // ---- Per-TV settings -------------------------------------------------------------------------
