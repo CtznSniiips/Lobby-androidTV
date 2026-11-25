@@ -62,19 +62,20 @@ Because an app can't lift its own restriction (that needs shell privileges the a
 
 Updating Lobby from a source Android doesn't trust re-applies the restriction and switches the override back off. **Lobby's updater avoids this by installing over ADB** — a trusted install, the same as `adb install` — so the override (and Lobby's trusted status) carries across updates instead of re-locking, and you never need a PC after the one-time setup.
 
-Set it up once, entirely on the TV:
+Set it up once, entirely on the TV. Which wireless-ADB method your TV has isn't the same everywhere, so Lobby's **Settings → System → Self-update over ADB** leads with the one your TV most likely uses and keeps the other one tap away ("My TV has no pairing option" / "My TV has Wireless Debugging (pairing)"):
 
-1. Turn on **Wireless debugging** under Developer options (Settings → System → Developer options).
-2. Turn on Lobby's accessibility service (Settings → Accessibility → **Lobby Home button**) — it's how Lobby reads the pairing code. Installing over `adb install` first, as above, is what lets you turn it on.
-3. In Lobby, open **Settings → System → Self-update over ADB** and tap **Pair automatically**, then open the TV's **Pair device with pairing code** dialog and leave it on screen. Lobby reads the 6-digit code off the dialog and pairs itself — no typing, no second device.
+1. Turn on Lobby's accessibility service (Settings → Accessibility → **Lobby Home button**) so the override is on. Installing over `adb install` first, as above, is what lets you turn it on. (On the NVIDIA Shield, accessibility lives under **Device settings → Accessibility**.)
+2. Turn on wireless ADB under Developer options (Settings → System → Developer options) and connect in **Self-update over ADB**:
+   - **Android 11+ — Wireless debugging (pairing).** Tap **Pair automatically**, then open the TV's **Pair device with pairing code** dialog and leave it on screen. Lobby reads the 6-digit code off the dialog (that's the accessibility service's other job) and pairs itself — no typing, no second device.
+   - **Older Android TV and the NVIDIA Shield — Network debugging (port 5555, no pairing).** Turn on **Network debugging**, tap **Connect via Network debugging**, accept the **Allow debugging** prompt when it appears, then tap Connect once more.
 
-After that, Lobby pairs just once (it reconnects on its own) and installs its own updates over ADB from the couch. The update check, notice and release are unchanged; only the install path moved to ADB. On the Updates screen, **Install over ADB** does the same thing.
+After that, Lobby connects just once (it reconnects on its own) and installs its own updates over ADB from the couch. The update check, notice and release are unchanged; only the install path moved to ADB — the **Download & self-install latest** button does the install.
 
 ### Connecting ADB
 
 The commands above run over an existing ADB connection — the TV's address goes in the `adb connect`/`adb pair` step, not in the commands themselves. A TV box usually has no USB port, so connect over the network:
 
-1. On the TV, turn on **Developer options** (Settings → System → About, then click the build number several times), then enable **Network debugging** (older Android TV) or **Wireless debugging** (Android 11+) under Developer options.
+1. On the TV, turn on **Developer options** (Settings → System → About, then click the build number several times), then enable **Network debugging** (older Android TV, and the NVIDIA Shield even on Android 11) or **Wireless debugging** (Android 11+) under Developer options.
 2. From a computer with [platform-tools](https://developer.android.com/tools/releases/platform-tools), connect to the TV's IP (shown under Settings → Network, and on the Wireless debugging screen):
    - Older Android TV: `adb connect <tv-ip>:5555`
    - Android 11+ Wireless debugging (6-digit pairing code, randomized ports — not 5555): `adb pair <tv-ip>:<pair-port>`, enter the code, then `adb connect <tv-ip>:<connect-port>`.
