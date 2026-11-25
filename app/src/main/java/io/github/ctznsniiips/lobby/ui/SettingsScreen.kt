@@ -2,6 +2,7 @@
 
 package io.github.ctznsniiips.lobby.ui
 
+import android.os.Build
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -495,10 +496,18 @@ private fun CategoryDetail(
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text("Install updates on-device", fontSize = 16.sp, color = LobbyColors.ink)
                         Text(
-                            "Pair Lobby once with this TV's Wireless Debugging and it can install its own updates — no " +
-                                "PC, no installer prompt. Enable Wireless Debugging under Developer options, then pair below.",
+                            "Connect Lobby to this TV's ADB once and it can install its own updates — no PC, no installer prompt.",
                             fontSize = 13.sp, color = LobbyColors.soft, lineHeight = 18.sp,
                         )
+                        // Which wireless-ADB method a TV offers can't be detected reliably up front: pairing exists only
+                        // on Android 11+, and even there some TVs (NVIDIA Shield) ship classic "Network debugging" on
+                        // 5555 instead. So guess the likely method from version + maker and show it first, but keep the
+                        // other one a tap away rather than hiding it. A TV that has paired before clearly supports pairing.
+                        val supportsPairing = Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
+                        val preferNetwork = !supportsPairing || Build.MANUFACTURER.equals("NVIDIA", ignoreCase = true)
+                        var showAlternate by remember { mutableStateOf(false) }
+                        val showPairing = supportsPairing && (!preferNetwork || showAlternate || homeState.adbPairedBefore)
+                        val showNetwork = preferNetwork || showAlternate
                         // Pairing on a single-screen TV: the pairing server only lives while the system "Pair device with
                         // pairing code" dialog is showing. So Lobby watches in the background, and the user returns with
                         // HOME (which pauses the dialog, keeping the server alive) — not Back, which cancels it.
@@ -508,57 +517,68 @@ private fun CategoryDetail(
                                 Button(onClick = actions.stopAdbPairing, enabled = !homeState.adbBusy) { Text("Cancel") }
                             }
                         } else if (!homeState.adbConnected) {
-                            if (homeState.adbPairedBefore) {
-                                Text(
-                                    "This TV is already paired — just reconnect to install updates, no pairing needed. " +
-                                        "(If Wireless Debugging got turned off, turn it back on first.)",
-                                    fontSize = 13.sp, color = LobbyColors.soft, lineHeight = 19.sp, modifier = Modifier.fillMaxWidth(0.95f),
-                                )
-                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                    Button(onClick = actions.reconnectAdb, enabled = !homeState.adbBusy) {
-                                        Text(if (homeState.adbBusy) "Connecting…" else "Connect")
+                            if (showPairing) {
+                                if (homeState.adbPairedBefore) {
+                                    Text(
+                                        "This TV is already paired — just reconnect to install updates, no pairing needed. " +
+                                            "(If Wireless Debugging got turned off, turn it back on first.)",
+                                        fontSize = 13.sp, color = LobbyColors.soft, lineHeight = 19.sp, modifier = Modifier.fillMaxWidth(0.95f),
+                                    )
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                        Button(onClick = actions.reconnectAdb, enabled = !homeState.adbBusy) {
+                                            Text(if (homeState.adbBusy) "Connecting…" else "Connect")
+                                        }
+                                        Button(onClick = actions.openDeveloperOptions) { Text("Open settings") }
+                                        Button(
+                                            onClick = if (homeState.homeOverrideEnabled) actions.startAutoPair else actions.startAdbPairing,
+                                            enabled = !homeState.adbBusy,
+                                        ) { Text("Re-pair") }
                                     }
-                                    Button(onClick = actions.openDeveloperOptions) { Text("Open settings") }
-                                    Button(
-                                        onClick = if (homeState.homeOverrideEnabled) actions.startAutoPair else actions.startAdbPairing,
-                                        enabled = !homeState.adbBusy,
-                                    ) { Text("Re-pair") }
-                                }
-                            } else if (homeState.homeOverrideEnabled) {
-                                Text(
-                                    "Auto-pair (recommended): tap Pair automatically, then on the TV open Settings → System → " +
-                                        "Developer options → Wireless debugging → \"Pair device with pairing code\" and leave it on " +
-                                        "screen. Lobby reads the code and pairs — no typing, no Home button.",
-                                    fontSize = 13.sp, color = LobbyColors.soft, lineHeight = 19.sp, modifier = Modifier.fillMaxWidth(0.95f),
-                                )
-                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                    Button(onClick = actions.startAutoPair, enabled = !homeState.adbBusy) { Text("Pair automatically") }
-                                    Button(onClick = actions.openDeveloperOptions) { Text("Open settings") }
-                                    Button(onClick = actions.startAdbPairing, enabled = !homeState.adbBusy) { Text("Type code instead") }
-                                }
-                            } else {
-                                Text(
-                                    "Manual pairing: tap Start pairing, open \"Pair device with pairing code\" on the TV, note the " +
-                                        "6-digit code, press HOME (not Back) to return to Lobby, then type the code. (Enable Lobby's " +
-                                        "accessibility service to skip the typing — Lobby can then read the code itself.)",
-                                    fontSize = 13.sp, color = LobbyColors.soft, lineHeight = 19.sp, modifier = Modifier.fillMaxWidth(0.95f),
-                                )
-                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                    Button(onClick = actions.startAdbPairing, enabled = !homeState.adbBusy) { Text("Start pairing") }
-                                    Button(onClick = actions.openAccessibilitySettings) { Text("Enable accessibility") }
+                                } else if (homeState.homeOverrideEnabled) {
+                                    Text(
+                                        "Auto-pair (recommended): tap Pair automatically, then on the TV open Settings → System → " +
+                                            "Developer options → Wireless debugging → \"Pair device with pairing code\" and leave it on " +
+                                            "screen. Lobby reads the code and pairs — no typing, no Home button.",
+                                        fontSize = 13.sp, color = LobbyColors.soft, lineHeight = 19.sp, modifier = Modifier.fillMaxWidth(0.95f),
+                                    )
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                        Button(onClick = actions.startAutoPair, enabled = !homeState.adbBusy) { Text("Pair automatically") }
+                                        Button(onClick = actions.openDeveloperOptions) { Text("Open settings") }
+                                        Button(onClick = actions.startAdbPairing, enabled = !homeState.adbBusy) { Text("Type code instead") }
+                                    }
+                                } else {
+                                    Text(
+                                        "Manual pairing: tap Start pairing, open \"Pair device with pairing code\" on the TV, note the " +
+                                            "6-digit code, press HOME (not Back) to return to Lobby, then type the code. (Enable Lobby's " +
+                                            "accessibility service to skip the typing — Lobby can then read the code itself.)",
+                                        fontSize = 13.sp, color = LobbyColors.soft, lineHeight = 19.sp, modifier = Modifier.fillMaxWidth(0.95f),
+                                    )
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                        Button(onClick = actions.startAdbPairing, enabled = !homeState.adbBusy) { Text("Start pairing") }
+                                        Button(onClick = actions.openAccessibilitySettings) { Text("Enable accessibility") }
+                                    }
                                 }
                             }
-                        }
-                        // Classic "Network debugging" path for TVs with no pairing step (e.g. NVIDIA Shield, which
-                        // connects over port 5555). Offered alongside pairing, since Lobby can't tell the two apart.
-                        if (!homeState.adbConnected && !homeState.adbPairingActive) {
-                            Text(
-                                "No pairing option (e.g. NVIDIA Shield)? Turn on \"Network debugging\" in Developer options, " +
-                                    "tap Connect, and accept \"Allow debugging\" on screen when it appears — then tap Connect once more.",
-                                fontSize = 13.sp, color = LobbyColors.soft, lineHeight = 19.sp, modifier = Modifier.fillMaxWidth(0.95f),
-                            )
-                            Button(onClick = actions.connectNetworkDebugging, enabled = !homeState.adbBusy) {
-                                Text(if (homeState.adbBusy) "Connecting…" else "Connect via Network debugging")
+                            // Classic "Network debugging" (port 5555, no pairing) — e.g. NVIDIA Shield.
+                            if (showNetwork) {
+                                Text(
+                                    "Network debugging (no pairing — e.g. NVIDIA Shield): turn on \"Network debugging\" in Developer " +
+                                        "options, tap Connect, and accept \"Allow debugging\" on screen when it appears — then tap Connect once more.",
+                                    fontSize = 13.sp, color = LobbyColors.soft, lineHeight = 19.sp, modifier = Modifier.fillMaxWidth(0.95f),
+                                )
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    Button(onClick = actions.connectNetworkDebugging, enabled = !homeState.adbBusy) {
+                                        Text(if (homeState.adbBusy) "Connecting…" else "Connect via Network debugging")
+                                    }
+                                    Button(onClick = actions.openDeveloperOptions) { Text("Open settings") }
+                                }
+                            }
+                            // Nothing is hidden for good: the method we didn't guess is one tap away. (Only when both
+                            // actually apply — i.e. the device is new enough to pair at all.)
+                            if (supportsPairing && !showAlternate && !homeState.adbPairedBefore) {
+                                Button(onClick = { showAlternate = true }, enabled = !homeState.adbBusy) {
+                                    Text(if (preferNetwork) "My TV has Wireless Debugging (pairing)" else "My TV has no pairing option")
+                                }
                             }
                         }
                         if (homeState.adbPairingActive) {
