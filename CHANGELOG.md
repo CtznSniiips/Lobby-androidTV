@@ -5,6 +5,11 @@ All notable changes to Lobby for Android TV are recorded here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.17.0] - 11/25/2026
+
+### Changed
+- The self-update section now leads with the ADB method your TV most likely uses — Wireless Debugging pairing on Android 11+, or classic Network debugging (port 5555) on older TVs and the NVIDIA Shield — instead of showing both at once. The other method stays one tap away ("My TV has no pairing option" / "My TV has Wireless Debugging"), since the right method can't always be detected up front.
+
 ## [v0.16.0] - 11/22/2026
 
 ### Added
@@ -143,6 +148,7 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 - Fixed signing key via a GitHub Actions secret, so new builds install over older ones without uninstalling.
 
 [Unreleased]: https://github.com/CtznSniiips/Lobby-androidTV/compare/v0.12.0...HEAD
+[v0.17.0]: https://github.com/CtznSniiips/Lobby-androidTV/compare/v0.16.0...v0.17.0
 [v0.16.0]: https://github.com/CtznSniiips/Lobby-androidTV/compare/v0.15.0...v0.16.0
 [v0.15.0]: https://github.com/CtznSniiips/Lobby-androidTV/compare/v0.14.4...v0.15.0
 [v0.14.4]: https://github.com/CtznSniiips/Lobby-androidTV/compare/v0.14.3...v0.14.4
