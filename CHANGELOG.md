@@ -7,6 +7,9 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ## [v0.17.0] - 11/25/2026
 
+### Added
+- The title details screen now shows who requested a title in Seerr ("Requested by …"), for titles that have been requested. Uses the requester's Seerr display name.
+
 ### Changed
 - The self-update section now leads with the ADB method your TV most likely uses — Wireless Debugging pairing on Android 11+, or classic Network debugging (port 5555) on older TVs and the NVIDIA Shield — instead of showing both at once. The other method stays one tap away ("My TV has no pairing option" / "My TV has Wireless Debugging"), since the right method can't always be detected up front.
 

@@ -113,6 +113,10 @@ fun DetailsScreen(
                     if (status != null) {
                         Text(status, fontSize = 16.sp, color = LobbyColors.accent)
                     }
+                    // Who requested it in Seerr, when that's known (not shown for titles that were never requested).
+                    data?.requestedBy?.takeIf { it.isNotBlank() }?.let { who ->
+                        Text("Requested by $who", fontSize = 16.sp, color = LobbyColors.soft)
+                    }
                 }
             }
 
