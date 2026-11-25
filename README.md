@@ -70,33 +70,6 @@ Set it up once, entirely on the TV:
 
 After that, Lobby pairs just once (it reconnects on its own) and installs its own updates over ADB from the couch. The update check, notice and release are unchanged; only the install path moved to ADB. On the Updates screen, **Install over ADB** does the same thing.
 
-### If you'd rather not pair: the self-heal shortcut
-
-An alternative for devices where you don't want to use the self-updater. If your device lets an app write the accessibility setting, grant Lobby `WRITE_SECURE_SETTINGS` once over ADB and it will re-enable its own override after each update. On many boxes you must also lift the restriction with an AppOp — the equivalent of the "Allow restricted settings" button that Google TV's UI doesn't expose:
-
-```
-adb shell pm grant io.github.ctznsniiips.lobby android.permission.WRITE_SECURE_SETTINGS
-adb shell appops set io.github.ctznsniiips.lobby ACCESS_RESTRICTED_SETTINGS allow
-```
-
-Then test whether the setting actually sticks:
-
-```
-adb shell settings put secure enabled_accessibility_services io.github.ctznsniiips.lobby/io.github.ctznsniiips.lobby.HomeOverrideService
-adb shell settings get secure enabled_accessibility_services
-```
-
-If the `get` echoes the component, you're set and in-app updates will self-heal. If it comes back `null`, your device reverts the write no matter what — use the ADB-install route above; the self-heal can't help on that device.
-
-**Multi-user boxes.** Some Google TVs run the main profile as a non-zero user (e.g. user 10), and these settings are per-user — a command run against the wrong user does nothing. Check the active user and target it with `--user`:
-
-```
-adb shell am get-current-user          # e.g. prints 10
-adb shell pm grant --user 10 io.github.ctznsniiips.lobby android.permission.WRITE_SECURE_SETTINGS
-adb shell appops set --user 10 io.github.ctznsniiips.lobby ACCESS_RESTRICTED_SETTINGS allow
-adb shell settings put --user 10 secure enabled_accessibility_services io.github.ctznsniiips.lobby/io.github.ctznsniiips.lobby.HomeOverrideService
-```
-
 ### Connecting ADB
 
 The commands above run over an existing ADB connection — the TV's address goes in the `adb connect`/`adb pair` step, not in the commands themselves. A TV box usually has no USB port, so connect over the network:
