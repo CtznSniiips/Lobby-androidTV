@@ -144,7 +144,7 @@ fun paletteFor(bgMode: String): LobbyPalette = when (bgMode) {
 object LobbyColors {
     var palette by mutableStateOf(DarkPalette)
     /** The Focus style the theme sets from settings: "type" (solid fill) or "glass" (translucent plate). */
-    var focusStyle by mutableStateOf("type")
+    var focusStyle by mutableStateOf("glass")
     /** The glass Material the theme sets from settings: "soft", "frost" or "tint". */
     var material by mutableStateOf("soft")
     /** Whether the active Background is Photo (so a wallpaper sits behind the chrome). */
@@ -185,7 +185,7 @@ object LobbyColors {
 fun LobbyTheme(
     font: String = "manrope",
     bgMode: String = "dark",
-    focusStyle: String = "type",
+    focusStyle: String = "glass",
     material: String = "soft",
     content: @Composable () -> Unit,
 ) {

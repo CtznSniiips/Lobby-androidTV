@@ -102,7 +102,7 @@ data class LobbyState(
     val bgMode: String = "dark",
     val wallpaper: String = "misty",
     /** Focus style ("type" or "glass") and the glass Material ("soft", "frost", "tint"). */
-    val focusStyle: String = "type",
+    val focusStyle: String = "glass",
     val material: String = "soft",
     /** Home layout ("list", "dock", "watch") and how apps are shown ("icons", "both", "text"). */
     val homeLayout: String = "watch",

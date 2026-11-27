@@ -107,7 +107,7 @@ class SessionStore(context: Context) {
     }
 
     /** The Focus style: "type" (solid fill) or "glass" (translucent plate). */
-    fun focusStyle(): String = prefs.getString(KEY_FOCUS_STYLE, "type") ?: "type"
+    fun focusStyle(): String = prefs.getString(KEY_FOCUS_STYLE, "glass") ?: "glass"
 
     fun setFocusStyle(id: String) {
         prefs.edit().putString(KEY_FOCUS_STYLE, id).apply()
