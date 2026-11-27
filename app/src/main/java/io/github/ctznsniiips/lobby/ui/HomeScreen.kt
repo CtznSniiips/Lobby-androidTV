@@ -3,6 +3,7 @@
 package io.github.ctznsniiips.lobby.ui
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -477,9 +478,11 @@ fun HomeScreen(
             Box(
                 Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(bottom = 8.dp)
+                    // A little extra bottom room so the focus glow's lower edge stays on-screen — the drawn glow is
+                    // visually gone by ~12dp, so this is about as low as the dock goes without clipping it.
+                    .padding(bottom = 12.dp)
                     .onFocusChanged { if (it.hasFocus) browsed = null },
-            ) { AppDock(state.apps, onApp, dockFocus, glass = state.bgMode == "photo", wallpaperUri = wallpaper.fullUri, material = state.material, rootSize = rootSize, appDisplay = state.appDisplay, onMove = onMoveApp) }
+            ) { AppDock(state.apps, onApp, dockFocus, glass = state.bgMode == "photo", wallpaperUri = wallpaper.fullUri, material = state.material, rootSize = rootSize, appDisplay = state.appDisplay, glowEnabled = state.appBarGlow, glowLevel = state.appBarGlowLevel, onMove = onMoveApp) }
         }
 
         MessageToast(state.message, onMessageShown, Modifier.align(Alignment.BottomCenter))
@@ -619,13 +622,20 @@ private fun HeroButton(
     onCycle: (delta: Int) -> Boolean,
     onClick: () -> Unit,
 ) {
+    val interaction = remember { MutableInteractionSource() }
+    val focused by interaction.collectIsFocusedAsState()
+    val glassFocus = LobbyColors.focusStyle == "glass"
+    val shape = androidx.compose.foundation.shape.RoundedCornerShape(22.dp)
     Surface(
         onClick = onClick,
-        shape = ClickableSurfaceDefaults.shape(androidx.compose.foundation.shape.RoundedCornerShape(22.dp)),
+        interactionSource = interaction,
+        shape = ClickableSurfaceDefaults.shape(shape),
         colors = ClickableSurfaceDefaults.colors(
             containerColor = LobbyColors.chromeSubtle,
             contentColor = LobbyColors.ink,
-            focusedContainerColor = LobbyColors.focusFill,
+            // In Glass mode the plate is the frosted selector drawn below (matching the dock and rail); in Type mode
+            // it's the solid focusFill.
+            focusedContainerColor = if (glassFocus) Color.Transparent else LobbyColors.focusFill,
             focusedContentColor = LobbyColors.focusContent,
         ),
         modifier = Modifier
@@ -640,8 +650,13 @@ private fun HeroButton(
                 } else false
             },
     ) {
-        Box(Modifier.padding(horizontal = 18.dp, vertical = 7.dp), contentAlignment = Alignment.Center) {
-            Text(text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+        Box(contentAlignment = Alignment.Center) {
+            if (focused && glassFocus) {
+                if (LobbyColors.palette.light) LightSelector(shape) else GlassSelector(shape)
+            }
+            Box(Modifier.padding(horizontal = 18.dp, vertical = 7.dp)) {
+                Text(text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            }
         }
     }
 }
@@ -1245,34 +1260,32 @@ private class DownscaleBlur(private val factor: Int = 20) : Transformation {
 }
 
 /**
- * A raised frosted-glass focus selector. A soft drop shadow lifts it off the surface, a top-lit gradient fill gives
- * it a convex 3D feel, and a gradient rim (brighter at the top, fading down) softens the edge. Shared by the dock
- * apps and, in Glass mode, the free rail icons.
+ * The Glass focus selector: a lit, frosted translucent plate. A bright top-lit gradient fades straight down for a
+ * glass sheen, capped by a crisp top highlight. No drop shadow (it showed through the translucent plate as a faint
+ * box) and the gradient no longer brightens again at the bottom. Shared by the dock apps and, in Glass mode, the rail.
  */
 @Composable
 private fun BoxScope.GlassSelector(shape: Shape) {
     Box(
         Modifier.matchParentSize()
-            .shadow(5.dp, shape, clip = false)
             .clip(shape)
-            // Samsung --plate: a gentle top-lit gradient (.30 → .16 → .22).
-            .background(Brush.verticalGradient(0f to Color(0x4DFFFFFF), 0.58f to Color(0x29FFFFFF), 1f to Color(0x38FFFFFF)))
-            // Samsung --plate-edge: only a top inner hairline (.34), not a full bright rim.
-            .border(1.dp, Brush.verticalGradient(0f to Color(0x57FFFFFF), 0.12f to Color.Transparent), shape),
+            // Bright at the top, fading straight down — a clear glass sheen, no brighter bottom band.
+            .background(Brush.verticalGradient(0f to Color(0x66FFFFFF), 0.55f to Color(0x2EFFFFFF), 1f to Color(0x1FFFFFFF)))
+            // A crisp bright top highlight.
+            .border(1.dp, Brush.verticalGradient(0f to Color(0x80FFFFFF), 0.2f to Color.Transparent), shape),
     )
 }
 
 /**
- * The subtle focus selector for the dark (non-photo) dock, matching the Samsung --plate: a soft 8% warm-white plate
- * with a 1px top-lit hairline (--plate-edge) for a gentle 3D feel — no glass, no full rim, no shadow.
+ * The Type focus selector for the dark dock: a flat, even warm-white plate — no top-lit highlight or rim — so it
+ * reads as a plain solid fill, clearly different from the Glass selector's lit sheen.
  */
 @Composable
 private fun BoxScope.SubtleSelector(shape: Shape) {
     Box(
         Modifier.matchParentSize()
             .clip(shape)
-            .background(Color(0x14F6F1E7))
-            .border(1.dp, Brush.verticalGradient(0f to Color(0x1AFFFAF0), 0.16f to Color.Transparent), shape),
+            .background(Color(0x26F6F1E7)),
     )
 }
 
@@ -1282,8 +1295,29 @@ private fun BoxScope.LightSelector(shape: Shape) {
     Box(
         Modifier.matchParentSize()
             .clip(shape)
-            .background(Color(0x121D1A16)),
+            .background(Color(0x1E1D1A16)),
     )
+}
+
+/**
+ * The app-bar focus glow: a white halo feathered evenly outward from a rounded-rect panel (concentric rounded-rect
+ * strokes with a quadratic alpha falloff), bounded to `spreadPx`. Shared by the real dock and the settings preview so
+ * they match. `peak` is the white alpha at the panel edge.
+ */
+internal fun DrawScope.drawDockGlow(spreadPx: Float, cornerPx: Float, peak: Float) {
+    val steps = 16
+    val stepPx = spreadPx / steps
+    for (i in 1..steps) {
+        val out = stepPx * i
+        val t = i.toFloat() / steps
+        drawRoundRect(
+            color = Color.White.copy(alpha = peak * (1f - t) * (1f - t)),
+            topLeft = Offset(-out, -out),
+            size = Size(size.width + 2f * out, size.height + 2f * out),
+            cornerRadius = CornerRadius(cornerPx + out),
+            style = Stroke(width = stepPx * 2f),
+        )
+    }
 }
 
 /** The app dock: a compact, centred rounded bar of launchable apps pinned at the bottom, like the Samsung app's. */
@@ -1297,6 +1331,8 @@ private fun AppDock(
     material: String,
     rootSize: IntSize,
     appDisplay: String = "both",
+    glowEnabled: Boolean = true,
+    glowLevel: String = "medium",
     onMove: (packageName: String, direction: Int) -> Unit = { _, _ -> },
 ) {
     val list = remember(apps) { apps.distinctBy { it.packageName } }
@@ -1334,6 +1370,11 @@ private fun AppDock(
     }
     val topLine = if (light) Color(0x1F1C1A17) else Color(0x3DFFFFFF)
     val faintRim = if (light) Color(0x0A1C1A17) else Color(0x0AFFFFFF)
+    // A white glow around the whole bar whenever focus is anywhere in it, so arriving in the app bar from the rows is
+    // obvious. Hand-drawn (see drawBehind below) rather than an elevation shadow, so it's bright and even on every
+    // side. This is just the fade-in amount: 0 when idle (nothing drawn), 1 when focused.
+    var dockFocused by remember { mutableStateOf(false) }
+    val glowAlpha by animateFloatAsState(if (dockFocused) 1f else 0f, label = "dockGlow")
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
       // A compact coachmark while a tile is lifted, so the long-press gesture is discoverable.
       if (movingPackage != null) {
@@ -1358,7 +1399,15 @@ private fun AppDock(
             // Cap the dock so it shows at most DOCK_MAX_APPS tiles (sized for a 1080p screen); more than that and the
             // tile row scrolls horizontally, bringing an off-screen focused tile into view automatically.
             .widthIn(max = DOCK_MAX_WIDTH)
+            .onFocusChanged { dockFocused = it.hasFocus }
             .shadow(if (glass) 16.dp else 6.dp, shape, clip = false)
+            // Focus glow: a hand-drawn white halo (see drawDockGlow), fading in when focus enters. Off when the setting
+            // is off, and its peak follows the chosen intensity. Bounded so it stays on-screen.
+            .drawBehind {
+                if (glowEnabled && glowAlpha > 0.01f) {
+                    drawDockGlow(16.dp.toPx(), 14.dp.toPx(), glowAlpha * glowPeakAlpha(glowLevel))
+                }
+            }
             .clip(shape)
             // Mostly a top-lit hairline, fading to almost nothing around the sides — not a full bright rim.
             .border(1.dp, Brush.verticalGradient(0f to topLine, 0.12f to faintRim), shape)
@@ -1464,7 +1513,7 @@ private fun AppDock(
                     containerColor = Color.Transparent,
                     focusedContainerColor = Color.Transparent,
                 ),
-                scale = ClickableSurfaceDefaults.scale(focusedScale = if (moving) 1.12f else 1.06f),
+                scale = ClickableSurfaceDefaults.scale(focusedScale = if (moving) 1.12f else 1.09f),
                 modifier = Modifier.width(88.dp)
                     .then(if (i == 0) Modifier.focusRequester(firstFocus) else Modifier)
                     // While a tile is being moved, left/right reposition it and centre/back commit; other keys are
@@ -1493,8 +1542,10 @@ private fun AppDock(
                         .then(if (moving) Modifier.border(2.dp, LobbyColors.accent, tileShape) else Modifier),
                 ) {
                     if (tileFocused && !moving) {
+                        // Follow the Focus style setting (Settings → Focus → Type), same as the rail: Glass uses the
+                        // frosted plate; Type uses a solid plate that adapts to a light or dark background.
                         when {
-                            glass -> GlassSelector(tileShape)
+                            LobbyColors.focusStyle == "glass" -> GlassSelector(tileShape)
                             light -> LightSelector(tileShape)
                             else -> SubtleSelector(tileShape)
                         }

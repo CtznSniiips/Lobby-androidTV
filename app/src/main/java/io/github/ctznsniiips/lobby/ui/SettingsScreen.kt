@@ -342,6 +342,30 @@ private fun CategoryDetail(
                         }
                     }
                 }
+                item { SectionHeader("App bar glow") }
+                item {
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        listOf(true to "On", false to "Off").forEach { (on, name) ->
+                            Button(onClick = { actions.setAppBarGlow(on) }) {
+                                Text(name)
+                                if (on == homeState.appBarGlow) Text("  •", color = LobbyColors.accent)
+                            }
+                        }
+                    }
+                }
+                if (homeState.appBarGlow) {
+                    item { SectionHeader("Glow intensity") }
+                    item {
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            GlowChoices.forEach { (id, name) ->
+                                Button(onClick = { actions.setAppBarGlowLevel(id) }) {
+                                    Text(name)
+                                    if (id == homeState.appBarGlowLevel) Text("  •", color = LobbyColors.accent)
+                                }
+                            }
+                        }
+                    }
+                }
                 item { SectionHeader("Material") }
                 if (materialApplies(bgMode)) {
                     item {
@@ -970,7 +994,12 @@ private fun SettingsPreview(
             Row(
                 Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(bottom = 8.dp)
+                    .padding(bottom = 10.dp)
+                    // Preview of the app-bar focus glow, at the chosen intensity (scaled down for the mini dock). Shown
+                    // as if focused so the setting is visible here; hidden when the glow is off.
+                    .drawBehind {
+                        if (homeState.appBarGlow) drawDockGlow(7.dp.toPx(), 6.dp.toPx(), glowPeakAlpha(homeState.appBarGlowLevel))
+                    }
                     .clip(dockShape)
                     .background(barFill)
                     .border(1.dp, Brush.verticalGradient(0f to topLine, 0.12f to Color.Transparent), dockShape)

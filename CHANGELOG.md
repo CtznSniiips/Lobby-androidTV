@@ -5,6 +5,14 @@ All notable changes to Lobby for Android TV are recorded here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.18.0] - 11/27/2026
+
+### Changed
+- Focus in the app dock is clearer: a soft white glow appears evenly around the whole bar when focus is in it, the focused tile scales up a little more, and its selection plate is a touch stronger — so moving into the app bar from the rows is obvious.
+- The Focus style setting (Settings → Focus → Type/Glass) now also drives the app dock's focused tile, matching the rest of the UI (it previously keyed off the background mode).
+- The default Focus style is now Glass (was Type).
+- The app-bar focus glow is configurable under Settings → Focus — on/off plus a Low/Medium/High intensity picker — with a live preview.
+
 ## [v0.17.0] - 11/25/2026
 
 ### Added
@@ -151,6 +159,7 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 - Fixed signing key via a GitHub Actions secret, so new builds install over older ones without uninstalling.
 
 [Unreleased]: https://github.com/CtznSniiips/Lobby-androidTV/compare/v0.12.0...HEAD
+[v0.18.0]: https://github.com/CtznSniiips/Lobby-androidTV/compare/v0.17.0...v0.18.0
 [v0.17.0]: https://github.com/CtznSniiips/Lobby-androidTV/compare/v0.16.0...v0.17.0
 [v0.16.0]: https://github.com/CtznSniiips/Lobby-androidTV/compare/v0.15.0...v0.16.0
 [v0.15.0]: https://github.com/CtznSniiips/Lobby-androidTV/compare/v0.14.4...v0.15.0

@@ -70,6 +70,8 @@ class SettingsActions(
     val setBgMode: (mode: String) -> Unit,
     val setWallpaper: (id: String) -> Unit,
     val setFocusStyle: (id: String) -> Unit,
+    val setAppBarGlow: (value: Boolean) -> Unit,
+    val setAppBarGlowLevel: (id: String) -> Unit,
     val setMaterial: (id: String) -> Unit,
     val setHomeLayout: (id: String) -> Unit,
     val setAppDisplay: (id: String) -> Unit,

@@ -81,6 +81,16 @@ val BackgroundModes = listOf("photo" to "Photo", "dark" to "Dark", "light" to "L
 /** The two Focus styles, with display names. */
 val FocusChoices = listOf("type" to "Type", "glass" to "Glass")
 
+/** Intensity levels for the app-bar focus glow, with display names. */
+val GlowChoices = listOf("low" to "Low", "medium" to "Medium", "high" to "High")
+
+/** Peak white alpha of the app-bar focus glow for a given intensity level (medium matches the original tuning). */
+fun glowPeakAlpha(level: String): Float = when (level) {
+    "low" -> 0.18f
+    "high" -> 0.48f
+    else -> 0.30f
+}
+
 /** The glass Materials, with display names. Only selectable over a Photo background. */
 val MaterialChoices = listOf("soft" to "Soft", "frost" to "Frost", "tint" to "Clear tint")
 
@@ -144,7 +154,7 @@ fun paletteFor(bgMode: String): LobbyPalette = when (bgMode) {
 object LobbyColors {
     var palette by mutableStateOf(DarkPalette)
     /** The Focus style the theme sets from settings: "type" (solid fill) or "glass" (translucent plate). */
-    var focusStyle by mutableStateOf("type")
+    var focusStyle by mutableStateOf("glass")
     /** The glass Material the theme sets from settings: "soft", "frost" or "tint". */
     var material by mutableStateOf("soft")
     /** Whether the active Background is Photo (so a wallpaper sits behind the chrome). */
@@ -185,7 +195,7 @@ object LobbyColors {
 fun LobbyTheme(
     font: String = "manrope",
     bgMode: String = "dark",
-    focusStyle: String = "type",
+    focusStyle: String = "glass",
     material: String = "soft",
     content: @Composable () -> Unit,
 ) {

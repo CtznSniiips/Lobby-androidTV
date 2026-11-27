@@ -57,6 +57,8 @@ class MainActivity : ComponentActivity() {
             setBgMode = viewModel::setBgMode,
             setWallpaper = viewModel::setWallpaper,
             setFocusStyle = viewModel::setFocusStyle,
+            setAppBarGlow = viewModel::setAppBarGlow,
+            setAppBarGlowLevel = viewModel::setAppBarGlowLevel,
             setMaterial = viewModel::setMaterial,
             setHomeLayout = viewModel::setHomeLayout,
             setAppDisplay = viewModel::setAppDisplay,
