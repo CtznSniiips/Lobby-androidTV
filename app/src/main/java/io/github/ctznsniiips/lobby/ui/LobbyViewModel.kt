@@ -104,6 +104,9 @@ data class LobbyState(
     /** Focus style ("type" or "glass") and the glass Material ("soft", "frost", "tint"). */
     val focusStyle: String = "glass",
     val material: String = "soft",
+    /** App-bar (dock) focus glow: whether it's shown, and its intensity ("low"/"medium"/"high"). */
+    val appBarGlow: Boolean = true,
+    val appBarGlowLevel: String = "medium",
     /** Home layout ("list", "dock", "watch") and how apps are shown ("icons", "both", "text"). */
     val homeLayout: String = "watch",
     val appDisplay: String = "both",
@@ -179,7 +182,7 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
     /** The last code auto-pair attempted, so a failed attempt doesn't retry the same code on every screen update. */
     private var adbLastTriedCode: String? = null
 
-    private val _state = MutableStateFlow(LobbyState(lastAddress = store.lastOrigin().orEmpty(), screenSaverMinutes = store.screenSaverMinutes(), homePromptDismissed = store.homePromptDismissed(), hiddenApps = store.hiddenApps(), hiddenInputs = store.hiddenInputs(), homeFont = store.homeFont(), bgMode = store.bgMode(), wallpaper = store.wallpaper(), focusStyle = store.focusStyle(), material = store.material(), homeLayout = store.homeLayout(), appDisplay = store.appDisplay(), combineContinueNextUp = store.combineContinueNextUp(), quietOnIdleMinutes = store.quietOnIdleMinutes(), checkForUpdates = store.checkForUpdates(), showUpdateNotice = store.showUpdateNotice(), updateDismissedVersion = store.dismissedUpdateVersion(), currentVersion = device.appVersionName()))
+    private val _state = MutableStateFlow(LobbyState(lastAddress = store.lastOrigin().orEmpty(), screenSaverMinutes = store.screenSaverMinutes(), homePromptDismissed = store.homePromptDismissed(), hiddenApps = store.hiddenApps(), hiddenInputs = store.hiddenInputs(), homeFont = store.homeFont(), bgMode = store.bgMode(), wallpaper = store.wallpaper(), focusStyle = store.focusStyle(), material = store.material(), appBarGlow = store.appBarGlow(), appBarGlowLevel = store.appBarGlowLevel(), homeLayout = store.homeLayout(), appDisplay = store.appDisplay(), combineContinueNextUp = store.combineContinueNextUp(), quietOnIdleMinutes = store.quietOnIdleMinutes(), checkForUpdates = store.checkForUpdates(), showUpdateNotice = store.showUpdateNotice(), updateDismissedVersion = store.dismissedUpdateVersion(), currentVersion = device.appVersionName()))
     val state: StateFlow<LobbyState> = _state.asStateFlow()
 
     // Bumped on every remote key press; the idle watcher restarts its countdown when it changes.
@@ -357,6 +360,16 @@ class LobbyViewModel(app: Application) : AndroidViewModel(app) {
     fun setFocusStyle(id: String) {
         store.setFocusStyle(id)
         _state.update { it.copy(focusStyle = id) }
+    }
+
+    fun setAppBarGlow(value: Boolean) {
+        store.setAppBarGlow(value)
+        _state.update { it.copy(appBarGlow = value) }
+    }
+
+    fun setAppBarGlowLevel(id: String) {
+        store.setAppBarGlowLevel(id)
+        _state.update { it.copy(appBarGlowLevel = id) }
     }
 
     fun setMaterial(id: String) {

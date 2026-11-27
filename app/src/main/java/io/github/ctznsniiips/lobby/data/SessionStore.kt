@@ -113,6 +113,19 @@ class SessionStore(context: Context) {
         prefs.edit().putString(KEY_FOCUS_STYLE, id).apply()
     }
 
+    /** Whether the app-bar (dock) focus glow is shown, and how intense ("low"/"medium"/"high"). */
+    fun appBarGlow(): Boolean = prefs.getBoolean(KEY_APP_BAR_GLOW, true)
+
+    fun setAppBarGlow(value: Boolean) {
+        prefs.edit().putBoolean(KEY_APP_BAR_GLOW, value).apply()
+    }
+
+    fun appBarGlowLevel(): String = prefs.getString(KEY_APP_BAR_GLOW_LEVEL, "medium") ?: "medium"
+
+    fun setAppBarGlowLevel(id: String) {
+        prefs.edit().putString(KEY_APP_BAR_GLOW_LEVEL, id).apply()
+    }
+
     /** The glass Material (only meaningful over a photo background): "soft", "frost" or "tint". */
     fun material(): String = prefs.getString(KEY_MATERIAL, "soft") ?: "soft"
 
@@ -172,6 +185,8 @@ class SessionStore(context: Context) {
         const val KEY_BG_MODE = "bgMode"
         const val KEY_WALLPAPER = "wallpaper"
         const val KEY_FOCUS_STYLE = "focusStyle"
+        const val KEY_APP_BAR_GLOW = "appBarGlow"
+        const val KEY_APP_BAR_GLOW_LEVEL = "appBarGlowLevel"
         const val KEY_MATERIAL = "material"
         const val KEY_HOME_LAYOUT = "homeLayout"
         const val KEY_APP_DISPLAY = "appDisplay"

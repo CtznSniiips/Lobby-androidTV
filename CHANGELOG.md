@@ -11,6 +11,7 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 - Focus in the app dock is clearer: a soft white glow appears evenly around the whole bar when focus is in it, the focused tile scales up a little more, and its selection plate is a touch stronger — so moving into the app bar from the rows is obvious.
 - The Focus style setting (Settings → Focus → Type/Glass) now also drives the app dock's focused tile, matching the rest of the UI (it previously keyed off the background mode).
 - The default Focus style is now Glass (was Type).
+- The app-bar focus glow is configurable under Settings → Focus — on/off plus a Low/Medium/High intensity picker — with a live preview.
 
 ## [v0.17.0] - 11/25/2026
 

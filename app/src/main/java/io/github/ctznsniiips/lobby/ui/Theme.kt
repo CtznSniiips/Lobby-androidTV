@@ -81,6 +81,16 @@ val BackgroundModes = listOf("photo" to "Photo", "dark" to "Dark", "light" to "L
 /** The two Focus styles, with display names. */
 val FocusChoices = listOf("type" to "Type", "glass" to "Glass")
 
+/** Intensity levels for the app-bar focus glow, with display names. */
+val GlowChoices = listOf("low" to "Low", "medium" to "Medium", "high" to "High")
+
+/** Peak white alpha of the app-bar focus glow for a given intensity level (medium matches the original tuning). */
+fun glowPeakAlpha(level: String): Float = when (level) {
+    "low" -> 0.18f
+    "high" -> 0.48f
+    else -> 0.30f
+}
+
 /** The glass Materials, with display names. Only selectable over a Photo background. */
 val MaterialChoices = listOf("soft" to "Soft", "frost" to "Frost", "tint" to "Clear tint")
 

@@ -482,7 +482,7 @@ fun HomeScreen(
                     // visually gone by ~12dp, so this is about as low as the dock goes without clipping it.
                     .padding(bottom = 12.dp)
                     .onFocusChanged { if (it.hasFocus) browsed = null },
-            ) { AppDock(state.apps, onApp, dockFocus, glass = state.bgMode == "photo", wallpaperUri = wallpaper.fullUri, material = state.material, rootSize = rootSize, appDisplay = state.appDisplay, onMove = onMoveApp) }
+            ) { AppDock(state.apps, onApp, dockFocus, glass = state.bgMode == "photo", wallpaperUri = wallpaper.fullUri, material = state.material, rootSize = rootSize, appDisplay = state.appDisplay, glowEnabled = state.appBarGlow, glowLevel = state.appBarGlowLevel, onMove = onMoveApp) }
         }
 
         MessageToast(state.message, onMessageShown, Modifier.align(Alignment.BottomCenter))
@@ -1299,6 +1299,27 @@ private fun BoxScope.LightSelector(shape: Shape) {
     )
 }
 
+/**
+ * The app-bar focus glow: a white halo feathered evenly outward from a rounded-rect panel (concentric rounded-rect
+ * strokes with a quadratic alpha falloff), bounded to `spreadPx`. Shared by the real dock and the settings preview so
+ * they match. `peak` is the white alpha at the panel edge.
+ */
+internal fun DrawScope.drawDockGlow(spreadPx: Float, cornerPx: Float, peak: Float) {
+    val steps = 16
+    val stepPx = spreadPx / steps
+    for (i in 1..steps) {
+        val out = stepPx * i
+        val t = i.toFloat() / steps
+        drawRoundRect(
+            color = Color.White.copy(alpha = peak * (1f - t) * (1f - t)),
+            topLeft = Offset(-out, -out),
+            size = Size(size.width + 2f * out, size.height + 2f * out),
+            cornerRadius = CornerRadius(cornerPx + out),
+            style = Stroke(width = stepPx * 2f),
+        )
+    }
+}
+
 /** The app dock: a compact, centred rounded bar of launchable apps pinned at the bottom, like the Samsung app's. */
 @Composable
 private fun AppDock(
@@ -1310,6 +1331,8 @@ private fun AppDock(
     material: String,
     rootSize: IntSize,
     appDisplay: String = "both",
+    glowEnabled: Boolean = true,
+    glowLevel: String = "medium",
     onMove: (packageName: String, direction: Int) -> Unit = { _, _ -> },
 ) {
     val list = remember(apps) { apps.distinctBy { it.packageName } }
@@ -1378,26 +1401,11 @@ private fun AppDock(
             .widthIn(max = DOCK_MAX_WIDTH)
             .onFocusChanged { dockFocused = it.hasFocus }
             .shadow(if (glass) 16.dp else 6.dp, shape, clip = false)
-            // Focus glow: a white halo feathered evenly around the whole bar, drawn by hand (not an elevation shadow)
-            // so it's as bright as we want, even on all four sides, and bounded to `spread` so it stays on-screen.
-            // Concentric rounded-rect strokes from the panel edge outward, alpha falling off with distance.
+            // Focus glow: a hand-drawn white halo (see drawDockGlow), fading in when focus enters. Off when the setting
+            // is off, and its peak follows the chosen intensity. Bounded so it stays on-screen.
             .drawBehind {
-                if (glowAlpha > 0.01f) {
-                    val spread = 16.dp.toPx()
-                    val corner = 14.dp.toPx()
-                    val steps = 16
-                    val stepPx = spread / steps
-                    for (i in 1..steps) {
-                        val out = stepPx * i
-                        val t = i.toFloat() / steps
-                        drawRoundRect(
-                            color = Color.White.copy(alpha = glowAlpha * 0.3f * (1f - t) * (1f - t)),
-                            topLeft = Offset(-out, -out),
-                            size = Size(size.width + 2f * out, size.height + 2f * out),
-                            cornerRadius = CornerRadius(corner + out),
-                            style = Stroke(width = stepPx * 2f),
-                        )
-                    }
+                if (glowEnabled && glowAlpha > 0.01f) {
+                    drawDockGlow(16.dp.toPx(), 14.dp.toPx(), glowAlpha * glowPeakAlpha(glowLevel))
                 }
             }
             .clip(shape)
